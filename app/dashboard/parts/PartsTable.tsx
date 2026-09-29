@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Part = {
@@ -90,6 +90,47 @@ function InlineCell({
   );
 }
 
+const INVENTORY_COLS = [
+  { key: "name", label: "Item", align: "left" as const, width: 220 },
+  { key: "stock", label: "Stock on hand", align: "right" as const, width: 110 },
+  { key: "supplier", label: "Supplier", align: "left" as const, width: 140 },
+  { key: "coverage", label: "Coverage/pack", align: "right" as const, width: 110 },
+  { key: "packCost", label: "Pack cost ex", align: "right" as const, width: 110 },
+  { key: "installerRate", label: "Installer rate/m²", align: "right" as const, width: 130 },
+  { key: "supplyPack", label: "Supply/pack", align: "right" as const, width: 110 },
+  { key: "pks", label: "Pks", align: "right" as const, width: 70 },
+  { key: "multi", label: "Multi", align: "right" as const, width: 70 },
+  { key: "packPerMulti", label: "Pack per multi", align: "right" as const, width: 120 },
+  { key: "supplyInstall", label: "Supply+install/m²", align: "right" as const, width: 140 },
+  { key: "value", label: "Inventory value", align: "right" as const, width: 130 },
+  { key: "actions", label: "", align: "right" as const, width: 90 },
+];
+
+const COL_WIDTHS_KEY = "coverage-inventory-col-widths";
+
+// A column header that can be dragged wider/narrower from its right edge.
+function ResizableTh({
+  label,
+  align,
+  onResizeStart,
+}: {
+  label: string;
+  align: "left" | "right";
+  onResizeStart: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <th
+      className={`relative overflow-hidden px-3 py-2 ${align === "right" ? "text-right" : "text-left"}`}
+    >
+      {label}
+      <span
+        onMouseDown={onResizeStart}
+        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-accent/40"
+      />
+    </th>
+  );
+}
+
 // A select that behaves the same way — commits immediately on change.
 function InlineSelect({
   value,
@@ -131,6 +172,55 @@ export default function PartsTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+
+  const [colWidths, setColWidths] = useState(INVENTORY_COLS.map((c) => c.width));
+  const resizingRef = useRef<{ idx: number; startX: number; startWidth: number } | null>(null);
+
+  // Load any previously saved column widths for this browser, so the layout stays the way it was left.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(COL_WIDTHS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === INVENTORY_COLS.length) {
+          setColWidths(parsed);
+        }
+      }
+    } catch {
+      // no saved widths yet, or storage unavailable — fall back to defaults
+    }
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const { idx, startX, startWidth } = resizingRef.current;
+      const next = Math.max(50, startWidth + (e.clientX - startX));
+      setColWidths((prev) => prev.map((w, i) => (i === idx ? next : w)));
+    };
+    const onUp = () => {
+      if (!resizingRef.current) return;
+      resizingRef.current = null;
+      setColWidths((prev) => {
+        try {
+          localStorage.setItem(COL_WIDTHS_KEY, JSON.stringify(prev));
+        } catch {
+          // ignore — persistence is a nice-to-have, not required for the table to work
+        }
+        return prev;
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const startResize = (idx: number) => (e: React.MouseEvent) => {
+    resizingRef.current = { idx, startX: e.clientX, startWidth: colWidths[idx] };
+  };
 
   const supplierById = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers]);
 
@@ -250,38 +340,21 @@ export default function PartsTable({
         </button>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full table-fixed text-sm">
+      <p className="mt-3 text-xs text-[var(--muted)]">
+        Drag a column's right edge to resize it — your widths are remembered next time you open this page.
+      </p>
+      <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
+        <table className="table-fixed text-sm" style={{ width: colWidths.reduce((a, b) => a + b, 0) }}>
           <colgroup>
-            <col className="w-[15%]" />
-            <col className="w-[7%]" />
-            <col className="w-[9%]" />
-            <col className="w-[7%]" />
-            <col className="w-[7%]" />
-            <col className="w-[8%]" />
-            <col className="w-[7%]" />
-            <col className="w-[5%]" />
-            <col className="w-[5%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
-            <col className="w-[9%]" />
-            <col className="w-[5%]" />
+            {colWidths.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
           </colgroup>
-          <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
+          <thead className="bg-[#f2f0ec] text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-3 py-2">Item</th>
-              <th className="px-3 py-2 text-right">Stock on hand</th>
-              <th className="px-3 py-2">Supplier</th>
-              <th className="px-3 py-2 text-right">Coverage/pack</th>
-              <th className="px-3 py-2 text-right">Pack cost ex</th>
-              <th className="px-3 py-2 text-right">Installer rate/m²</th>
-              <th className="px-3 py-2 text-right">Supply/pack</th>
-              <th className="px-3 py-2 text-right">Pks</th>
-              <th className="px-3 py-2 text-right">Multi</th>
-              <th className="px-3 py-2 text-right">Pack per multi</th>
-              <th className="px-3 py-2 text-right">Supply+install/m²</th>
-              <th className="px-3 py-2 text-right">Inventory value</th>
-              <th className="px-3 py-2"></th>
+              {INVENTORY_COLS.map((c, i) => (
+                <ResizableTh key={c.key} label={c.label} align={c.align} onResizeStart={startResize(i)} />
+              ))}
             </tr>
           </thead>
           <tbody>
