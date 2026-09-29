@@ -223,9 +223,15 @@ function ResizableTh({
       {label}
       <span
         draggable={false}
-        onMouseDown={onResizeStart}
+        onMouseDown={(e) => {
+          // Stop the header's own drag-to-reorder from hijacking this — without this, the
+          // browser can start dragging the whole column instead of resizing it.
+          e.preventDefault();
+          e.stopPropagation();
+          onResizeStart(e);
+        }}
         onDragStart={(e) => e.stopPropagation()}
-        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-accent/40"
+        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-accent/40"
       />
     </th>
   );
