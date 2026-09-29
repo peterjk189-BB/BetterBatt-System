@@ -176,6 +176,11 @@ const DEFAULT_COL_ORDER = INVENTORY_COLS.map((c) => c.key);
 const DEFAULT_COL_WIDTHS: Record<string, number> = Object.fromEntries(
   INVENTORY_COLS.map((c) => [c.key, c.width])
 );
+const HIDDEN_COLS_KEY = "coverage-inventory-hidden-cols";
+// Columns the user can choose to hide — "Item" and the archive action stay put so every row is
+// always identifiable and actionable.
+const TOGGLEABLE_COLS = INVENTORY_COLS.filter((c) => c.key !== "name" && c.key !== "actions");
+
 const TD_CLASS: Record<string, string> = {
   stock: "px-3 py-1 text-center font-mono",
   totalM2: "px-3 py-1 text-center font-mono text-[var(--muted)]",
@@ -276,6 +281,8 @@ export default function PartsTable({
   const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COL_WIDTHS);
   const [colOrder, setColOrder] = useState<string[]>(DEFAULT_COL_ORDER);
   const [dragKey, setDragKey] = useState<string | null>(null);
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
 
   // Load any previously saved column widths/order for this browser, so the layout stays the way it was left.
@@ -311,6 +318,18 @@ export default function PartsTable({
       }
     } catch {
       // no saved order yet, or storage unavailable — fall back to defaults
+    }
+
+    try {
+      const savedHidden = localStorage.getItem(HIDDEN_COLS_KEY);
+      if (savedHidden) {
+        const parsed = JSON.parse(savedHidden);
+        if (Array.isArray(parsed)) {
+          setHiddenCols(new Set(parsed.filter((k: string) => DEFAULT_COL_ORDER.includes(k))));
+        }
+      }
+    } catch {
+      // no saved hidden-columns yet, or storage unavailable — fall back to showing everything
     }
   }, []);
 
@@ -360,6 +379,25 @@ export default function PartsTable({
       return next;
     });
   }
+
+  function toggleColumn(key: string) {
+    setHiddenCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify([...next]));
+      } catch {
+        // ignore — persistence is a nice-to-have, not required for the table to work
+      }
+      return next;
+    });
+  }
+
+  const visibleColOrder = useMemo(
+    () => colOrder.filter((key) => !hiddenCols.has(key)),
+    [colOrder, hiddenCols]
+  );
 
   const supplierById = useMemo(
     () => Object.fromEntries(supplierList.map((s) => [s.id, s.name])),
@@ -656,6 +694,55 @@ export default function PartsTable({
           >
             {importing ? "Importing..." : "Import CSV"}
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setColumnsMenuOpen((v) => !v)}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium"
+            >
+              Columns{hiddenCols.size > 0 ? ` (${hiddenCols.size} hidden)` : ""}
+            </button>
+            {columnsMenuOpen && (
+              <>
+                {/* Click-catcher to close the menu when clicking elsewhere */}
+                <div className="fixed inset-0 z-10" onClick={() => setColumnsMenuOpen(false)} />
+                <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+                  <p className="px-2 py-1 text-xs font-medium uppercase text-[var(--muted)]">
+                    Show columns
+                  </p>
+                  <div className="max-h-72 overflow-y-auto">
+                    {TOGGLEABLE_COLS.map((c) => (
+                      <label
+                        key={c.key}
+                        className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-black/[0.03]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!hiddenCols.has(c.key)}
+                          onChange={() => toggleColumn(c.key)}
+                        />
+                        {c.label}
+                      </label>
+                    ))}
+                  </div>
+                  {hiddenCols.size > 0 && (
+                    <button
+                      onClick={() => {
+                        setHiddenCols(new Set());
+                        try {
+                          localStorage.setItem(HIDDEN_COLS_KEY, JSON.stringify([]));
+                        } catch {
+                          // ignore
+                        }
+                      }}
+                      className="mt-1 w-full rounded px-2 py-1 text-left text-sm text-[var(--muted)] hover:underline"
+                    >
+                      Show all
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={() => setModalOpen(true)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
@@ -710,16 +797,16 @@ export default function PartsTable({
       <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table
           className="table-fixed text-sm"
-          style={{ width: colOrder.reduce((a, key) => a + (colWidths[key] ?? DEFAULT_COL_WIDTHS[key]), 0) }}
+          style={{ width: visibleColOrder.reduce((a, key) => a + (colWidths[key] ?? DEFAULT_COL_WIDTHS[key]), 0) }}
         >
           <colgroup>
-            {colOrder.map((key) => (
+            {visibleColOrder.map((key) => (
               <col key={key} style={{ width: colWidths[key] ?? DEFAULT_COL_WIDTHS[key] }} />
             ))}
           </colgroup>
           <thead className="bg-[#f2f0ec] text-xs uppercase text-[var(--muted)]">
             <tr>
-              {colOrder.map((key) => {
+              {visibleColOrder.map((key) => {
                 const c = INVENTORY_COLS.find((col) => col.key === key)!;
                 return (
                   <ResizableTh
@@ -754,7 +841,7 @@ export default function PartsTable({
                   !p.is_stock_item ? "opacity-60" : ""
                 }`}
               >
-                {colOrder.map((key) => (
+                {visibleColOrder.map((key) => (
                   <td key={key} className={TD_CLASS[key] ?? "px-1 py-1"}>
                     {renderCell(key, p)}
                   </td>
@@ -763,7 +850,7 @@ export default function PartsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={colOrder.length} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={visibleColOrder.length} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} parts found.
                 </td>
               </tr>
