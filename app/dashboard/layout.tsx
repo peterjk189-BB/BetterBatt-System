@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "./SignOutButton";
+import NavTabs from "./NavTabs";
 
 export default async function DashboardLayout({
   children,
@@ -40,20 +41,9 @@ export default async function DashboardLayout({
     <div className="min-h-screen">
       <header className="border-b border-[var(--border)] bg-[var(--surface)]">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="font-bold">
-              Coverage
-            </Link>
-            {isAdmin && (
-              <nav className="flex gap-4 text-sm text-[var(--muted)]">
-                {adminLinks.map((l) => (
-                  <Link key={l.href} href={l.href} className="hover:text-[var(--text)]">
-                    {l.label}
-                  </Link>
-                ))}
-              </nav>
-            )}
-          </div>
+          <Link href="/dashboard" className="font-bold">
+            Coverage
+          </Link>
           <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
             <span>
               {profile?.full_name || user.email}
@@ -62,6 +52,11 @@ export default async function DashboardLayout({
             <SignOutButton />
           </div>
         </div>
+        {isAdmin && (
+          <div className="mx-auto max-w-[1600px] px-6 pb-3">
+            <NavTabs links={adminLinks} />
+          </div>
+        )}
       </header>
       <main className="mx-auto max-w-[1600px] px-6 py-8">{children}</main>
     </div>
