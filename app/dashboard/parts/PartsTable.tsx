@@ -218,12 +218,20 @@ export default function PartsTable({
           <div className="text-xs uppercase text-[var(--muted)]">Total inventory value</div>
           <div className="mt-1 text-lg font-bold">{fmtCurrency(grandTotal)}</div>
         </div>
-        {supplierTotals.map(([supplier, value]) => (
-          <div key={supplier} className="rounded-xl border border-[var(--border)] p-3">
-            <div className="text-xs uppercase text-[var(--muted)]">{supplier}</div>
-            <div className="mt-1 text-lg font-bold">{fmtCurrency(value)}</div>
-          </div>
-        ))}
+        {supplierTotals.map(([supplier, value]) => {
+          const name = supplier.toLowerCase();
+          const tone = name.includes("fletcher")
+            ? "border-green-300 bg-green-50 text-green-900"
+            : name.includes("csr")
+            ? "border-red-300 bg-red-50 text-red-900"
+            : "border-[var(--border)]";
+          return (
+            <div key={supplier} className={`rounded-xl border p-3 ${tone}`}>
+              <div className="text-xs uppercase opacity-70">{supplier}</div>
+              <div className="mt-1 text-lg font-bold">{fmtCurrency(value)}</div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
