@@ -131,7 +131,7 @@ function InlineCell({
   // Prefix sits fixed at the left, and the input fills whatever room is left in the cell —
   // so it actually grows/shrinks when the column is resized, instead of staying a fixed size.
   return (
-    <div className={`flex items-center gap-1 ${JUSTIFY[align]}`}>
+    <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]}`}>
       {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
       <input
         type={type}
