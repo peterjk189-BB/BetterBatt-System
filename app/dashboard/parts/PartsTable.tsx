@@ -6,7 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 
 type Part = {
   id: string;
+  code: string | null;
   name: string;
+  type: string | null;
   supplier_id: string | null;
   coverage_m2: number;
   pack_cost_ex_gst: number;
@@ -28,7 +30,9 @@ function fmtCurrency(n: number) {
 }
 
 const emptyForm = {
+  code: "",
   name: "",
+  type: "",
   supplier_id: "",
   coverage_m2: 1,
   pack_cost_ex_gst: 0,
@@ -43,7 +47,9 @@ const emptyForm = {
 
 // CSV import — column headers (in order) and helpers for turning spreadsheet text into real values.
 const CSV_COLUMNS = [
+  "code",
   "name",
+  "type",
   "supplier",
   "is_stock_item",
   "coverage_m2",
@@ -57,9 +63,9 @@ const CSV_COLUMNS = [
 ] as const;
 
 const CSV_TEMPLATE_ROWS = [
-  ["R2.5 Wall Batt", "Fletcher Insulation", "TRUE", "6.3", "42.50", "3.20", "9.90", "12.40", "1", "24", "0"],
-  ["Ceiling Blanket R6.0", "CSR Bradford", "TRUE", "10.8", "65.00", "2.80", "8.50", "10.90", "1", "12", "0"],
-  ["Delivery", "", "FALSE", "1", "0", "0", "0", "45.00", "0", "0", "0"],
+  ["15250", "R2.5 Wall Batt", "WALLS", "Fletcher Insulation", "TRUE", "6.3", "42.50", "3.20", "9.90", "12.40", "1", "24", "0"],
+  ["15229", "Ceiling Blanket R6.0", "CEILINGS", "CSR Bradford", "TRUE", "10.8", "65.00", "2.80", "8.50", "10.90", "1", "12", "0"],
+  ["", "Delivery", "", "", "FALSE", "1", "0", "0", "0", "45.00", "0", "0", "0"],
 ];
 
 function parseNum(v: string | undefined) {
@@ -145,18 +151,21 @@ function InlineCell({
 }
 
 const INVENTORY_COLS = [
+  { key: "code", label: "Code", align: "center" as Align, width: 90 },
   { key: "name", label: "Item", align: "left" as Align, width: 220 },
-  { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
-  { key: "supplier", label: "Supplier", align: "center" as Align, width: 140 },
+  { key: "supplier", label: "Supplier", align: "center" as Align, width: 110 },
+  { key: "type", label: "Type", align: "center" as Align, width: 100 },
   { key: "coverage", label: "Coverage/pack", align: "center" as Align, width: 110 },
+  { key: "packPerMulti", label: "Pack per multi", align: "center" as Align, width: 110 },
   { key: "packCost", label: "Pack cost ex", align: "center" as Align, width: 110 },
   { key: "covCostM2", label: "Cov/Cost/m²", align: "center" as Align, width: 110 },
-  { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 130 },
+  { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 130 },
+  { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 120 },
   { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
   { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
-  { key: "packPerMulti", label: "Pack per multi", align: "center" as Align, width: 120 },
-  { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 140 },
+  { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
+  { key: "totalM2", label: "Total m²", align: "center" as Align, width: 100 },
   { key: "value", label: "Inventory value", align: "center" as Align, width: 130 },
   { key: "actions", label: "", align: "center" as Align, width: 90 },
 ];
@@ -169,6 +178,7 @@ const DEFAULT_COL_WIDTHS: Record<string, number> = Object.fromEntries(
 );
 const TD_CLASS: Record<string, string> = {
   stock: "px-3 py-1 text-center font-mono",
+  totalM2: "px-3 py-1 text-center font-mono text-[var(--muted)]",
   value: "px-3 py-1 text-center font-medium",
   actions: "px-3 py-1 text-center",
 };
@@ -402,7 +412,9 @@ export default function PartsTable({
             }
 
             toInsert.push({
+              code: (row.code || "").trim() || null,
               name,
+              type: (row.type || "").trim() || null,
               supplier_id: supplierId,
               coverage_m2: parseNum(row.coverage_m2) || 1,
               pack_cost_ex_gst: parseNum(row.pack_cost_ex_gst),
@@ -488,6 +500,8 @@ export default function PartsTable({
   // freely while each cell still knows how to draw and save itself.
   function renderCell(key: string, p: Part) {
     switch (key) {
+      case "code":
+        return <InlineCell value={p.code || ""} onCommit={(v) => patch(p, "code", v)} align="center" />;
       case "name":
         return (
           <div className="flex items-center gap-1.5 px-2">
@@ -499,8 +513,12 @@ export default function PartsTable({
             )}
           </div>
         );
+      case "type":
+        return <InlineCell value={p.type || ""} onCommit={(v) => patch(p, "type", v)} align="center" />;
       case "stock":
         return p.stock_on_hand;
+      case "totalM2":
+        return (p.stock_on_hand * p.coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 1 });
       case "supplier":
         return (
           <InlineSelect
@@ -761,16 +779,35 @@ export default function PartsTable({
               <h2 className="text-lg font-bold">Add item</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-              <label className="flex flex-col gap-1 text-sm">
-                Item name
-                <input
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </label>
+              <div className="grid grid-cols-3 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
+                  Code
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  />
+                </label>
+                <label className="col-span-2 flex flex-col gap-1 text-sm">
+                  Item name
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </label>
+              </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
+                  Type
+                  <input
+                    placeholder="WALLS, CEILINGS, UNDERFLOOR..."
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.type}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  />
+                </label>
                 <label className="flex flex-col gap-1 text-sm">
                   Supplier
                   <select
