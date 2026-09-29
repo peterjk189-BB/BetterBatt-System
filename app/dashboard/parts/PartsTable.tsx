@@ -41,6 +41,19 @@ const emptyForm = {
 };
 
 // A cell that edits in place: click to focus, type, and it saves on blur — no modal round-trip.
+type Align = "left" | "right" | "center";
+
+const JUSTIFY: Record<Align, string> = {
+  left: "justify-start",
+  right: "justify-end",
+  center: "justify-center",
+};
+const TEXT_ALIGN: Record<Align, string> = {
+  left: "text-left",
+  right: "text-right",
+  center: "text-center",
+};
+
 function InlineCell({
   value,
   onCommit,
@@ -52,7 +65,7 @@ function InlineCell({
   value: string | number;
   onCommit: (v: string | number) => void;
   type?: "text" | "number";
-  align?: "left" | "right";
+  align?: Align;
   prefix?: string;
   integer?: boolean;
 }) {
@@ -62,48 +75,42 @@ function InlineCell({
     setV(String(value));
   }, [value]);
 
-  const input = (
-    <input
-      type={type}
-      step={type === "number" ? (integer ? "1" : "0.01") : undefined}
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={() => {
-        const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
-        if (parsed !== value) onCommit(parsed);
-      }}
-      className={`w-full rounded border border-transparent bg-transparent py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
-        prefix ? "pl-3.5 pr-1.5" : "px-1.5"
-      } ${align === "right" ? "text-right" : "text-left"}`}
-    />
-  );
-
-  if (!prefix) return input;
-
+  // Prefix and input sit side by side in a flex row (rather than the input filling the
+  // whole cell), so "$" always stays snug against the digits, wherever the cell is aligned.
   return (
-    <div className="relative">
-      <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--muted)]">
-        {prefix}
-      </span>
-      {input}
+    <div className={`flex items-center gap-0.5 ${JUSTIFY[align]}`}>
+      {prefix && <span className="text-[var(--muted)]">{prefix}</span>}
+      <input
+        type={type}
+        step={type === "number" ? (integer ? "1" : "0.01") : undefined}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => {
+          const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
+          if (parsed !== value) onCommit(parsed);
+        }}
+        className={`rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
+          prefix ? "w-16" : "w-full"
+        } ${TEXT_ALIGN[align]}`}
+      />
     </div>
   );
 }
 
 const INVENTORY_COLS = [
-  { key: "name", label: "Item", align: "left" as const, width: 220 },
-  { key: "stock", label: "Stock on hand", align: "right" as const, width: 110 },
-  { key: "supplier", label: "Supplier", align: "left" as const, width: 140 },
-  { key: "coverage", label: "Coverage/pack", align: "right" as const, width: 110 },
-  { key: "packCost", label: "Pack cost ex", align: "right" as const, width: 110 },
-  { key: "installerRate", label: "Installer rate/m²", align: "right" as const, width: 130 },
-  { key: "supplyPack", label: "Supply/pack", align: "right" as const, width: 110 },
-  { key: "pks", label: "Pks", align: "right" as const, width: 70 },
-  { key: "multi", label: "Multi", align: "right" as const, width: 70 },
-  { key: "packPerMulti", label: "Pack per multi", align: "right" as const, width: 120 },
-  { key: "supplyInstall", label: "Supply+install/m²", align: "right" as const, width: 140 },
-  { key: "value", label: "Inventory value", align: "right" as const, width: 130 },
-  { key: "actions", label: "", align: "right" as const, width: 90 },
+  { key: "name", label: "Item", align: "left" as Align, width: 220 },
+  { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
+  { key: "supplier", label: "Supplier", align: "center" as Align, width: 140 },
+  { key: "coverage", label: "Coverage/pack", align: "center" as Align, width: 110 },
+  { key: "packCost", label: "Pack cost ex", align: "center" as Align, width: 110 },
+  { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 130 },
+  { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
+  { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
+  { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
+  { key: "packPerMulti", label: "Pack per multi", align: "center" as Align, width: 120 },
+  { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 140 },
+  { key: "value", label: "Inventory value", align: "center" as Align, width: 130 },
+  { key: "actions", label: "", align: "center" as Align, width: 90 },
 ];
 
 const COL_WIDTHS_KEY = "coverage-inventory-col-widths";
@@ -115,13 +122,11 @@ function ResizableTh({
   onResizeStart,
 }: {
   label: string;
-  align: "left" | "right";
+  align: Align;
   onResizeStart: (e: React.MouseEvent) => void;
 }) {
   return (
-    <th
-      className={`relative overflow-hidden px-3 py-2 ${align === "right" ? "text-right" : "text-left"}`}
-    >
+    <th className={`relative overflow-hidden px-3 py-2 ${TEXT_ALIGN[align]}`}>
       {label}
       <span
         onMouseDown={onResizeStart}
@@ -136,16 +141,18 @@ function InlineSelect({
   value,
   options,
   onCommit,
+  align = "left",
 }: {
   value: string;
   options: { id: string; name: string }[];
   onCommit: (v: string) => void;
+  align?: Align;
 }) {
   return (
     <select
       value={value}
       onChange={(e) => onCommit(e.target.value)}
-      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none"
+      className={`w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
     >
       <option value="">—</option>
       {options.map((o) => (
@@ -375,48 +382,49 @@ export default function PartsTable({
                     )}
                   </div>
                 </td>
-                <td className="px-3 py-1 text-right font-mono">{p.stock_on_hand}</td>
+                <td className="px-3 py-1 text-center font-mono">{p.stock_on_hand}</td>
                 <td className="px-1 py-1">
                   <InlineSelect
                     value={p.supplier_id || ""}
                     options={suppliers}
                     onCommit={(v) => patch(p, "supplier_id", v)}
+                    align="center"
                   />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="right" />
+                  <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="center" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="left" prefix="$" />
+                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="center" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="left" prefix="$" />
+                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="center" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="left" prefix="$" />
+                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="center" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" integer />
+                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="right" integer />
+                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="right" integer />
+                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="center" integer />
                 </td>
                 <td className="px-1 py-1">
                   <InlineCell
                     type="number"
                     value={p.supply_install_rate_per_m2}
                     onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
-                    align="left"
+                    align="center"
                     prefix="$"
                   />
                 </td>
-                <td className="px-3 py-1 text-right font-medium">
+                <td className="px-3 py-1 text-center font-medium">
                   {fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand)}
                 </td>
-                <td className="px-3 py-1 text-right">
+                <td className="px-3 py-1 text-center">
                   <button onClick={() => toggleArchive(p)} className="text-[var(--muted)] hover:underline">
                     {p.archived ? "Restore" : "Archive"}
                   </button>
