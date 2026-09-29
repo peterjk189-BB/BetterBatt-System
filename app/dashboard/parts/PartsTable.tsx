@@ -46,11 +46,13 @@ function InlineCell({
   onCommit,
   type = "text",
   align = "left",
+  prefix,
 }: {
   value: string | number;
   onCommit: (v: string | number) => void;
   type?: "text" | "number";
   align?: "left" | "right";
+  prefix?: string;
 }) {
   const [v, setV] = useState(String(value));
 
@@ -58,7 +60,7 @@ function InlineCell({
     setV(String(value));
   }, [value]);
 
-  return (
+  const input = (
     <input
       type={type}
       step={type === "number" ? "0.01" : undefined}
@@ -68,10 +70,21 @@ function InlineCell({
         const parsed = type === "number" ? Number(v) || 0 : v;
         if (parsed !== value) onCommit(parsed);
       }}
-      className={`w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
+      className={`w-full rounded border border-transparent bg-transparent py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
+        prefix ? "pl-3.5 pr-1.5" : "px-1.5"
+      } ${align === "right" ? "text-right" : "text-left"}`}
     />
+  );
+
+  if (!prefix) return input;
+
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--muted)]">
+        {prefix}
+      </span>
+      {input}
+    </div>
   );
 }
 
@@ -291,13 +304,13 @@ export default function PartsTable({
                   <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="right" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="right" />
+                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="right" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="right" />
+                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="right" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="right" />
+                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="right" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" />
@@ -314,6 +327,7 @@ export default function PartsTable({
                     value={p.supply_install_rate_per_m2}
                     onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
                     align="right"
+                    prefix="$"
                   />
                 </td>
                 <td className="px-3 py-1 text-right font-medium">
