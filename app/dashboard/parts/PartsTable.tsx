@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Papa from "papaparse";
 import { createClient } from "@/lib/supabase/client";
 
 type Part = {
@@ -39,6 +40,52 @@ const emptyForm = {
   pks: 0,
   is_stock_item: true,
 };
+
+// CSV import — column headers (in order) and helpers for turning spreadsheet text into real values.
+const CSV_COLUMNS = [
+  "name",
+  "supplier",
+  "is_stock_item",
+  "coverage_m2",
+  "pack_cost_ex_gst",
+  "installer_rate_per_m2",
+  "supply_charge_per_pack",
+  "supply_install_rate_per_m2",
+  "pack_per_multi",
+  "multi",
+  "pks",
+] as const;
+
+const CSV_TEMPLATE_ROWS = [
+  ["R2.5 Wall Batt", "Fletcher Insulation", "TRUE", "6.3", "42.50", "3.20", "9.90", "12.40", "1", "24", "0"],
+  ["Ceiling Blanket R6.0", "CSR Bradford", "TRUE", "10.8", "65.00", "2.80", "8.50", "10.90", "1", "12", "0"],
+  ["Delivery", "", "FALSE", "1", "0", "0", "0", "45.00", "0", "0", "0"],
+];
+
+function parseNum(v: string | undefined) {
+  const n = parseFloat((v || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+function parseIntish(v: string | undefined) {
+  return Math.round(parseNum(v));
+}
+function parseBool(v: string | undefined, fallback = true) {
+  const s = (v || "").trim().toLowerCase();
+  if (["true", "1", "yes", "y"].includes(s)) return true;
+  if (["false", "0", "no", "n"].includes(s)) return false;
+  return fallback;
+}
+
+function downloadCsvTemplate() {
+  const csv = [CSV_COLUMNS.join(","), ...CSV_TEMPLATE_ROWS.map((r) => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "inventory-import-template.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // A cell that edits in place: click to focus, type, and it saves on blur — no modal round-trip.
 type Align = "left" | "right" | "center";
@@ -173,12 +220,15 @@ export default function PartsTable({
 }) {
   const supabase = createClient();
   const [parts, setParts] = useState(initial);
+  const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
   const [hideNonStock, setHideNonStock] = useState(false);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [colWidths, setColWidths] = useState(INVENTORY_COLS.map((c) => c.width));
   const resizingRef = useRef<{ idx: number; startX: number; startWidth: number } | null>(null);
@@ -229,7 +279,97 @@ export default function PartsTable({
     resizingRef.current = { idx, startX: e.clientX, startWidth: colWidths[idx] };
   };
 
-  const supplierById = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers]);
+  const supplierById = useMemo(
+    () => Object.fromEntries(supplierList.map((s) => [s.id, s.name])),
+    [supplierList]
+  );
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+
+    setImporting(true);
+
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = results.data;
+          const supplierMap = new Map(supplierList.map((s) => [s.name.trim().toLowerCase(), s.id]));
+          const newSuppliers: Supplier[] = [];
+          const toInsert: Omit<Part, "id" | "stock_on_hand" | "archived">[] = [];
+          let skipped = 0;
+
+          for (const row of rows) {
+            const name = (row.name || "").trim();
+            if (!name) {
+              skipped++;
+              continue;
+            }
+
+            let supplierId: string | null = null;
+            const supplierName = (row.supplier || "").trim();
+            if (supplierName) {
+              const key = supplierName.toLowerCase();
+              if (supplierMap.has(key)) {
+                supplierId = supplierMap.get(key)!;
+              } else {
+                const { data, error } = await supabase
+                  .from("suppliers")
+                  .insert({ name: supplierName })
+                  .select()
+                  .single();
+                if (!error && data) {
+                  supplierId = data.id;
+                  supplierMap.set(key, data.id);
+                  newSuppliers.push({ id: data.id, name: data.name });
+                }
+              }
+            }
+
+            toInsert.push({
+              name,
+              supplier_id: supplierId,
+              coverage_m2: parseNum(row.coverage_m2) || 1,
+              pack_cost_ex_gst: parseNum(row.pack_cost_ex_gst),
+              installer_rate_per_m2: parseNum(row.installer_rate_per_m2),
+              supply_charge_per_pack: parseNum(row.supply_charge_per_pack),
+              supply_install_rate_per_m2: parseNum(row.supply_install_rate_per_m2),
+              pack_per_multi: parseIntish(row.pack_per_multi),
+              multi: parseIntish(row.multi),
+              pks: parseIntish(row.pks),
+              is_stock_item: parseBool(row.is_stock_item, true),
+            });
+          }
+
+          if (toInsert.length > 0) {
+            const { data, error } = await supabase.from("parts").insert(toInsert).select();
+            if (error) {
+              alert(`Import failed: ${error.message}`);
+            } else if (data) {
+              setParts((prev) => [...(data as Part[]), ...prev]);
+              if (newSuppliers.length > 0) setSupplierList((prev) => [...prev, ...newSuppliers]);
+              alert(
+                `Imported ${data.length} item(s).` +
+                  (newSuppliers.length > 0 ? ` Created ${newSuppliers.length} new supplier(s).` : "") +
+                  (skipped > 0 ? ` Skipped ${skipped} row(s) with no item name.` : "")
+              );
+            }
+          } else {
+            alert("No valid rows found in that file — check the item name column is filled in.");
+          }
+        } finally {
+          setImporting(false);
+        }
+      },
+      error: (err) => {
+        setImporting(false);
+        alert(`Could not read that file: ${err.message}`);
+      },
+    });
+  }
 
   async function patch(p: Part, field: keyof Part, value: string | number | boolean) {
     const { data, error } = await supabase
@@ -301,12 +441,31 @@ export default function PartsTable({
             Click any cell to edit it directly.
           </p>
         </div>
-        <button
-          onClick={() => setModalOpen(true)}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-        >
-          Add item
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={downloadCsvTemplate} className="text-sm text-[var(--muted)] hover:underline">
+            Download CSV template
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            {importing ? "Importing..." : "Import CSV"}
+          </button>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            Add item
+          </button>
+        </div>
       </div>
 
       {/* KPI cards: total value + per-supplier value */}
@@ -386,7 +545,7 @@ export default function PartsTable({
                 <td className="px-1 py-1">
                   <InlineSelect
                     value={p.supplier_id || ""}
-                    options={suppliers}
+                    options={supplierList}
                     onCommit={(v) => patch(p, "supplier_id", v)}
                     align="center"
                   />
@@ -467,7 +626,7 @@ export default function PartsTable({
                     onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}
                   >
                     <option value="">—</option>
-                    {suppliers.map((s) => (
+                    {supplierList.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
                       </option>
