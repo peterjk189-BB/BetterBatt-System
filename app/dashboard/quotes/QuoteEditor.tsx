@@ -242,6 +242,14 @@ export default function QuoteEditor({
               {project!.archived ? "Restore" : "Archive"}
             </button>
           )}
+          {!isNew && project!.outcome === "Accepted" && (
+            <Link
+              href={`/dashboard/work-orders/new?project_id=${project!.id}`}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Create work order
+            </Link>
+          )}
           <button
             onClick={save}
             disabled={saving}

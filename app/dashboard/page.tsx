@@ -26,8 +26,11 @@ export default async function DashboardHome() {
 
   const tiles = [
     { href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes" },
+    { href: "/dashboard/work-orders", label: "Work Orders", desc: "Contractor task lists and pay tracking" },
+    { href: "/dashboard/purchase-orders", label: "Purchase Orders", desc: "Orders placed with suppliers to restock inventory" },
     { href: "/dashboard/customers", label: "Customers", desc: "Builders, retro fit and private customers" },
     { href: "/dashboard/suppliers", label: "Suppliers", desc: "Material suppliers" },
+    { href: "/dashboard/subcontractors", label: "Subcontractors", desc: "Installer contact details and rates" },
     { href: "/dashboard/labour-items", label: "Labour Items", desc: "Contractor pay rate schedule" },
     { href: "/dashboard/parts", label: "Inventory", desc: "Materials, pricing and stock on hand" },
   ];
@@ -36,8 +39,8 @@ export default async function DashboardHome() {
     <div>
       <h1 className="text-2xl font-bold">Dashboard</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        Phase 2 is in progress — master data and quoting are live; work orders and
-        purchase orders are next.
+        Quotes, work orders and purchase orders are all live — Phase 3 (calendar, contractor
+        pay reports, attachments) is next.
       </p>
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiles.map((t) => (
