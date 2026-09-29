@@ -228,7 +228,22 @@ export default function PartsTable({
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full min-w-[1300px] whitespace-nowrap text-sm">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-[15%]" />
+            <col className="w-[7%]" />
+            <col className="w-[9%]" />
+            <col className="w-[7%]" />
+            <col className="w-[7%]" />
+            <col className="w-[8%]" />
+            <col className="w-[7%]" />
+            <col className="w-[5%]" />
+            <col className="w-[5%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[5%]" />
+          </colgroup>
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
             <tr>
               <th className="px-3 py-2">Item</th>
