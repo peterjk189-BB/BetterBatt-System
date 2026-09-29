@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 
 type Status = "ok" | "schema-missing" | "connection-failed" | "env-missing";
@@ -86,6 +87,15 @@ export default async function Home() {
         <li>Auth roles (admin / installer) &mdash; created by the migration</li>
         <li>Empty shell deployed to Vercel &mdash; this page</li>
       </ol>
+
+      {status === "ok" && (
+        <Link
+          href="/dashboard"
+          className="inline-block w-fit rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+        >
+          Go to dashboard
+        </Link>
+      )}
     </main>
   );
 }
