@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Part = {
@@ -22,10 +22,14 @@ type Part = {
 
 type Supplier = { id: string; name: string };
 
+function fmtCurrency(n: number) {
+  return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
+}
+
 const emptyForm = {
   name: "",
   supplier_id: "",
-  coverage_m2: 0,
+  coverage_m2: 1,
   pack_cost_ex_gst: 0,
   installer_rate_per_m2: 0,
   supply_charge_per_pack: 0,
@@ -35,6 +39,67 @@ const emptyForm = {
   pks: 0,
   is_stock_item: true,
 };
+
+// A cell that edits in place: click to focus, type, and it saves on blur — no modal round-trip.
+function InlineCell({
+  value,
+  onCommit,
+  type = "text",
+  align = "left",
+}: {
+  value: string | number;
+  onCommit: (v: string | number) => void;
+  type?: "text" | "number";
+  align?: "left" | "right";
+}) {
+  const [v, setV] = useState(String(value));
+
+  useEffect(() => {
+    setV(String(value));
+  }, [value]);
+
+  return (
+    <input
+      type={type}
+      step={type === "number" ? "0.01" : undefined}
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => {
+        const parsed = type === "number" ? Number(v) || 0 : v;
+        if (parsed !== value) onCommit(parsed);
+      }}
+      className={`w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
+        align === "right" ? "text-right" : "text-left"
+      }`}
+    />
+  );
+}
+
+// A select that behaves the same way — commits immediately on change.
+function InlineSelect({
+  value,
+  options,
+  onCommit,
+}: {
+  value: string;
+  options: { id: string; name: string }[];
+  onCommit: (v: string) => void;
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onCommit(e.target.value)}
+      className="w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none"
+    >
+      <option value="">—</option>
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export default function PartsTable({
   initial,
@@ -46,60 +111,26 @@ export default function PartsTable({
   const supabase = createClient();
   const [parts, setParts] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
+  const [hideNonStock, setHideNonStock] = useState(false);
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<Part | null>(null);
-  const [form, setForm] = useState(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const supplierName = (id: string | null) => suppliers.find((s) => s.id === id)?.name ?? "—";
+  const supplierById = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers]);
 
-  function openNew() {
-    setEditing(null);
-    setForm(emptyForm);
-    setModalOpen(true);
-  }
-
-  function openEdit(p: Part) {
-    setEditing(p);
-    setForm({
-      name: p.name,
-      supplier_id: p.supplier_id || "",
-      coverage_m2: p.coverage_m2,
-      pack_cost_ex_gst: p.pack_cost_ex_gst,
-      installer_rate_per_m2: p.installer_rate_per_m2,
-      supply_charge_per_pack: p.supply_charge_per_pack,
-      supply_install_rate_per_m2: p.supply_install_rate_per_m2,
-      pack_per_multi: p.pack_per_multi,
-      multi: p.multi,
-      pks: p.pks,
-      is_stock_item: p.is_stock_item,
-    });
-    setModalOpen(true);
-  }
-
-  async function save() {
-    setSaving(true);
-    const payload = { ...form, supplier_id: form.supplier_id || null };
-    if (editing) {
-      const { data, error } = await supabase
-        .from("parts")
-        .update(payload)
-        .eq("id", editing.id)
-        .select()
-        .single();
-      if (!error && data) {
-        setParts((prev) => prev.map((p) => (p.id === editing.id ? (data as Part) : p)));
-        setModalOpen(false);
-      } else if (error) alert(error.message);
-    } else {
-      const { data, error } = await supabase.from("parts").insert(payload).select().single();
-      if (!error && data) {
-        setParts((prev) => [data as Part, ...prev]);
-        setModalOpen(false);
-      } else if (error) alert(error.message);
+  async function patch(p: Part, field: keyof Part, value: string | number | boolean) {
+    const { data, error } = await supabase
+      .from("parts")
+      .update({ [field]: value })
+      .eq("id", p.id)
+      .select()
+      .single();
+    if (!error && data) {
+      setParts((prev) => prev.map((x) => (x.id === p.id ? (data as Part) : x)));
+    } else if (error) {
+      alert(error.message);
     }
-    setSaving(false);
   }
 
   async function toggleArchive(p: Part) {
@@ -115,64 +146,166 @@ export default function PartsTable({
     }
   }
 
+  async function saveNew() {
+    setSaving(true);
+    const payload = { ...form, supplier_id: form.supplier_id || null };
+    const { data, error } = await supabase.from("parts").insert(payload).select().single();
+    if (!error && data) {
+      setParts((prev) => [data as Part, ...prev]);
+      setModalOpen(false);
+      setForm(emptyForm);
+    } else if (error) {
+      alert(error.message);
+    }
+    setSaving(false);
+  }
+
   const visible = useMemo(() => {
     return parts
       .filter((p) => p.archived === showArchived)
       .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
-      // stock items first, non-stock items (Retro Fit, delivery, etc.) at the bottom
+      .filter((p) => !hideNonStock || p.is_stock_item)
       .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
-  }, [parts, showArchived, search]);
+  }, [parts, showArchived, search, hideNonStock]);
+
+  // Inventory value by supplier, for the KPI cards up top.
+  const supplierTotals = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const p of parts) {
+      if (p.archived) continue;
+      const key = p.supplier_id ? supplierById[p.supplier_id] || "Unassigned" : "Unassigned";
+      totals[key] = (totals[key] || 0) + p.pack_cost_ex_gst * p.stock_on_hand;
+    }
+    return Object.entries(totals).filter(([, v]) => v > 0);
+  }, [parts, supplierById]);
+  const grandTotal = supplierTotals.reduce((s, [, v]) => s + v, 0);
 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Inventory</h1>
-        <button onClick={openNew} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
-          Add part
+        <div>
+          <h1 className="text-2xl font-bold">Inventory</h1>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            Click any cell to edit it directly.
+          </p>
+        </div>
+        <button
+          onClick={() => setModalOpen(true)}
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+        >
+          Add item
         </button>
       </div>
 
-      <div className="mt-4 flex items-center gap-4">
+      {/* KPI cards: total value + per-supplier value */}
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="rounded-xl border border-[var(--border)] p-3">
+          <div className="text-xs uppercase text-[var(--muted)]">Total inventory value</div>
+          <div className="mt-1 text-lg font-bold">{fmtCurrency(grandTotal)}</div>
+        </div>
+        {supplierTotals.map(([supplier, value]) => (
+          <div key={supplier} className="rounded-xl border border-[var(--border)] p-3">
+            <div className="text-xs uppercase text-[var(--muted)]">{supplier}</div>
+            <div className="mt-1 text-lg font-bold">{fmtCurrency(value)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-4">
         <input
-          placeholder="Search parts..."
+          placeholder="Search products..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
         />
+        <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
+          <input type="checkbox" checked={hideNonStock} onChange={(e) => setHideNonStock(e.target.checked)} />
+          Hide non-stock items
+        </label>
         <button onClick={() => setShowArchived((v) => !v)} className="text-sm text-[var(--muted)] underline">
           {showArchived ? "View active" : "View archived"}
         </button>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full whitespace-nowrap text-sm">
-          <thead className="text-left text-xs uppercase text-[var(--muted)]">
+        <table className="w-full min-w-[1300px] whitespace-nowrap text-sm">
+          <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-4 py-2">Item</th>
-              <th className="px-4 py-2">Stock on hand</th>
-              <th className="px-4 py-2">Supplier</th>
-              <th className="px-4 py-2">Coverage m²/pack</th>
-              <th className="px-4 py-2">Pack cost</th>
-              <th className="px-4 py-2">Supply only /pack</th>
-              <th className="px-4 py-2">Supply+install /m²</th>
-              <th className="px-4 py-2"></th>
+              <th className="px-3 py-2">Item</th>
+              <th className="px-3 py-2 text-right">Stock on hand</th>
+              <th className="px-3 py-2">Supplier</th>
+              <th className="px-3 py-2 text-right">Coverage/pack</th>
+              <th className="px-3 py-2 text-right">Pack cost ex</th>
+              <th className="px-3 py-2 text-right">Installer rate/m²</th>
+              <th className="px-3 py-2 text-right">Supply/pack</th>
+              <th className="px-3 py-2 text-right">Pks</th>
+              <th className="px-3 py-2 text-right">Multi</th>
+              <th className="px-3 py-2 text-right">Pack per multi</th>
+              <th className="px-3 py-2 text-right">Supply+install/m²</th>
+              <th className="px-3 py-2 text-right">Inventory value</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {visible.map((p) => (
-              <tr key={p.id} className={`border-t border-[var(--border)] ${!p.is_stock_item ? "opacity-60" : ""}`}>
-                <td className="px-4 py-2 font-medium">{p.name}</td>
-                <td className="px-4 py-2 font-mono">{p.stock_on_hand}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{supplierName(p.supplier_id)}</td>
-                <td className="px-4 py-2">{p.coverage_m2}</td>
-                <td className="px-4 py-2">${p.pack_cost_ex_gst.toFixed(2)}</td>
-                <td className="px-4 py-2">${p.supply_charge_per_pack.toFixed(2)}</td>
-                <td className="px-4 py-2">${p.supply_install_rate_per_m2.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right">
-                  <button onClick={() => openEdit(p)} className="text-accent hover:underline">
-                    Edit
-                  </button>
-                  <button onClick={() => toggleArchive(p)} className="ml-3 text-[var(--muted)] hover:underline">
+              <tr
+                key={p.id}
+                className={`border-t border-[var(--border)] hover:bg-black/[0.02] ${
+                  !p.is_stock_item ? "opacity-60" : ""
+                }`}
+              >
+                <td className="px-1 py-1">
+                  <div className="flex items-center gap-1.5 px-2">
+                    <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
+                    {!p.is_stock_item && (
+                      <span className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)]">
+                        Non-stock
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-3 py-1 text-right font-mono">{p.stock_on_hand}</td>
+                <td className="px-1 py-1">
+                  <InlineSelect
+                    value={p.supplier_id || ""}
+                    options={suppliers}
+                    onCommit={(v) => patch(p, "supplier_id", v)}
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="right" />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell
+                    type="number"
+                    value={p.supply_install_rate_per_m2}
+                    onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
+                    align="right"
+                  />
+                </td>
+                <td className="px-3 py-1 text-right font-medium">
+                  {fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand)}
+                </td>
+                <td className="px-3 py-1 text-right">
+                  <button onClick={() => toggleArchive(p)} className="text-[var(--muted)] hover:underline">
                     {p.archived ? "Restore" : "Archive"}
                   </button>
                 </td>
@@ -180,8 +313,8 @@ export default function PartsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
-                  No parts found.
+                <td colSpan={13} className="px-4 py-8 text-center text-[var(--muted)]">
+                  No {showArchived ? "archived" : ""} parts found.
                 </td>
               </tr>
             )}
@@ -193,11 +326,11 @@ export default function PartsTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
-              <h2 className="text-lg font-bold">{editing ? "Edit part" : "Add part"}</h2>
+              <h2 className="text-lg font-bold">Add item</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <label className="flex flex-col gap-1 text-sm">
-                Name
+                Item name
                 <input
                   className="rounded-lg border border-[var(--border)] px-3 py-2"
                   value={form.name}
@@ -232,6 +365,16 @@ export default function PartsTable({
                   />
                 </label>
               </div>
+
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.is_stock_item}
+                  onChange={(e) => setForm({ ...form, is_stock_item: e.target.checked })}
+                />
+                Stock item — uncheck for non-stock items (Delivery, Retro Fit) that sit at the bottom of
+                the list with no stock tracked
+              </label>
 
               <p className="text-xs font-medium uppercase text-[var(--muted)]">Pricing</p>
               <div className="grid grid-cols-2 gap-4">
@@ -313,27 +456,17 @@ export default function PartsTable({
               <p className="text-xs text-[var(--muted)]">
                 Stock on hand = pack per multi × multi + pks — calculated automatically after saving.
               </p>
-
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.is_stock_item}
-                  onChange={(e) => setForm({ ...form, is_stock_item: e.target.checked })}
-                />
-                Stock item (uncheck for non-stock items like Retro Fit / delivery — these sort to the
-                bottom of the list)
-              </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
               <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm">
                 Cancel
               </button>
               <button
-                onClick={save}
+                onClick={saveNew}
                 disabled={saving || !form.name}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save"}
+                {saving ? "Saving..." : "Save item"}
               </button>
             </div>
           </div>
