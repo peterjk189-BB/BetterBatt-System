@@ -39,7 +39,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-[var(--border)] bg-[var(--surface)]">
+      <header className="border-b border-[var(--border)] bg-[var(--surface)] print:hidden">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4">
           <Link href="/dashboard" className="font-bold">
             Coverage

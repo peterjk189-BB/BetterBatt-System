@@ -39,6 +39,7 @@ type Project = {
   entry_date: string;
   notes: string | null;
   quote_markup: number;
+  show_qty_on_quote: boolean;
   archived: boolean;
 };
 
@@ -105,6 +106,7 @@ export default function QuoteEditor({
     entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
     notes: project?.notes || "",
     quote_markup: project?.quote_markup ?? 0,
+    show_qty_on_quote: project?.show_qty_on_quote ?? false,
   });
 
   // The discount/markup can be entered as a flat $ amount or as a % of the line-items
@@ -178,6 +180,7 @@ export default function QuoteEditor({
       entry_date: form.entry_date,
       notes: form.notes || null,
       quote_markup: adjustmentAmount,
+      show_qty_on_quote: form.show_qty_on_quote,
     };
 
     let projectId = project?.id;
@@ -249,6 +252,15 @@ export default function QuoteEditor({
             <button onClick={toggleArchive} className="text-sm text-[var(--muted)] hover:underline">
               {project!.archived ? "Restore" : "Archive"}
             </button>
+          )}
+          {!isNew && (
+            <Link
+              href={`/dashboard/quotes/${project!.id}/print`}
+              target="_blank"
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Print preview
+            </Link>
           )}
           {!isNew && project!.outcome === "Accepted" && (
             <Link
@@ -390,6 +402,18 @@ export default function QuoteEditor({
             value={form.contact_email}
             onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
           />
+        </label>
+
+        <label className="flex items-center gap-2 text-sm sm:col-span-3">
+          <input
+            type="checkbox"
+            checked={form.show_qty_on_quote}
+            onChange={(e) => setForm({ ...form, show_qty_on_quote: e.target.checked })}
+          />
+          Show m² quantities to the customer on the printed quote
+          <span className="text-xs font-normal text-[var(--muted)]">
+            (off by default — hides exact measurements so the quote can&apos;t be easily shopped around)
+          </span>
         </label>
 
         <label className="flex flex-col gap-1 text-sm sm:col-span-3">
