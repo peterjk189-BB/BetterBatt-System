@@ -387,13 +387,13 @@ export default function PartsTable({
                   <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="right" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="right" prefix="$" />
+                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="left" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="right" prefix="$" />
+                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="left" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="right" prefix="$" />
+                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="left" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" integer />
@@ -409,7 +409,7 @@ export default function PartsTable({
                     type="number"
                     value={p.supply_install_rate_per_m2}
                     onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
-                    align="right"
+                    align="left"
                     prefix="$"
                   />
                 </td>
