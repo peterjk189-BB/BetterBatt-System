@@ -221,9 +221,9 @@ export default function PartsTable({
         {supplierTotals.map(([supplier, value]) => {
           const name = supplier.toLowerCase();
           const tone = name.includes("fletcher")
-            ? "border-green-300 bg-green-50 text-green-900"
+            ? "border-green-400 bg-green-100 text-green-900"
             : name.includes("csr")
-            ? "border-red-300 bg-red-50 text-red-900"
+            ? "border-red-400 bg-red-100 text-red-900"
             : "border-[var(--border)]";
           return (
             <div key={supplier} className={`rounded-xl border p-3 ${tone}`}>
