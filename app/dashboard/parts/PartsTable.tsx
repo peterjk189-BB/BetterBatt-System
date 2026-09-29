@@ -47,12 +47,14 @@ function InlineCell({
   type = "text",
   align = "left",
   prefix,
+  integer = false,
 }: {
   value: string | number;
   onCommit: (v: string | number) => void;
   type?: "text" | "number";
   align?: "left" | "right";
   prefix?: string;
+  integer?: boolean;
 }) {
   const [v, setV] = useState(String(value));
 
@@ -63,11 +65,11 @@ function InlineCell({
   const input = (
     <input
       type={type}
-      step={type === "number" ? "0.01" : undefined}
+      step={type === "number" ? (integer ? "1" : "0.01") : undefined}
       value={v}
       onChange={(e) => setV(e.target.value)}
       onBlur={() => {
-        const parsed = type === "number" ? Number(v) || 0 : v;
+        const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
         if (parsed !== value) onCommit(parsed);
       }}
       className={`w-full rounded border border-transparent bg-transparent py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
@@ -313,13 +315,13 @@ export default function PartsTable({
                   <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="right" prefix="$" />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" />
+                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="right" integer />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="right" />
+                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="right" integer />
                 </td>
                 <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="right" />
+                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="right" integer />
                 </td>
                 <td className="px-1 py-1">
                   <InlineCell
@@ -455,30 +457,30 @@ export default function PartsTable({
                   Pack per multi
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={form.pack_per_multi}
-                    onChange={(e) => setForm({ ...form, pack_per_multi: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, pack_per_multi: Math.round(Number(e.target.value)) })}
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
                   Multi
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={form.multi}
-                    onChange={(e) => setForm({ ...form, multi: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, multi: Math.round(Number(e.target.value)) })}
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
                   Pks
                   <input
                     type="number"
-                    step="0.01"
+                    step="1"
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={form.pks}
-                    onChange={(e) => setForm({ ...form, pks: Number(e.target.value) })}
+                    onChange={(e) => setForm({ ...form, pks: Math.round(Number(e.target.value)) })}
                   />
                 </label>
               </div>
