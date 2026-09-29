@@ -174,7 +174,7 @@ function ResizableTh({
   onResizeStart: (e: React.MouseEvent) => void;
 }) {
   return (
-    <th className={`relative overflow-hidden px-3 py-2 ${TEXT_ALIGN[align]}`}>
+    <th className={`relative whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${TEXT_ALIGN[align]}`}>
       {label}
       <span
         onMouseDown={onResizeStart}
@@ -557,8 +557,14 @@ export default function PartsTable({
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="center" prefix="$" />
                 </td>
-                <td className="px-3 py-1 text-center font-mono text-[var(--muted)]">
-                  {p.coverage_m2 > 0 ? fmtCurrency(p.pack_cost_ex_gst / p.coverage_m2) : "—"}
+                <td className="px-1 py-1">
+                  <InlineCell
+                    type="number"
+                    value={p.coverage_m2 > 0 ? Math.round((p.pack_cost_ex_gst / p.coverage_m2) * 100) / 100 : 0}
+                    onCommit={(v) => patch(p, "pack_cost_ex_gst", Math.round(Number(v) * p.coverage_m2 * 100) / 100)}
+                    align="center"
+                    prefix="$"
+                  />
                 </td>
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="center" prefix="$" />
