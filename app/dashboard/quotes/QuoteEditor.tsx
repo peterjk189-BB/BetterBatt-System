@@ -107,6 +107,12 @@ export default function QuoteEditor({
     quote_markup: project?.quote_markup ?? 0,
   });
 
+  // The discount/markup can be entered as a flat $ amount or as a % of the line-items
+  // subtotal — either way it's saved as a single $ figure (quote_markup), matching how
+  // the business has always tracked it. Percent is just a convenience for entering it.
+  const [adjustMode, setAdjustMode] = useState<"amount" | "percent">("amount");
+  const [adjustPercent, setAdjustPercent] = useState(0);
+
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0
       ? lines.map((l) => ({ ...l }))
@@ -142,7 +148,9 @@ export default function QuoteEditor({
     (s, l) => s + (isSupplyOnly ? l.supplyOnlyCharge : l.supplyInstallCharge),
     0
   );
-  const subtotal = chargeBeforeMarkup + Number(form.quote_markup || 0);
+  const adjustmentAmount =
+    adjustMode === "percent" ? Math.round(chargeBeforeMarkup * (adjustPercent / 100) * 100) / 100 : Number(form.quote_markup || 0);
+  const subtotal = chargeBeforeMarkup + adjustmentAmount;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
   const profit = subtotal - materialCost - labourCost;
@@ -169,7 +177,7 @@ export default function QuoteEditor({
       suburb: form.suburb || null,
       entry_date: form.entry_date,
       notes: form.notes || null,
-      quote_markup: Number(form.quote_markup) || 0,
+      quote_markup: adjustmentAmount,
     };
 
     let projectId = project?.id;
@@ -465,32 +473,94 @@ export default function QuoteEditor({
         </div>
       </div>
 
+      {/* Discount / markup */}
+      <div className="mt-6 rounded-xl border border-[var(--border)] p-5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Discount / markup</h2>
+          <div className="flex items-center rounded-lg border border-[var(--border)] p-0.5 text-sm">
+            <button
+              type="button"
+              onClick={() => setAdjustMode("amount")}
+              className={`rounded-md px-3 py-1 font-medium ${
+                adjustMode === "amount" ? "bg-accent text-white" : "text-[var(--muted)]"
+              }`}
+            >
+              $ Amount
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdjustMode("percent")}
+              className={`rounded-md px-3 py-1 font-medium ${
+                adjustMode === "percent" ? "bg-accent text-white" : "text-[var(--muted)]"
+              }`}
+            >
+              % Percent
+            </button>
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          A positive number adds a markup on top of the line items below; a negative number applies a
+          discount.
+        </p>
+
+        <div className="mt-3 flex items-end gap-4">
+          {adjustMode === "amount" ? (
+            <label className="flex flex-col gap-1 text-sm">
+              Adjustment ($, can be negative)
+              <input
+                type="number"
+                step="0.01"
+                className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
+                value={form.quote_markup}
+                onChange={(e) => setForm({ ...form, quote_markup: Number(e.target.value) })}
+              />
+            </label>
+          ) : (
+            <label className="flex flex-col gap-1 text-sm">
+              Adjustment (%, can be negative)
+              <input
+                type="number"
+                step="0.1"
+                className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
+                value={adjustPercent}
+                onChange={(e) => setAdjustPercent(Number(e.target.value))}
+              />
+            </label>
+          )}
+          <div className="pb-2 text-sm text-[var(--muted)]">
+            = <span className="font-medium text-[var(--text)]">{fmtCurrency(adjustmentAmount)}</span>{" "}
+            {adjustmentAmount >= 0 ? "markup" : "discount"}
+          </div>
+        </div>
+      </div>
+
       {/* Totals */}
-      <div className="mt-6 grid grid-cols-2 gap-6 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-4">
-        <label className="flex flex-col gap-1 text-sm">
-          Quote markup ($, can be negative)
-          <input
-            type="number"
-            step="0.01"
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
-            value={form.quote_markup}
-            onChange={(e) => setForm({ ...form, quote_markup: Number(e.target.value) })}
-          />
-        </label>
+      <div className="mt-6 grid grid-cols-2 gap-6 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-5">
         <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Subtotal</div>
+          <div className="text-xs uppercase text-[var(--muted)]">Line items</div>
+          <div className="text-lg font-semibold">{fmtCurrency(chargeBeforeMarkup)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
+          <div className={`text-lg font-semibold ${adjustmentAmount < 0 ? "text-red-700" : ""}`}>
+            {adjustmentAmount >= 0 ? "+" : ""}
+            {fmtCurrency(adjustmentAmount)}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-[var(--muted)]">Subtotal (ex GST)</div>
           <div className="text-lg font-semibold">{fmtCurrency(subtotal)}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-[var(--muted)]">GST (10%)</div>
+          <div className="text-xs uppercase text-[var(--muted)]">GST — 10% on top</div>
           <div className="text-lg font-semibold">{fmtCurrency(gst)}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Total payable</div>
+          <div className="text-xs uppercase text-[var(--muted)]">Total payable (inc GST)</div>
           <div className="text-lg font-bold text-accent">{fmtCurrency(total)}</div>
         </div>
 
-        <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-4">
+        <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-5">
           <p className="mb-2 text-xs font-medium uppercase text-[var(--muted)]">
             Internal only — not shown to the customer
           </p>
