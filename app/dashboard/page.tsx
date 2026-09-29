@@ -25,6 +25,7 @@ export default async function DashboardHome() {
   }
 
   const tiles = [
+    { href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes" },
     { href: "/dashboard/customers", label: "Customers", desc: "Builders, retro fit and private customers" },
     { href: "/dashboard/suppliers", label: "Suppliers", desc: "Material suppliers" },
     { href: "/dashboard/labour-items", label: "Labour Items", desc: "Contractor pay rate schedule" },
@@ -35,7 +36,7 @@ export default async function DashboardHome() {
     <div>
       <h1 className="text-2xl font-bold">Dashboard</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        Phase 2 is in progress — master data screens are live; quoting, work orders and
+        Phase 2 is in progress — master data and quoting are live; work orders and
         purchase orders are next.
       </p>
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
