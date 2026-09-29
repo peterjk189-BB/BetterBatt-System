@@ -162,22 +162,54 @@ const INVENTORY_COLS = [
 ];
 
 const COL_WIDTHS_KEY = "coverage-inventory-col-widths";
+const COL_ORDER_KEY = "coverage-inventory-col-order";
+const DEFAULT_COL_ORDER = INVENTORY_COLS.map((c) => c.key);
+const DEFAULT_COL_WIDTHS: Record<string, number> = Object.fromEntries(
+  INVENTORY_COLS.map((c) => [c.key, c.width])
+);
+const TD_CLASS: Record<string, string> = {
+  stock: "px-3 py-1 text-center font-mono",
+  value: "px-3 py-1 text-center font-medium",
+  actions: "px-3 py-1 text-center",
+};
 
-// A column header that can be dragged wider/narrower from its right edge.
+// A column header that can be dragged wider/narrower from its right edge, or picked up and
+// dropped on another header to reorder the columns.
 function ResizableTh({
   label,
   align,
+  isDragging,
   onResizeStart,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
 }: {
   label: string;
   align: Align;
+  isDragging?: boolean;
   onResizeStart: (e: React.MouseEvent) => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: (e: React.DragEvent) => void;
 }) {
   return (
-    <th className={`relative whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${TEXT_ALIGN[align]}`}>
+    <th
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      className={`relative cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
+        TEXT_ALIGN[align]
+      } ${isDragging ? "opacity-40" : ""}`}
+    >
       {label}
       <span
+        draggable={false}
         onMouseDown={onResizeStart}
+        onDragStart={(e) => e.stopPropagation()}
         className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-accent/40"
       />
     </th>
@@ -231,30 +263,53 @@ export default function PartsTable({
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [colWidths, setColWidths] = useState(INVENTORY_COLS.map((c) => c.width));
-  const resizingRef = useRef<{ idx: number; startX: number; startWidth: number } | null>(null);
+  const [colWidths, setColWidths] = useState<Record<string, number>>(DEFAULT_COL_WIDTHS);
+  const [colOrder, setColOrder] = useState<string[]>(DEFAULT_COL_ORDER);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
 
-  // Load any previously saved column widths for this browser, so the layout stays the way it was left.
+  // Load any previously saved column widths/order for this browser, so the layout stays the way it was left.
   useEffect(() => {
     try {
       const saved = localStorage.getItem(COL_WIDTHS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length === INVENTORY_COLS.length) {
-          setColWidths(parsed);
+        if (Array.isArray(parsed)) {
+          // legacy format from before columns were reorderable — map positionally onto today's keys
+          const migrated: Record<string, number> = {};
+          INVENTORY_COLS.forEach((c, i) => {
+            migrated[c.key] = parsed[i] ?? c.width;
+          });
+          setColWidths(migrated);
+        } else if (parsed && typeof parsed === "object") {
+          setColWidths({ ...DEFAULT_COL_WIDTHS, ...parsed });
         }
       }
     } catch {
       // no saved widths yet, or storage unavailable — fall back to defaults
+    }
+
+    try {
+      const savedOrder = localStorage.getItem(COL_ORDER_KEY);
+      if (savedOrder) {
+        const parsed = JSON.parse(savedOrder);
+        if (Array.isArray(parsed)) {
+          const known = parsed.filter((k: string) => DEFAULT_COL_ORDER.includes(k));
+          const missing = DEFAULT_COL_ORDER.filter((k) => !known.includes(k));
+          setColOrder([...known, ...missing]);
+        }
+      }
+    } catch {
+      // no saved order yet, or storage unavailable — fall back to defaults
     }
   }, []);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizingRef.current) return;
-      const { idx, startX, startWidth } = resizingRef.current;
+      const { key, startX, startWidth } = resizingRef.current;
       const next = Math.max(50, startWidth + (e.clientX - startX));
-      setColWidths((prev) => prev.map((w, i) => (i === idx ? next : w)));
+      setColWidths((prev) => ({ ...prev, [key]: next }));
     };
     const onUp = () => {
       if (!resizingRef.current) return;
@@ -276,9 +331,25 @@ export default function PartsTable({
     };
   }, []);
 
-  const startResize = (idx: number) => (e: React.MouseEvent) => {
-    resizingRef.current = { idx, startX: e.clientX, startWidth: colWidths[idx] };
+  const startResize = (key: string) => (e: React.MouseEvent) => {
+    resizingRef.current = { key, startX: e.clientX, startWidth: colWidths[key] ?? DEFAULT_COL_WIDTHS[key] };
   };
+
+  // Drop a dragged column header (sourceKey) onto another (targetKey) to move it there.
+  function moveColumn(sourceKey: string, targetKey: string) {
+    if (sourceKey === targetKey) return;
+    setColOrder((prev) => {
+      const next = prev.filter((k) => k !== sourceKey);
+      const targetIdx = next.indexOf(targetKey);
+      next.splice(targetIdx, 0, sourceKey);
+      try {
+        localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // ignore — persistence is a nice-to-have, not required for the table to work
+      }
+      return next;
+    });
+  }
 
   const supplierById = useMemo(
     () => Object.fromEntries(supplierList.map((s) => [s.id, s.name])),
@@ -413,6 +484,113 @@ export default function PartsTable({
     setSaving(false);
   }
 
+  // Renders one cell's content for a given column key — used so columns can be reordered
+  // freely while each cell still knows how to draw and save itself.
+  function renderCell(key: string, p: Part) {
+    switch (key) {
+      case "name":
+        return (
+          <div className="flex items-center gap-1.5 px-2">
+            <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
+            {!p.is_stock_item && (
+              <span className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)]">
+                Non-stock
+              </span>
+            )}
+          </div>
+        );
+      case "stock":
+        return p.stock_on_hand;
+      case "supplier":
+        return (
+          <InlineSelect
+            value={p.supplier_id || ""}
+            options={supplierList}
+            onCommit={(v) => patch(p, "supplier_id", v)}
+            align="center"
+          />
+        );
+      case "coverage":
+        return (
+          <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="center" />
+        );
+      case "packCost":
+        return (
+          <InlineCell
+            type="number"
+            value={p.pack_cost_ex_gst}
+            onCommit={(v) => patch(p, "pack_cost_ex_gst", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "covCostM2":
+        return (
+          <InlineCell
+            type="number"
+            value={p.coverage_m2 > 0 ? Math.round((p.pack_cost_ex_gst / p.coverage_m2) * 100) / 100 : 0}
+            onCommit={(v) => patch(p, "pack_cost_ex_gst", Math.round(Number(v) * p.coverage_m2 * 100) / 100)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "installerRate":
+        return (
+          <InlineCell
+            type="number"
+            value={p.installer_rate_per_m2}
+            onCommit={(v) => patch(p, "installer_rate_per_m2", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "supplyPack":
+        return (
+          <InlineCell
+            type="number"
+            value={p.supply_charge_per_pack}
+            onCommit={(v) => patch(p, "supply_charge_per_pack", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "pks":
+        return <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer />;
+      case "multi":
+        return <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer />;
+      case "packPerMulti":
+        return (
+          <InlineCell
+            type="number"
+            value={p.pack_per_multi}
+            onCommit={(v) => patch(p, "pack_per_multi", v)}
+            align="center"
+            integer
+          />
+        );
+      case "supplyInstall":
+        return (
+          <InlineCell
+            type="number"
+            value={p.supply_install_rate_per_m2}
+            onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "value":
+        return fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand);
+      case "actions":
+        return (
+          <button onClick={() => toggleArchive(p)} className="text-[var(--muted)] hover:underline">
+            {p.archived ? "Restore" : "Archive"}
+          </button>
+        );
+      default:
+        return null;
+    }
+  }
+
   const visible = useMemo(() => {
     return parts
       .filter((p) => p.archived === showArchived)
@@ -508,20 +686,46 @@ export default function PartsTable({
       </div>
 
       <p className="mt-3 text-xs text-[var(--muted)]">
-        Drag a column's right edge to resize it — your widths are remembered next time you open this page.
+        Drag a column's right edge to resize it, or drag its header left/right to reorder it —
+        both are remembered next time you open this page.
       </p>
       <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="table-fixed text-sm" style={{ width: colWidths.reduce((a, b) => a + b, 0) }}>
+        <table
+          className="table-fixed text-sm"
+          style={{ width: colOrder.reduce((a, key) => a + (colWidths[key] ?? DEFAULT_COL_WIDTHS[key]), 0) }}
+        >
           <colgroup>
-            {colWidths.map((w, i) => (
-              <col key={i} style={{ width: w }} />
+            {colOrder.map((key) => (
+              <col key={key} style={{ width: colWidths[key] ?? DEFAULT_COL_WIDTHS[key] }} />
             ))}
           </colgroup>
           <thead className="bg-[#f2f0ec] text-xs uppercase text-[var(--muted)]">
             <tr>
-              {INVENTORY_COLS.map((c, i) => (
-                <ResizableTh key={c.key} label={c.label} align={c.align} onResizeStart={startResize(i)} />
-              ))}
+              {colOrder.map((key) => {
+                const c = INVENTORY_COLS.find((col) => col.key === key)!;
+                return (
+                  <ResizableTh
+                    key={c.key}
+                    label={c.label}
+                    align={c.align}
+                    isDragging={dragKey === c.key}
+                    onResizeStart={startResize(c.key)}
+                    onDragStart={(e) => {
+                      setDragKey(c.key);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", c.key);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const sourceKey = e.dataTransfer.getData("text/plain") || dragKey;
+                      if (sourceKey) moveColumn(sourceKey, c.key);
+                      setDragKey(null);
+                    }}
+                    onDragEnd={() => setDragKey(null)}
+                  />
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -532,77 +736,16 @@ export default function PartsTable({
                   !p.is_stock_item ? "opacity-60" : ""
                 }`}
               >
-                <td className="px-1 py-1">
-                  <div className="flex items-center gap-1.5 px-2">
-                    <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
-                    {!p.is_stock_item && (
-                      <span className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)]">
-                        Non-stock
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-3 py-1 text-center font-mono">{p.stock_on_hand}</td>
-                <td className="px-1 py-1">
-                  <InlineSelect
-                    value={p.supplier_id || ""}
-                    options={supplierList}
-                    onCommit={(v) => patch(p, "supplier_id", v)}
-                    align="center"
-                  />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.coverage_m2} onCommit={(v) => patch(p, "coverage_m2", v)} align="center" />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="center" prefix="$" />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell
-                    type="number"
-                    value={p.coverage_m2 > 0 ? Math.round((p.pack_cost_ex_gst / p.coverage_m2) * 100) / 100 : 0}
-                    onCommit={(v) => patch(p, "pack_cost_ex_gst", Math.round(Number(v) * p.coverage_m2 * 100) / 100)}
-                    align="center"
-                    prefix="$"
-                  />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="center" prefix="$" />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.supply_charge_per_pack} onCommit={(v) => patch(p, "supply_charge_per_pack", v)} align="center" prefix="$" />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell type="number" value={p.pack_per_multi} onCommit={(v) => patch(p, "pack_per_multi", v)} align="center" integer />
-                </td>
-                <td className="px-1 py-1">
-                  <InlineCell
-                    type="number"
-                    value={p.supply_install_rate_per_m2}
-                    onCommit={(v) => patch(p, "supply_install_rate_per_m2", v)}
-                    align="center"
-                    prefix="$"
-                  />
-                </td>
-                <td className="px-3 py-1 text-center font-medium">
-                  {fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand)}
-                </td>
-                <td className="px-3 py-1 text-center">
-                  <button onClick={() => toggleArchive(p)} className="text-[var(--muted)] hover:underline">
-                    {p.archived ? "Restore" : "Archive"}
-                  </button>
-                </td>
+                {colOrder.map((key) => (
+                  <td key={key} className={TD_CLASS[key] ?? "px-1 py-1"}>
+                    {renderCell(key, p)}
+                  </td>
+                ))}
               </tr>
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={colOrder.length} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} parts found.
                 </td>
               </tr>
