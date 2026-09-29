@@ -150,6 +150,7 @@ const INVENTORY_COLS = [
   { key: "supplier", label: "Supplier", align: "center" as Align, width: 140 },
   { key: "coverage", label: "Coverage/pack", align: "center" as Align, width: 110 },
   { key: "packCost", label: "Pack cost ex", align: "center" as Align, width: 110 },
+  { key: "covCostM2", label: "Cov/Cost/m²", align: "center" as Align, width: 110 },
   { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 130 },
   { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
@@ -556,6 +557,9 @@ export default function PartsTable({
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.pack_cost_ex_gst} onCommit={(v) => patch(p, "pack_cost_ex_gst", v)} align="center" prefix="$" />
                 </td>
+                <td className="px-3 py-1 text-center font-mono text-[var(--muted)]">
+                  {p.coverage_m2 > 0 ? fmtCurrency(p.pack_cost_ex_gst / p.coverage_m2) : "—"}
+                </td>
                 <td className="px-1 py-1">
                   <InlineCell type="number" value={p.installer_rate_per_m2} onCommit={(v) => patch(p, "installer_rate_per_m2", v)} align="center" prefix="$" />
                 </td>
@@ -592,7 +596,7 @@ export default function PartsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={14} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} parts found.
                 </td>
               </tr>
