@@ -128,11 +128,11 @@ function InlineCell({
     setV(String(value));
   }, [value]);
 
-  // Prefix and input sit side by side in a flex row (rather than the input filling the
-  // whole cell), so "$" always stays snug against the digits, wherever the cell is aligned.
+  // Prefix sits fixed at the left, and the input fills whatever room is left in the cell —
+  // so it actually grows/shrinks when the column is resized, instead of staying a fixed size.
   return (
-    <div className={`flex items-center gap-0.5 ${JUSTIFY[align]}`}>
-      {prefix && <span className="text-[var(--muted)]">{prefix}</span>}
+    <div className={`flex items-center gap-1 ${JUSTIFY[align]}`}>
+      {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
       <input
         type={type}
         step={type === "number" ? (integer ? "1" : "0.01") : undefined}
@@ -142,9 +142,7 @@ function InlineCell({
           const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
           if (parsed !== value) onCommit(parsed);
         }}
-        className={`rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${
-          prefix ? "w-16" : "w-full"
-        } ${TEXT_ALIGN[align]}`}
+        className={`min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
       />
     </div>
   );
