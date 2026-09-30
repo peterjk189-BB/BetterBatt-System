@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -35,6 +35,10 @@ function fmtDateTime(d: string) {
   return new Date(d).toLocaleString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function isImageFile(name: string | null) {
+  return !!name && /\.(png|jpe?g|gif|webp|heic|heif)$/i.test(name);
+}
+
 export default function SubcontractorDetail({
   subcontractor,
   attachments,
@@ -62,7 +66,35 @@ export default function SubcontractorDetail({
   const [savedMsg, setSavedMsg] = useState(false);
   const [files, setFiles] = useState(attachments);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({});
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // Fetch a viewable (signed) URL for every file so thumbnails can render straight away,
+  // instead of only generating one on click.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadThumbs() {
+      const missing = files.filter((f) => !thumbUrls[f.id]);
+      if (missing.length === 0) return;
+      const entries = await Promise.all(
+        missing.map(async (f) => {
+          const { data } = await supabase.storage.from("attachments").createSignedUrl(f.storage_path, 3600);
+          return [f.id, data?.signedUrl] as const;
+        })
+      );
+      if (cancelled) return;
+      setThumbUrls((prev) => {
+        const next = { ...prev };
+        for (const [id, url] of entries) if (url) next[id] = url;
+        return next;
+      });
+    }
+    loadThumbs();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
 
   async function save() {
     setSaving(true);
@@ -122,19 +154,30 @@ export default function SubcontractorDetail({
   }
 
   async function viewFile(a: Attachment) {
-    const { data, error } = await supabase.storage.from("attachments").createSignedUrl(a.storage_path, 60);
-    if (error || !data?.signedUrl) {
-      alert(error?.message || "Could not open file.");
-      return;
+    let url = thumbUrls[a.id];
+    if (!url) {
+      const { data, error } = await supabase.storage.from("attachments").createSignedUrl(a.storage_path, 3600);
+      if (error || !data?.signedUrl) {
+        alert(error?.message || "Could not open file.");
+        return;
+      }
+      url = data.signedUrl;
     }
-    window.open(data.signedUrl, "_blank");
+    window.open(url, "_blank");
   }
 
   async function removeFile(a: Attachment) {
     if (!confirm(`Remove ${a.file_name || "this file"}?`)) return;
     await supabase.storage.from("attachments").remove([a.storage_path]);
     const { error } = await supabase.from("attachments").delete().eq("id", a.id);
-    if (!error) setFiles((prev) => prev.filter((x) => x.id !== a.id));
+    if (!error) {
+      setFiles((prev) => prev.filter((x) => x.id !== a.id));
+      setThumbUrls((prev) => {
+        const next = { ...prev };
+        delete next[a.id];
+        return next;
+      });
+    }
   }
 
   return (
@@ -311,27 +354,53 @@ export default function SubcontractorDetail({
                 {docs.length === 0 ? (
                   <p className="mt-1 text-xs text-[var(--muted)]">No file uploaded.</p>
                 ) : (
-                  <ul className="mt-2 space-y-1">
+                  <div className="mt-2 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
                     {docs.map((a) => (
-                      <li
-                        key={a.id}
-                        className="flex items-center justify-between rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
-                      >
-                        <button onClick={() => viewFile(a)} className="text-accent hover:underline">
-                          {a.file_name || "File"}
+                      <div key={a.id} className="group relative">
+                        <button
+                          onClick={() => viewFile(a)}
+                          title={a.file_name || "File"}
+                          className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#f2f0ec] hover:border-accent"
+                        >
+                          {isImageFile(a.file_name) && thumbUrls[a.id] ? (
+                            <img
+                              src={thumbUrls[a.id]}
+                              alt={a.file_name || "Photo"}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <span className="flex flex-col items-center gap-1 text-[var(--muted)]">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                className="h-8 w-8"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M9 12h6m-6 4h6M9 8h1m5-5H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7l-5-4Z"
+                                />
+                              </svg>
+                              <span className="text-[10px]">PDF</span>
+                            </span>
+                          )}
                         </button>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-[var(--muted)]">{fmtDateTime(a.created_at)}</span>
-                          <button
-                            onClick={() => removeFile(a)}
-                            className="text-xs text-[var(--muted)] hover:underline"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </li>
+                        <button
+                          onClick={() => removeFile(a)}
+                          title="Remove"
+                          className="absolute -right-1.5 -top-1.5 hidden h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white group-hover:flex"
+                        >
+                          &times;
+                        </button>
+                        <p className="mt-1 truncate text-[10px] text-[var(--muted)]" title={a.file_name || ""}>
+                          {fmtDateTime(a.created_at)}
+                        </p>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 )}
               </div>
             );
