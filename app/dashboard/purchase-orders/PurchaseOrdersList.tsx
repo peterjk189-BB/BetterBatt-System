@@ -45,11 +45,15 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
-  // Ordered quantity is always in packs, so the total is just packs × unit cost.
+  // Ordered quantity is always in packs, so the subtotal is just packs × unit cost.
+  // The displayed total includes GST (10%).
   const totals = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of lines) {
       map[l.purchase_order_id] = (map[l.purchase_order_id] || 0) + l.qty_pks * (l.unit_cost || 0);
+    }
+    for (const key of Object.keys(map)) {
+      map[key] = map[key] * 1.1;
     }
     return map;
   }, [lines]);
@@ -99,7 +103,7 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
               <th className="px-4 py-2">Delivery date</th>
               <th className="px-4 py-2">Delivery address</th>
               <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2 text-right">Total</th>
+              <th className="px-4 py-2 text-right">Total (inc GST)</th>
             </tr>
           </thead>
           <tbody>
