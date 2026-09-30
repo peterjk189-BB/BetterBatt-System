@@ -355,7 +355,7 @@ export default function PurchaseOrderEditor({
                     <input
                       type="number"
                       step="1"
-                      className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
+                      className="w-full rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
                       value={l.qty_pks}
                       onChange={(e) => updateLine(idx, { qty_pks: Math.round(Number(e.target.value)) })}
                     />
@@ -364,7 +364,7 @@ export default function PurchaseOrderEditor({
                     <input
                       type="number"
                       step="0.01"
-                      className="w-24 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
+                      className="w-full rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
                       value={l.unit_cost ?? 0}
                       onChange={(e) => updateLine(idx, { unit_cost: Number(e.target.value) })}
                     />
@@ -374,7 +374,7 @@ export default function PurchaseOrderEditor({
                     <input
                       type="number"
                       step="1"
-                      className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
+                      className="w-full rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
                       value={l.received_multi}
                       onChange={(e) => updateLine(idx, { received_multi: Math.round(Number(e.target.value)) })}
                     />
@@ -383,7 +383,7 @@ export default function PurchaseOrderEditor({
                     <input
                       type="number"
                       step="1"
-                      className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
+                      className="w-full rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
                       value={l.received_pks}
                       onChange={(e) => updateLine(idx, { received_pks: Math.round(Number(e.target.value)) })}
                     />
