@@ -236,6 +236,15 @@ export default function PurchaseOrderEditor({
               {purchaseOrder!.archived ? "Restore" : "Archive"}
             </button>
           )}
+          {!isNew && (
+            <Link
+              href={`/dashboard/purchase-orders/${purchaseOrder!.id}/print`}
+              target="_blank"
+              className="text-sm text-[var(--muted)] hover:underline"
+            >
+              Print preview
+            </Link>
+          )}
           {!isNew && purchaseOrder!.status !== "Received" && (
             <button
               onClick={applyReceivedStock}
