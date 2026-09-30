@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type LabourItem = {
@@ -11,50 +11,89 @@ type LabourItem = {
   archived: boolean;
 };
 
+type Align = "left" | "right" | "center";
+
+const JUSTIFY: Record<Align, string> = {
+  left: "justify-start",
+  right: "justify-end",
+  center: "justify-center",
+};
+const TEXT_ALIGN: Record<Align, string> = {
+  left: "text-left",
+  right: "text-right",
+  center: "text-center",
+};
+
+function InlineCell({
+  value,
+  onCommit,
+  type = "text",
+  align = "left",
+  prefix,
+}: {
+  value: string | number;
+  onCommit: (v: string | number) => void;
+  type?: "text" | "number";
+  align?: Align;
+  prefix?: string;
+}) {
+  const [v, setV] = useState(String(value));
+
+  useEffect(() => {
+    setV(String(value));
+  }, [value]);
+
+  return (
+    <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]}`}>
+      {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
+      <input
+        type={type}
+        step={type === "number" ? "0.01" : undefined}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => {
+          const parsed = type === "number" ? Number(v) || 0 : v;
+          if (parsed !== value) onCommit(parsed);
+        }}
+        className={`min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
+      />
+    </div>
+  );
+}
+
 const emptyForm = { code: "", description: "", contractor_rate: 0 };
 
 export default function LabourItemsTable({ initial }: { initial: LabourItem[] }) {
   const supabase = createClient();
   const [items, setItems] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
-  const [editing, setEditing] = useState<LabourItem | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function openNew() {
-    setEditing(null);
     setForm(emptyForm);
-    setModalOpen(true);
-  }
-
-  function openEdit(i: LabourItem) {
-    setEditing(i);
-    setForm({ code: i.code, description: i.description, contractor_rate: i.contractor_rate });
     setModalOpen(true);
   }
 
   async function save() {
     setSaving(true);
-    if (editing) {
-      const { data, error } = await supabase
-        .from("labour_items")
-        .update(form)
-        .eq("id", editing.id)
-        .select()
-        .single();
-      if (!error && data) {
-        setItems((prev) => prev.map((i) => (i.id === editing.id ? (data as LabourItem) : i)));
-        setModalOpen(false);
-      } else if (error) alert(error.message);
-    } else {
-      const { data, error } = await supabase.from("labour_items").insert(form).select().single();
-      if (!error && data) {
-        setItems((prev) => [data as LabourItem, ...prev]);
-        setModalOpen(false);
-      } else if (error) alert(error.message);
-    }
+    const { data, error } = await supabase.from("labour_items").insert(form).select().single();
+    if (!error && data) {
+      setItems((prev) => [data as LabourItem, ...prev]);
+      setModalOpen(false);
+    } else if (error) alert(error.message);
     setSaving(false);
+  }
+
+  async function updateField(i: LabourItem, patch: Partial<LabourItem>) {
+    // Update the row on screen immediately so the input doesn't feel laggy.
+    setItems((prev) => prev.map((x) => (x.id === i.id ? { ...x, ...patch } : x)));
+    const { error } = await supabase.from("labour_items").update(patch).eq("id", i.id);
+    if (error) {
+      alert(error.message);
+      setItems((prev) => prev.map((x) => (x.id === i.id ? i : x)));
+    }
   }
 
   async function toggleArchive(i: LabourItem) {
@@ -82,7 +121,7 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
       </div>
       <p className="mt-1 text-sm text-[var(--muted)]">
         Contractor pay rate schedule — used to price and pay contractors, separate from customer
-        quoting.
+        quoting. Click any cell below to edit it directly.
       </p>
 
       <button
@@ -96,26 +135,35 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-4 py-2">Code</th>
-              <th className="px-4 py-2">Description</th>
-              <th className="px-4 py-2">Contractor rate</th>
-              <th className="px-4 py-2"></th>
+              <th className="px-3 py-2">Code</th>
+              <th className="px-3 py-2">Description</th>
+              <th className="px-3 py-2 text-right">Contractor rate</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {visible.map((i) => (
               <tr key={i.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2 font-mono text-xs">{i.code}</td>
-                <td className="px-4 py-2">{i.description}</td>
-                <td className="px-4 py-2">${i.contractor_rate.toFixed(2)}</td>
-                <td className="px-4 py-2 text-right">
-                  <button onClick={() => openEdit(i)} className="text-accent hover:underline">
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => toggleArchive(i)}
-                    className="ml-3 text-[var(--muted)] hover:underline"
-                  >
+                <td className="px-1 py-1 font-mono text-xs">
+                  <InlineCell value={i.code} onCommit={(v) => updateField(i, { code: String(v) })} />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell
+                    value={i.description}
+                    onCommit={(v) => updateField(i, { description: String(v) })}
+                  />
+                </td>
+                <td className="px-1 py-1">
+                  <InlineCell
+                    value={i.contractor_rate}
+                    type="number"
+                    align="right"
+                    prefix="$"
+                    onCommit={(v) => updateField(i, { contractor_rate: Number(v) })}
+                  />
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <button onClick={() => toggleArchive(i)} className="text-[var(--muted)] hover:underline">
                     {i.archived ? "Restore" : "Archive"}
                   </button>
                 </td>
@@ -136,7 +184,7 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
-              <h2 className="text-lg font-bold">{editing ? "Edit labour item" : "Add labour item"}</h2>
+              <h2 className="text-lg font-bold">Add labour item</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <label className="flex flex-col gap-1 text-sm">
