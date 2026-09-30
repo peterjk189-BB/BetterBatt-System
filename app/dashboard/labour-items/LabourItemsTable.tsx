@@ -131,8 +131,14 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
         {showArchived ? "View active" : "View archived"}
       </button>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full text-sm">
+      <div className="mt-4 max-w-2xl overflow-x-auto rounded-xl border border-[var(--border)]">
+        <table className="w-full table-fixed text-sm">
+          <colgroup>
+            <col className="w-20" />
+            <col />
+            <col className="w-32" />
+            <col className="w-24" />
+          </colgroup>
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
               <th className="px-3 py-2">Code</th>
