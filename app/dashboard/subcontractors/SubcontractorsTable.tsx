@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 type Subcontractor = {
   id: string;
   name: string;
+  company_name: string | null;
   address: string | null;
   postcode: string | null;
   phone: string | null;
@@ -21,6 +22,7 @@ type Subcontractor = {
 
 const emptyForm = {
   name: "",
+  company_name: "",
   address: "",
   postcode: "",
   phone: "",
@@ -56,6 +58,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
     setEditing(s);
     setForm({
       name: s.name,
+      company_name: s.company_name || "",
       address: s.address || "",
       postcode: s.postcode || "",
       phone: s.phone || "",
@@ -130,7 +133,8 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-4 py-2">Name / Comp</th>
+              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Company</th>
               <th className="px-4 py-2">Address</th>
               <th className="px-4 py-2">Postcode</th>
               <th className="px-4 py-2">Mobile</th>
@@ -148,6 +152,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
             {visible.map((s) => (
               <tr key={s.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">{s.name}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{s.company_name || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.address || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.postcode || "—"}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
@@ -178,7 +183,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={13} className="px-4 py-8 text-center text-[var(--muted)]">
                   No subcontractors found.
                 </td>
               </tr>
@@ -194,14 +199,24 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
               <h2 className="text-lg font-bold">{editing ? "Edit subcontractor" : "Add subcontractor"}</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-              <label className="flex flex-col gap-1 text-sm">
-                Name / company
-                <input
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
+                  Name
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Company
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.company_name}
+                    onChange={(e) => setForm({ ...form, company_name: e.target.value })}
+                  />
+                </label>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
                   Address
