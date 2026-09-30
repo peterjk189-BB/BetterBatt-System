@@ -130,6 +130,10 @@ function InlineCell({
 
   // Prefix sits fixed at the left, and the input fills whatever room is left in the cell —
   // so it actually grows/shrinks when the column is resized, instead of staying a fixed size.
+  // When there's a $ prefix, cap the input's width so it doesn't stretch far away from the
+  // prefix in a wide column — it can still shrink smaller than the cap in a narrow one.
+  const prefixWidthCap = prefix ? "max-w-[6rem]" : "";
+
   return (
     <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]}`}>
       {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
@@ -142,7 +146,7 @@ function InlineCell({
           const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
           if (parsed !== value) onCommit(parsed);
         }}
-        className={`min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
+        className={`min-w-0 flex-1 ${prefixWidthCap} rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
       />
     </div>
   );
