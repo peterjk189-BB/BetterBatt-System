@@ -143,7 +143,7 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
             <tr>
               <th className="px-3 py-2">Code</th>
               <th className="px-3 py-2">Description</th>
-              <th className="px-3 py-2 text-right">Contractor rate</th>
+              <th className="px-3 py-2 text-center">Contractor rate</th>
               <th className="px-3 py-2"></th>
             </tr>
           </thead>
@@ -163,7 +163,7 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
                   <InlineCell
                     value={i.contractor_rate}
                     type="number"
-                    align="right"
+                    align="center"
                     prefix="$"
                     onCommit={(v) => updateField(i, { contractor_rate: Number(v) })}
                   />
