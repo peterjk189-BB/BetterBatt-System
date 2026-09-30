@@ -43,6 +43,10 @@ function InlineCell({
     setV(String(value));
   }, [value]);
 
+  // When there's a $ prefix, the input sizes to its content instead of stretching to
+  // fill the cell — otherwise the prefix and the number end up far apart.
+  const inputWidthClass = prefix ? "w-16 shrink-0" : "min-w-0 flex-1";
+
   return (
     <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]}`}>
       {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
@@ -55,7 +59,7 @@ function InlineCell({
           const parsed = type === "number" ? Number(v) || 0 : v;
           if (parsed !== value) onCommit(parsed);
         }}
-        className={`min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
+        className={`${inputWidthClass} rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
       />
     </div>
   );
