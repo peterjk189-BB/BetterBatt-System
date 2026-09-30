@@ -45,28 +45,47 @@ const emptyForm = {
   is_stock_item: true,
 };
 
-// CSV import — column headers (in order) and helpers for turning spreadsheet text into real values.
-const CSV_COLUMNS = [
-  "code",
-  "name",
-  "type",
-  "supplier",
-  "is_stock_item",
-  "coverage_m2",
-  "pack_cost_ex_gst",
-  "installer_rate_per_m2",
-  "supply_charge_per_pack",
-  "supply_install_rate_per_m2",
-  "pack_per_multi",
-  "multi",
-  "pks",
-] as const;
+// CSV import — maps each Inventory column to the field name the importer reads, in the
+// same order the columns currently appear on screen. Columns that are calculated rather
+// than imported (Cov/Cost/m², Stock, Total m², Inventory value) and the actions column
+// are left out.
+const COLUMN_TO_CSV_FIELD: Record<string, string | null> = {
+  code: "code",
+  name: "name",
+  supplier: "supplier",
+  type: "type",
+  coverage: "coverage_m2",
+  packPerMulti: "pack_per_multi",
+  packCost: "pack_cost_ex_gst",
+  covCostM2: null,
+  supplyInstall: "supply_install_rate_per_m2",
+  installerRate: "installer_rate_per_m2",
+  supplyPack: "supply_charge_per_pack",
+  pks: "pks",
+  multi: "multi",
+  stock: null,
+  totalM2: null,
+  value: null,
+  actions: null,
+};
 
-const CSV_TEMPLATE_ROWS = [
-  ["15250", "R2.5 Wall Batt", "WALLS", "Fletcher Insulation", "TRUE", "6.3", "42.50", "3.20", "9.90", "12.40", "1", "24", "0"],
-  ["15229", "Ceiling Blanket R6.0", "CEILINGS", "CSR Bradford", "TRUE", "10.8", "65.00", "2.80", "8.50", "10.90", "1", "12", "0"],
-  ["", "Delivery", "", "", "FALSE", "1", "0", "0", "0", "45.00", "0", "0", "0"],
-];
+// Example values per field, used to fill in the template's sample rows regardless of
+// which columns end up included.
+const CSV_TEMPLATE_EXAMPLES: Record<string, [string, string, string]> = {
+  code: ["15250", "15229", ""],
+  name: ["R2.5 Wall Batt", "Ceiling Blanket R6.0", "Delivery"],
+  supplier: ["Fletcher Insulation", "CSR Bradford", ""],
+  type: ["WALLS", "CEILINGS", ""],
+  coverage_m2: ["6.3", "10.8", "1"],
+  pack_per_multi: ["1", "1", "0"],
+  pack_cost_ex_gst: ["42.50", "65.00", "0"],
+  supply_install_rate_per_m2: ["12.40", "10.90", "45.00"],
+  installer_rate_per_m2: ["3.20", "2.80", "0"],
+  supply_charge_per_pack: ["9.90", "8.50", "0"],
+  pks: ["0", "0", "0"],
+  multi: ["24", "12", "0"],
+  is_stock_item: ["TRUE", "TRUE", "FALSE"],
+};
 
 function parseNum(v: string | undefined) {
   const n = parseFloat((v || "").replace(/[^0-9.-]/g, ""));
@@ -82,8 +101,18 @@ function parseBool(v: string | undefined, fallback = true) {
   return fallback;
 }
 
-function downloadCsvTemplate() {
-  const csv = [CSV_COLUMNS.join(","), ...CSV_TEMPLATE_ROWS.map((r) => r.join(","))].join("\n");
+// Builds the template from whatever columns are currently visible, in their current
+// on-screen order — so it matches the table exactly, including any reordering/hiding
+// the user has set up. is_stock_item isn't a table column, so it's always appended at
+// the end since the importer still needs it.
+function downloadCsvTemplate(visibleColOrder: string[]) {
+  const fields = visibleColOrder
+    .map((key) => COLUMN_TO_CSV_FIELD[key])
+    .filter((f): f is string => !!f);
+  fields.push("is_stock_item");
+
+  const rows = [0, 1, 2].map((i) => fields.map((f) => CSV_TEMPLATE_EXAMPLES[f]?.[i] ?? ""));
+  const csv = [fields.join(","), ...rows.map((r) => r.join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -693,7 +722,10 @@ export default function PartsTable({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={downloadCsvTemplate} className="text-sm text-[var(--muted)] hover:underline">
+          <button
+            onClick={() => downloadCsvTemplate(visibleColOrder)}
+            className="text-sm text-[var(--muted)] hover:underline"
+          >
             Download CSV template
           </button>
           <input
