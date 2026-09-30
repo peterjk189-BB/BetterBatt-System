@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Subcontractor = {
@@ -43,33 +44,12 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
   const supabase = createClient();
   const [subs, setSubs] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
-  const [editing, setEditing] = useState<Subcontractor | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   function openNew() {
-    setEditing(null);
     setForm(emptyForm);
-    setModalOpen(true);
-  }
-
-  function openEdit(s: Subcontractor) {
-    setEditing(s);
-    setForm({
-      name: s.name,
-      company_name: s.company_name || "",
-      address: s.address || "",
-      postcode: s.postcode || "",
-      phone: s.phone || "",
-      home_phone: s.home_phone || "",
-      email: s.email || "",
-      abn: s.abn || "",
-      commencement_date: s.commencement_date || "",
-      finished_date: s.finished_date || "",
-      notes: s.notes || "",
-      active: s.active,
-    });
     setModalOpen(true);
   }
 
@@ -80,24 +60,11 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
       commencement_date: form.commencement_date || null,
       finished_date: form.finished_date || null,
     };
-    if (editing) {
-      const { data, error } = await supabase
-        .from("subcontractors")
-        .update(payload)
-        .eq("id", editing.id)
-        .select()
-        .single();
-      if (!error && data) {
-        setSubs((prev) => prev.map((s) => (s.id === editing.id ? (data as Subcontractor) : s)));
-        setModalOpen(false);
-      } else if (error) alert(error.message);
-    } else {
-      const { data, error } = await supabase.from("subcontractors").insert(payload).select().single();
-      if (!error && data) {
-        setSubs((prev) => [data as Subcontractor, ...prev]);
-        setModalOpen(false);
-      } else if (error) alert(error.message);
-    }
+    const { data, error } = await supabase.from("subcontractors").insert(payload).select().single();
+    if (!error && data) {
+      setSubs((prev) => [data as Subcontractor, ...prev]);
+      setModalOpen(false);
+    } else if (error) alert(error.message);
     setSaving(false);
   }
 
@@ -151,8 +118,20 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
           <tbody>
             {visible.map((s) => (
               <tr key={s.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2 font-medium">{s.name}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{s.company_name || "—"}</td>
+                <td className="px-4 py-2 font-medium">
+                  <Link href={`/dashboard/subcontractors/${s.id}`} className="text-accent hover:underline">
+                    {s.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-2 text-[var(--muted)]">
+                  {s.company_name ? (
+                    <Link href={`/dashboard/subcontractors/${s.id}`} className="text-accent hover:underline">
+                      {s.company_name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.address || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.postcode || "—"}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
@@ -172,10 +151,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
                   )}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  <button onClick={() => openEdit(s)} className="text-accent hover:underline">
-                    Edit
-                  </button>
-                  <button onClick={() => toggleArchive(s)} className="ml-3 text-[var(--muted)] hover:underline">
+                  <button onClick={() => toggleArchive(s)} className="text-[var(--muted)] hover:underline">
                     {s.archived ? "Restore" : "Archive"}
                   </button>
                 </td>
@@ -196,7 +172,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
-              <h2 className="text-lg font-bold">{editing ? "Edit subcontractor" : "Add subcontractor"}</h2>
+              <h2 className="text-lg font-bold">Add subcontractor</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-2 gap-4">
