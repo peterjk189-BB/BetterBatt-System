@@ -700,17 +700,20 @@ export default function PartsTable({
       .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
   }, [parts, showArchived, search, hideNonStock]);
 
-  // Inventory value by supplier, for the KPI cards up top.
+  // Inventory value + total m² by supplier, for the KPI cards up top.
   const supplierTotals = useMemo(() => {
-    const totals: Record<string, number> = {};
+    const totals: Record<string, { value: number; totalM2: number }> = {};
     for (const p of parts) {
       if (p.archived) continue;
       const key = p.supplier_id ? supplierById[p.supplier_id] || "Unassigned" : "Unassigned";
-      totals[key] = (totals[key] || 0) + p.pack_cost_ex_gst * p.stock_on_hand;
+      const entry = totals[key] || { value: 0, totalM2: 0 };
+      entry.value += p.pack_cost_ex_gst * p.stock_on_hand;
+      entry.totalM2 += p.coverage_m2 * p.stock_on_hand;
+      totals[key] = entry;
     }
-    return Object.entries(totals).filter(([, v]) => v > 0);
+    return Object.entries(totals).filter(([, t]) => t.value > 0);
   }, [parts, supplierById]);
-  const grandTotal = supplierTotals.reduce((s, [, v]) => s + v, 0);
+  const grandTotal = supplierTotals.reduce((s, [, t]) => s + t.value, 0);
 
   return (
     <div>
@@ -806,7 +809,7 @@ export default function PartsTable({
           <div className="text-xs uppercase text-[var(--muted)]">Total inventory value</div>
           <div className="mt-1 text-lg font-bold">{fmtCurrency(grandTotal)}</div>
         </div>
-        {supplierTotals.map(([supplier, value]) => {
+        {supplierTotals.map(([supplier, totals]) => {
           const name = supplier.toLowerCase();
           const tone = name.includes("fletcher")
             ? "border-green-400 bg-green-100 text-green-900"
@@ -816,7 +819,12 @@ export default function PartsTable({
           return (
             <div key={supplier} className={`rounded-xl border p-3 ${tone}`}>
               <div className="text-xs uppercase opacity-70">{supplier}</div>
-              <div className="mt-1 text-lg font-bold">{fmtCurrency(value)}</div>
+              <div className="mt-1 flex items-baseline gap-2">
+                <span className="text-lg font-bold">{fmtCurrency(totals.value)}</span>
+                <span className="text-xs font-medium opacity-70">
+                  {totals.totalM2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m²
+                </span>
+              </div>
             </div>
           );
         })}
