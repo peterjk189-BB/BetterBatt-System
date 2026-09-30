@@ -59,7 +59,6 @@ export default function PurchaseOrderEditor({
 
   const [form, setForm] = useState({
     supplier_id: purchaseOrder?.supplier_id || "",
-    po_number: purchaseOrder?.po_number || "",
     status: purchaseOrder?.status || "Draft",
     order_date: purchaseOrder?.order_date || new Date().toISOString().slice(0, 10),
     notes: purchaseOrder?.notes || "",
@@ -107,9 +106,10 @@ export default function PurchaseOrderEditor({
     setSaving(true);
     setError(null);
 
+    // po_number is auto-assigned by the database (a sequence, like "PO1001") — it's never
+    // sent here, so a new row gets its default and an existing one keeps whatever it has.
     const payload = {
       supplier_id: form.supplier_id || null,
-      po_number: form.po_number || null,
       status: form.status,
       order_date: form.order_date || null,
       notes: form.notes || null,
@@ -276,12 +276,9 @@ export default function PurchaseOrderEditor({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           P/O number
-          <input
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
-            value={form.po_number}
-            onChange={(e) => setForm({ ...form, po_number: e.target.value })}
-            placeholder="e.g. PO1001"
-          />
+          <div className="flex items-center rounded-lg border border-[var(--border)] bg-[#f2f0ec] px-3 py-2 text-[var(--muted)]">
+            {isNew ? "Assigned automatically on save" : purchaseOrder!.po_number || "—"}
+          </div>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Order date
