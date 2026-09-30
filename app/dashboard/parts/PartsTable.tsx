@@ -546,7 +546,7 @@ export default function PartsTable({
         return <InlineCell value={p.code || ""} onCommit={(v) => patch(p, "code", v)} align="center" />;
       case "name":
         return (
-          <div className="flex items-center gap-1.5 px-2">
+          <div className="flex w-full items-center gap-1.5 px-2">
             <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
             {!p.is_stock_item && (
               <span className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)]">
