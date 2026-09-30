@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import SubcontractorPanel, { type Attachment } from "./SubcontractorPanel";
 
 type Subcontractor = {
   id: string;
@@ -65,6 +65,8 @@ export default function SubcontractorsTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [attachmentsBySub, setAttachmentsBySub] = useState<Record<string, Attachment[]>>({});
 
   // One profile photo per subcontractor — photos are ordered newest first, so the
   // first match per id is the current one.
@@ -112,6 +114,41 @@ export default function SubcontractorsTable({
       setModalOpen(false);
     } else if (error) alert(error.message);
     setSaving(false);
+  }
+
+  async function toggleExpand(id: string) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    if (!attachmentsBySub[id]) {
+      const { data } = await supabase
+        .from("attachments")
+        .select("id, category, storage_path, file_name, created_at")
+        .eq("subcontractor_id", id)
+        .order("created_at", { ascending: false });
+      setAttachmentsBySub((prev) => ({ ...prev, [id]: (data as Attachment[]) ?? [] }));
+    }
+  }
+
+  // Keep the list's small avatar in sync when the profile photo is changed from the
+  // expanded panel below.
+  async function handleAttachmentsChange(subId: string, files: Attachment[]) {
+    setAttachmentsBySub((prev) => ({ ...prev, [subId]: files }));
+    const photo = files.find((f) => f.category === "Profile Photo");
+    if (!photo) {
+      setAvatarUrls((prev) => {
+        const next = { ...prev };
+        delete next[subId];
+        return next;
+      });
+      return;
+    }
+    const { data } = await supabase.storage.from("attachments").createSignedUrl(photo.storage_path, 3600);
+    if (data?.signedUrl) {
+      setAvatarUrls((prev) => ({ ...prev, [subId]: data.signedUrl }));
+    }
   }
 
   async function toggleArchive(s: Subcontractor) {
@@ -163,28 +200,29 @@ export default function SubcontractorsTable({
           </thead>
           <tbody>
             {visible.map((s) => (
-              <tr key={s.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2 font-medium">
-                  <Link href={`/dashboard/subcontractors/${s.id}`} className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f2f0ec] text-xs font-semibold text-[var(--muted)]">
-                      {avatarUrls[s.id] ? (
-                        <img src={avatarUrls[s.id]} alt={s.name} className="h-full w-full object-cover" />
-                      ) : (
-                        initials(s.name)
-                      )}
-                    </span>
-                    <span className="text-accent hover:underline">{s.name}</span>
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-[var(--muted)]">
-                  {s.company_name ? (
-                    <Link href={`/dashboard/subcontractors/${s.id}`} className="text-accent hover:underline">
-                      {s.company_name}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
+              <Fragment key={s.id}>
+                <tr className="border-t border-[var(--border)]">
+                  <td className="px-4 py-2 font-medium">
+                    <button onClick={() => toggleExpand(s.id)} className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f2f0ec] text-xs font-semibold text-[var(--muted)]">
+                        {avatarUrls[s.id] ? (
+                          <img src={avatarUrls[s.id]} alt={s.name} className="h-full w-full object-cover" />
+                        ) : (
+                          initials(s.name)
+                        )}
+                      </span>
+                      <span className="text-accent hover:underline">{s.name}</span>
+                    </button>
+                  </td>
+                  <td className="px-4 py-2 text-[var(--muted)]">
+                    {s.company_name ? (
+                      <button onClick={() => toggleExpand(s.id)} className="text-accent hover:underline">
+                        {s.company_name}
+                      </button>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.address || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.postcode || "—"}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
@@ -209,6 +247,21 @@ export default function SubcontractorsTable({
                   </button>
                 </td>
               </tr>
+              {expandedId === s.id && (
+                <tr className="border-t border-[var(--border)] bg-[#faf9f7]">
+                  <td colSpan={13} className="px-4 py-5">
+                    <SubcontractorPanel
+                      subcontractor={s}
+                      attachments={attachmentsBySub[s.id] ?? []}
+                      onSubcontractorChange={(updated) =>
+                        setSubs((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)))
+                      }
+                      onAttachmentsChange={(files) => handleAttachmentsChange(s.id, files)}
+                    />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
             {visible.length === 0 && (
               <tr>
