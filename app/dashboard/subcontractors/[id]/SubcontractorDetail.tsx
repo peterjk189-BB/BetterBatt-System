@@ -30,6 +30,16 @@ type Attachment = {
 };
 
 const DOC_CATEGORIES = ["White Card", "Photo ID", "Driver's Licence"] as const;
+const PROFILE_CATEGORY = "Profile Photo";
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
 
 function fmtDateTime(d: string) {
   return new Date(d).toLocaleString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
@@ -153,6 +163,40 @@ export default function SubcontractorDetail({
     setUploading(null);
   }
 
+  // The profile photo is a single "main" image (shown next to their name on the list page),
+  // so uploading a new one replaces whatever was there before rather than adding another.
+  async function uploadProfilePhoto(file: File) {
+    setUploading(PROFILE_CATEGORY);
+    const existing = files.filter((f) => f.category === PROFILE_CATEGORY);
+    for (const e of existing) {
+      await supabase.storage.from("attachments").remove([e.storage_path]);
+      await supabase.from("attachments").delete().eq("id", e.id);
+    }
+    const path = `subcontractors/${subcontractor.id}/profile-photo/${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("attachments").upload(path, file);
+    if (upErr) {
+      alert(upErr.message);
+      setUploading(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("attachments")
+      .insert({
+        subcontractor_id: subcontractor.id,
+        category: PROFILE_CATEGORY,
+        storage_path: path,
+        file_name: file.name,
+      })
+      .select()
+      .single();
+    if (!error && data) {
+      setFiles((prev) => [data as Attachment, ...prev.filter((f) => f.category !== PROFILE_CATEGORY)]);
+    } else if (error) {
+      alert(error.message);
+    }
+    setUploading(null);
+  }
+
   async function viewFile(a: Attachment) {
     let url = thumbUrls[a.id];
     if (!url) {
@@ -180,6 +224,8 @@ export default function SubcontractorDetail({
     }
   }
 
+  const profilePhoto = files.find((f) => f.category === PROFILE_CATEGORY);
+
   return (
     <div className="max-w-3xl">
       <Link href="/dashboard/subcontractors" className="text-sm text-[var(--muted)] hover:underline">
@@ -187,11 +233,42 @@ export default function SubcontractorDetail({
       </Link>
 
       <div className="mt-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{subcontractor.name}</h1>
-          {subcontractor.company_name && (
-            <p className="text-sm text-[var(--muted)]">{subcontractor.company_name}</p>
-          )}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => fileInputs.current[PROFILE_CATEGORY]?.click()}
+            title="Change photo"
+            className="group relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-[var(--border)] bg-[#f2f0ec]"
+          >
+            {profilePhoto && thumbUrls[profilePhoto.id] ? (
+              <img src={thumbUrls[profilePhoto.id]} alt={subcontractor.name} className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-lg font-semibold text-[var(--muted)]">
+                {initials(subcontractor.name)}
+              </span>
+            )}
+            <span className="absolute inset-0 hidden items-center justify-center bg-black/50 text-[10px] text-white group-hover:flex">
+              {uploading === PROFILE_CATEGORY ? "..." : "Change"}
+            </span>
+          </button>
+          <input
+            ref={(el) => {
+              fileInputs.current[PROFILE_CATEGORY] = el;
+            }}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadProfilePhoto(file);
+              e.target.value = "";
+            }}
+          />
+          <div>
+            <h1 className="text-2xl font-bold">{subcontractor.name}</h1>
+            {subcontractor.company_name && (
+              <p className="text-sm text-[var(--muted)]">{subcontractor.company_name}</p>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {savedMsg && <span className="text-sm text-green-700">Saved</span>}

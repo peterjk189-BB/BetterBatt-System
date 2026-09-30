@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -21,6 +21,17 @@ type Subcontractor = {
   archived: boolean;
 };
 
+type ProfilePhoto = { subcontractor_id: string; storage_path: string; created_at: string };
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join("");
+}
+
 const emptyForm = {
   name: "",
   company_name: "",
@@ -40,13 +51,48 @@ function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("en-AU") : "—";
 }
 
-export default function SubcontractorsTable({ initial }: { initial: Subcontractor[] }) {
+export default function SubcontractorsTable({
+  initial,
+  photos,
+}: {
+  initial: Subcontractor[];
+  photos: ProfilePhoto[];
+}) {
   const supabase = createClient();
   const [subs, setSubs] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [avatarUrls, setAvatarUrls] = useState<Record<string, string>>({});
+
+  // One profile photo per subcontractor — photos are ordered newest first, so the
+  // first match per id is the current one.
+  const photoBySub: Record<string, string> = {};
+  for (const p of photos) {
+    if (!photoBySub[p.subcontractor_id]) photoBySub[p.subcontractor_id] = p.storage_path;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAvatars() {
+      const entries = await Promise.all(
+        Object.entries(photoBySub).map(async ([subId, path]) => {
+          const { data } = await supabase.storage.from("attachments").createSignedUrl(path, 3600);
+          return [subId, data?.signedUrl] as const;
+        })
+      );
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const [id, url] of entries) if (url) next[id] = url;
+      setAvatarUrls(next);
+    }
+    if (Object.keys(photoBySub).length > 0) loadAvatars();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photos]);
 
   function openNew() {
     setForm(emptyForm);
@@ -119,8 +165,15 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
             {visible.map((s) => (
               <tr key={s.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">
-                  <Link href={`/dashboard/subcontractors/${s.id}`} className="text-accent hover:underline">
-                    {s.name}
+                  <Link href={`/dashboard/subcontractors/${s.id}`} className="flex items-center gap-2">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f2f0ec] text-xs font-semibold text-[var(--muted)]">
+                      {avatarUrls[s.id] ? (
+                        <img src={avatarUrls[s.id]} alt={s.name} className="h-full w-full object-cover" />
+                      ) : (
+                        initials(s.name)
+                      )}
+                    </span>
+                    <span className="text-accent hover:underline">{s.name}</span>
                   </Link>
                 </td>
                 <td className="px-4 py-2 text-[var(--muted)]">
