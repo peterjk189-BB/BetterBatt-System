@@ -110,7 +110,9 @@ export default function PurchaseOrderEditor({
     return (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0);
   }
 
-  const grandTotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
+  const subtotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
+  const gst = subtotal * 0.1;
+  const grandTotal = subtotal + gst;
 
   async function save() {
     setSaving(true);
@@ -473,7 +475,20 @@ export default function PurchaseOrderEditor({
 
         <div className="mt-3 flex items-center justify-between rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-3 text-sm">
           <span className="text-[var(--muted)]">{lineItems.length} line item(s)</span>
-          <span className="font-semibold">Total {fmtCurrency(grandTotal)}</span>
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="flex items-center gap-3 text-[var(--muted)]">
+              <span>Subtotal (ex GST)</span>
+              <span className="text-[var(--text)]">{fmtCurrency(subtotal)}</span>
+            </div>
+            <div className="flex items-center gap-3 text-[var(--muted)]">
+              <span>GST (10%)</span>
+              <span className="text-[var(--text)]">{fmtCurrency(gst)}</span>
+            </div>
+            <div className="mt-1 flex items-center gap-3 border-t border-[var(--border)] pt-1 font-semibold">
+              <span>Total (inc GST)</span>
+              <span>{fmtCurrency(grandTotal)}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
