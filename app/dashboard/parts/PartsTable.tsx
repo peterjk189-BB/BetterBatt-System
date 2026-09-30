@@ -186,12 +186,19 @@ const TD_CLASS: Record<string, string> = {
   actions: "px-3 py-1 text-center",
 };
 
+// Pks and Multi get moved constantly with stock coming in and going out, so they're
+// highlighted to stand out from the mostly-static pricing/reference columns around them.
+const STOCK_MOVEMENT_COLS = new Set(["pks", "multi"]);
+const STOCK_MOVEMENT_TH_CLASS = "bg-amber-100 text-amber-900";
+const STOCK_MOVEMENT_TD_CLASS = "bg-amber-50";
+
 // A column header that can be dragged wider/narrower from its right edge, or picked up and
 // dropped on another header to reorder the columns.
 function ResizableTh({
   label,
   align,
   isDragging,
+  highlightClass,
   onResizeStart,
   onDragStart,
   onDragOver,
@@ -201,6 +208,7 @@ function ResizableTh({
   label: string;
   align: Align;
   isDragging?: boolean;
+  highlightClass?: string;
   onResizeStart: (e: React.MouseEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
@@ -216,7 +224,7 @@ function ResizableTh({
       onDragEnd={onDragEnd}
       className={`relative cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
         TEXT_ALIGN[align]
-      } ${isDragging ? "opacity-40" : ""}`}
+      } ${highlightClass ?? ""} ${isDragging ? "opacity-40" : ""}`}
     >
       {label}
       <span
@@ -818,6 +826,7 @@ export default function PartsTable({
                     label={c.label}
                     align={c.align}
                     isDragging={dragKey === c.key}
+                    highlightClass={STOCK_MOVEMENT_COLS.has(c.key) ? STOCK_MOVEMENT_TH_CLASS : undefined}
                     onResizeStart={startResize(c.key)}
                     onDragStart={(e) => {
                       setDragKey(c.key);
@@ -846,7 +855,12 @@ export default function PartsTable({
                 }`}
               >
                 {visibleColOrder.map((key) => (
-                  <td key={key} className={TD_CLASS[key] ?? "px-1 py-1"}>
+                  <td
+                    key={key}
+                    className={`${TD_CLASS[key] ?? "px-1 py-1"} ${
+                      STOCK_MOVEMENT_COLS.has(key) ? STOCK_MOVEMENT_TD_CLASS : ""
+                    }`}
+                  >
                     {renderCell(key, p)}
                   </td>
                 ))}
