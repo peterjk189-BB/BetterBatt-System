@@ -27,8 +27,11 @@ type PurchaseOrder = {
 type Line = {
   id?: string;
   part_id: string | null;
+  // Ordering is always in loose packs — we never order by the multi-pack. qty_multi is kept
+  // (always 0) purely so the database row shape matches purchase_order_lines.
   qty_multi: number;
   qty_pks: number;
+  // Receiving is different: stock can turn up as full multi-packs, loose packs, or both.
   received_multi: number;
   received_pks: number;
   unit_cost: number | null;
@@ -94,9 +97,8 @@ export default function PurchaseOrderEditor({
   }
 
   function lineTotal(l: Line) {
-    const part = l.part_id ? partById[l.part_id] : undefined;
-    const packs = (part?.pack_per_multi || 0) * (Number(l.qty_multi) || 0) + (Number(l.qty_pks) || 0);
-    return packs * (Number(l.unit_cost) || 0);
+    // Ordered quantity is always in packs, so the line total is just packs × unit cost.
+    return (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0);
   }
 
   const grandTotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
@@ -310,8 +312,8 @@ export default function PurchaseOrderEditor({
         </div>
 
         <p className="mt-1 text-xs text-[var(--muted)]">
-          Ordered and received quantities are tracked separately, split between full multi-packs and loose
-          packs — matching how stock is counted in Inventory.
+          You order by the pack. When stock arrives, split what actually turned up between full
+          multi-packs and loose packs — matching how stock is counted in Inventory.
         </p>
 
         <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
@@ -319,8 +321,7 @@ export default function PurchaseOrderEditor({
             <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-2">Item</th>
-                <th className="px-3 py-2 text-right">Ordered multis</th>
-                <th className="px-3 py-2 text-right">Ordered pks</th>
+                <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
                 <th className="px-3 py-2 text-right">Line total</th>
                 <th className="px-3 py-2 text-right">Received multis</th>
@@ -349,15 +350,6 @@ export default function PurchaseOrderEditor({
                         </option>
                       ))}
                     </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      step="1"
-                      className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
-                      value={l.qty_multi}
-                      onChange={(e) => updateLine(idx, { qty_multi: Math.round(Number(e.target.value)) })}
-                    />
                   </td>
                   <td className="px-3 py-2">
                     <input
@@ -405,7 +397,7 @@ export default function PurchaseOrderEditor({
               ))}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
                     No line items yet.
                   </td>
                 </tr>

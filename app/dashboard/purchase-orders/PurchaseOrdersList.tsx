@@ -12,7 +12,7 @@ type PO = {
   suppliers: { name: string } | null;
 };
 
-type Line = { purchase_order_id: string; part_id: string | null; qty_multi: number; qty_pks: number; unit_cost: number | null };
+type Line = { purchase_order_id: string; part_id: string | null; qty_pks: number; unit_cost: number | null };
 type Part = { id: string; pack_per_multi: number };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -29,17 +29,14 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
 
-  const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
-
+  // Ordered quantity is always in packs, so the total is just packs × unit cost.
   const totals = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of lines) {
-      const part = l.part_id ? partById[l.part_id] : undefined;
-      const packs = (part?.pack_per_multi || 0) * l.qty_multi + l.qty_pks;
-      map[l.purchase_order_id] = (map[l.purchase_order_id] || 0) + packs * (l.unit_cost || 0);
+      map[l.purchase_order_id] = (map[l.purchase_order_id] || 0) + l.qty_pks * (l.unit_cost || 0);
     }
     return map;
-  }, [lines, partById]);
+  }, [lines]);
 
   const visible = initial
     .filter((p) => p.archived === showArchived)
