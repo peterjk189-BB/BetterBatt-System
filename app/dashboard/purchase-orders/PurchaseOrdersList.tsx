@@ -8,6 +8,9 @@ type PO = {
   po_number: string | null;
   status: "Draft" | "Ordered" | "Received";
   order_date: string | null;
+  delivery_address: string | null;
+  delivery_date: string | null;
+  delivery_time: string | null;
   archived: boolean;
   suppliers: { name: string } | null;
 };
@@ -23,6 +26,19 @@ const STATUS_COLORS: Record<string, string> = {
 
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
+}
+
+function fmtDate(d: string | null) {
+  return d ? new Date(d).toLocaleDateString("en-AU") : "—";
+}
+
+function fmtTime(t: string | null) {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  const hour = Number(h);
+  const period = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${m} ${period}`;
 }
 
 export default function PurchaseOrdersList({ initial, lines, parts }: { initial: PO[]; lines: Line[]; parts: Part[] }) {
@@ -80,29 +96,38 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
               <th className="px-4 py-2">P/O #</th>
               <th className="px-4 py-2">Supplier</th>
               <th className="px-4 py-2">Order date</th>
+              <th className="px-4 py-2">Delivery date</th>
+              <th className="px-4 py-2">Delivery address</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
-            {visible.map((po) => (
-              <tr key={po.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2 font-mono font-medium">
-                  <Link href={`/dashboard/purchase-orders/${po.id}`} className="text-accent hover:underline">
-                    {po.po_number || "—"}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">{po.suppliers?.name || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{po.order_date || "—"}</td>
-                <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[po.status]}`}>{po.status}</span>
-                </td>
-                <td className="px-4 py-2 text-right font-medium">{fmtCurrency(totals[po.id] || 0)}</td>
-              </tr>
-            ))}
+            {visible.map((po) => {
+              const deliveryWhen = [fmtDate(po.delivery_date), fmtTime(po.delivery_time)].filter(Boolean).join(" · ");
+              return (
+                <tr key={po.id} className="border-t border-[var(--border)]">
+                  <td className="px-4 py-2 font-mono font-medium">
+                    <Link href={`/dashboard/purchase-orders/${po.id}`} className="text-accent hover:underline">
+                      {po.po_number || "—"}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2">{po.suppliers?.name || "—"}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{po.order_date || "—"}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{po.delivery_date ? deliveryWhen : "—"}</td>
+                  <td className="max-w-xs whitespace-normal break-words px-4 py-2 text-[var(--muted)]">
+                    {po.delivery_address || "—"}
+                  </td>
+                  <td className="px-4 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_COLORS[po.status]}`}>{po.status}</span>
+                  </td>
+                  <td className="px-4 py-2 text-right font-medium">{fmtCurrency(totals[po.id] || 0)}</td>
+                </tr>
+              );
+            })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} purchase orders found.
                 </td>
               </tr>

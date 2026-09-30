@@ -6,7 +6,9 @@ export default async function PurchaseOrdersPage() {
   const [{ data: pos }, { data: lines }, { data: parts }] = await Promise.all([
     supabase
       .from("purchase_orders")
-      .select("id, po_number, status, order_date, archived, suppliers(name)")
+      .select(
+        "id, po_number, status, order_date, delivery_address, delivery_date, delivery_time, archived, suppliers(name)"
+      )
       .order("created_at", { ascending: false }),
     supabase.from("purchase_order_lines").select("purchase_order_id, part_id, qty_multi, qty_pks, unit_cost"),
     supabase.from("parts").select("id, pack_per_multi"),
