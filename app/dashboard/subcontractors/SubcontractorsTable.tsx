@@ -6,14 +6,36 @@ import { createClient } from "@/lib/supabase/client";
 type Subcontractor = {
   id: string;
   name: string;
+  address: string | null;
+  postcode: string | null;
   phone: string | null;
+  home_phone: string | null;
   email: string | null;
   abn: string | null;
+  commencement_date: string | null;
+  finished_date: string | null;
+  notes: string | null;
   active: boolean;
   archived: boolean;
 };
 
-const emptyForm = { name: "", phone: "", email: "", abn: "", active: true };
+const emptyForm = {
+  name: "",
+  address: "",
+  postcode: "",
+  phone: "",
+  home_phone: "",
+  email: "",
+  abn: "",
+  commencement_date: "",
+  finished_date: "",
+  notes: "",
+  active: true,
+};
+
+function fmtDate(d: string | null) {
+  return d ? new Date(d).toLocaleDateString("en-AU") : "—";
+}
 
 export default function SubcontractorsTable({ initial }: { initial: Subcontractor[] }) {
   const supabase = createClient();
@@ -34,9 +56,15 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
     setEditing(s);
     setForm({
       name: s.name,
+      address: s.address || "",
+      postcode: s.postcode || "",
       phone: s.phone || "",
+      home_phone: s.home_phone || "",
       email: s.email || "",
       abn: s.abn || "",
+      commencement_date: s.commencement_date || "",
+      finished_date: s.finished_date || "",
+      notes: s.notes || "",
       active: s.active,
     });
     setModalOpen(true);
@@ -44,10 +72,15 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
 
   async function save() {
     setSaving(true);
+    const payload = {
+      ...form,
+      commencement_date: form.commencement_date || null,
+      finished_date: form.finished_date || null,
+    };
     if (editing) {
       const { data, error } = await supabase
         .from("subcontractors")
-        .update(form)
+        .update(payload)
         .eq("id", editing.id)
         .select()
         .single();
@@ -56,7 +89,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
         setModalOpen(false);
       } else if (error) alert(error.message);
     } else {
-      const { data, error } = await supabase.from("subcontractors").insert(form).select().single();
+      const { data, error } = await supabase.from("subcontractors").insert(payload).select().single();
       if (!error && data) {
         setSubs((prev) => [data as Subcontractor, ...prev]);
         setModalOpen(false);
@@ -94,13 +127,19 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
       </button>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full text-sm">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Phone</th>
+              <th className="px-4 py-2">Name / Comp</th>
+              <th className="px-4 py-2">Address</th>
+              <th className="px-4 py-2">Postcode</th>
+              <th className="px-4 py-2">Mobile</th>
+              <th className="px-4 py-2">Home phone</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">ABN</th>
+              <th className="px-4 py-2">Commenced</th>
+              <th className="px-4 py-2">Finished</th>
+              <th className="px-4 py-2">Notes</th>
               <th className="px-4 py-2">Active</th>
               <th className="px-4 py-2"></th>
             </tr>
@@ -109,9 +148,17 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
             {visible.map((s) => (
               <tr key={s.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">{s.name}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{s.address || "—"}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{s.postcode || "—"}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{s.home_phone || "—"}</td>
                 <td className="px-4 py-2">{s.email || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{s.abn || "—"}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(s.commencement_date)}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(s.finished_date)}</td>
+                <td className="max-w-xs whitespace-normal break-words px-4 py-2 text-[var(--muted)]">
+                  {s.notes || "—"}
+                </td>
                 <td className="px-4 py-2">
                   {s.active ? (
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Active</span>
@@ -131,7 +178,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={12} className="px-4 py-8 text-center text-[var(--muted)]">
                   No subcontractors found.
                 </td>
               </tr>
@@ -142,7 +189,7 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-[var(--surface)]">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h2 className="text-lg font-bold">{editing ? "Edit subcontractor" : "Add subcontractor"}</h2>
             </div>
@@ -157,6 +204,24 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
+                  Address
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.address}
+                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Postcode
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.postcode}
+                    onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+                  />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
                   Mobile
                   <input
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
@@ -165,14 +230,22 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm">
-                  Email
+                  Home phone
                   <input
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    value={form.home_phone}
+                    onChange={(e) => setForm({ ...form, home_phone: e.target.value })}
                   />
                 </label>
               </div>
+              <label className="flex flex-col gap-1 text-sm">
+                Email
+                <input
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+              </label>
               <label className="flex flex-col gap-1 text-sm">
                 ABN
                 <input
@@ -180,6 +253,35 @@ export default function SubcontractorsTable({ initial }: { initial: Subcontracto
                   value={form.abn}
                   onChange={(e) => setForm({ ...form, abn: e.target.value })}
                   placeholder="Leave blank if paid as an individual"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
+                  Commencement date
+                  <input
+                    type="date"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.commencement_date}
+                    onChange={(e) => setForm({ ...form, commencement_date: e.target.value })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Finished date
+                  <input
+                    type="date"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.finished_date}
+                    onChange={(e) => setForm({ ...form, finished_date: e.target.value })}
+                  />
+                </label>
+              </div>
+              <label className="flex flex-col gap-1 text-sm">
+                Notes
+                <textarea
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  rows={2}
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 />
               </label>
               <label className="flex items-center gap-2 text-sm">
