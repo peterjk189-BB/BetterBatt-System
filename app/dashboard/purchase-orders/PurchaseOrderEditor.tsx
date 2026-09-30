@@ -12,6 +12,7 @@ type Part = {
   name: string;
   pack_per_multi: number;
   pack_cost_ex_gst: number;
+  supplier_id: string | null;
 };
 
 type PurchaseOrder = {
@@ -74,6 +75,13 @@ export default function PurchaseOrderEditor({
     notes: purchaseOrder?.notes || "",
   });
 
+  // Only the selected supplier's own products should be pickable on a line item — with no
+  // supplier chosen yet, every product is available so the form isn't stuck unusable.
+  const availableParts = useMemo(
+    () => (form.supplier_id ? parts.filter((p) => p.supplier_id === form.supplier_id) : parts),
+    [parts, form.supplier_id]
+  );
+
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0 ? lines.map((l) => ({ ...l })) : []
   );
@@ -83,7 +91,7 @@ export default function PurchaseOrderEditor({
   const [error, setError] = useState<string | null>(null);
 
   function addLine() {
-    const first = parts[0];
+    const first = availableParts[0];
     setLineItems((prev) => [
       ...prev,
       {
@@ -411,11 +419,14 @@ export default function PurchaseOrderEditor({
                       }
                     >
                       <option value="">Select item...</option>
-                      {parts.map((p) => (
+                      {availableParts.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
                         </option>
                       ))}
+                      {l.part_id && !availableParts.some((p) => p.id === l.part_id) && partById[l.part_id] && (
+                        <option value={l.part_id}>{partById[l.part_id].name} (different supplier)</option>
+                      )}
                     </select>
                   </td>
                   <td className="px-3 py-2">
