@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Coverage — Better Batt Insulation",
+  title: "Better Batt System",
   description: "Quoting, work orders, inventory and contractor pay for Better Batt Insulation.",
 };
 

@@ -52,7 +52,7 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
       <div>
-        <p className="font-mono text-xs uppercase tracking-wide text-accent">Coverage</p>
+        <p className="font-mono text-xs uppercase tracking-wide text-accent">Better Batt System</p>
         <h1 className="mt-1 text-2xl font-bold">
           {mode === "signin" ? "Sign in" : "Create an account"}
         </h1>

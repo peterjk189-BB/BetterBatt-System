@@ -66,7 +66,7 @@ export default async function Home() {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-6 px-6 py-16">
       <div>
         <p className="font-mono text-xs uppercase tracking-wide text-accent">
-          Coverage &middot; Phase 1
+          Better Batt System &middot; Phase 1
         </p>
         <h1 className="mt-2 text-3xl font-bold">Foundation deploy</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">
