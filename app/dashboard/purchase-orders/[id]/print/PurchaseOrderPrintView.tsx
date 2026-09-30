@@ -5,7 +5,7 @@ import Link from "next/link";
 type Line = {
   qty_pks: number;
   unit_cost: number | null;
-  parts: { name: string } | null;
+  parts: { code: string | null; name: string } | null;
 };
 
 type PurchaseOrder = {
@@ -121,7 +121,8 @@ export default function PurchaseOrderPrintView({
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
-              <th className="rounded-l-lg px-2 py-1.5">Item</th>
+              <th className="rounded-l-lg px-2 py-1.5">Code</th>
+              <th className="px-2 py-1.5">Item</th>
               <th className="px-2 py-1.5 text-right">Pks</th>
               <th className="px-2 py-1.5 text-right">Unit cost</th>
               <th className="rounded-r-lg px-2 py-1.5 text-right">Total</th>
@@ -130,6 +131,7 @@ export default function PurchaseOrderPrintView({
           <tbody>
             {computed.map((l, i) => (
               <tr key={i} className="border-b border-gray-100">
+                <td className="px-2 py-2 text-gray-500">{l.parts?.code || "—"}</td>
                 <td className="px-2 py-2">{l.parts?.name || "—"}</td>
                 <td className="px-2 py-2 text-right">{l.qty_pks}</td>
                 <td className="px-2 py-2 text-right">{fmtCurrency(Number(l.unit_cost) || 0)}</td>
@@ -138,7 +140,7 @@ export default function PurchaseOrderPrintView({
             ))}
             {computed.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-6 text-center text-gray-400">
+                <td colSpan={5} className="py-6 text-center text-gray-400">
                   No line items.
                 </td>
               </tr>

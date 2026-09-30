@@ -14,7 +14,7 @@ export default async function PurchaseOrderPrintPage({ params }: { params: { id:
       .single(),
     supabase
       .from("purchase_order_lines")
-      .select("qty_pks, unit_cost, parts(name)")
+      .select("qty_pks, unit_cost, parts(code, name)")
       .eq("purchase_order_id", params.id),
   ]);
 

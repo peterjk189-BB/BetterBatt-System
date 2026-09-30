@@ -9,6 +9,7 @@ type Supplier = { id: string; name: string };
 
 type Part = {
   id: string;
+  code: string | null;
   name: string;
   pack_per_multi: number;
   pack_cost_ex_gst: number;
@@ -395,6 +396,7 @@ export default function PurchaseOrderEditor({
           <table className="w-full whitespace-nowrap text-sm">
             <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
               <tr>
+                <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Item</th>
                 <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
@@ -407,6 +409,7 @@ export default function PurchaseOrderEditor({
             <tbody>
               {lineItems.map((l, idx) => (
                 <tr key={idx} className="border-t border-[var(--border)]">
+                  <td className="px-3 py-2 text-[var(--muted)]">{(l.part_id && partById[l.part_id]?.code) || "—"}</td>
                   <td className="px-3 py-2">
                     <select
                       className="rounded-lg border border-[var(--border)] px-2 py-1.5"
@@ -421,11 +424,16 @@ export default function PurchaseOrderEditor({
                       <option value="">Select item...</option>
                       {availableParts.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {p.code ? `${p.code} — ${p.name}` : p.name}
                         </option>
                       ))}
                       {l.part_id && !availableParts.some((p) => p.id === l.part_id) && partById[l.part_id] && (
-                        <option value={l.part_id}>{partById[l.part_id].name} (different supplier)</option>
+                        <option value={l.part_id}>
+                          {partById[l.part_id].code
+                            ? `${partById[l.part_id].code} — ${partById[l.part_id].name}`
+                            : partById[l.part_id].name}{" "}
+                          (different supplier)
+                        </option>
                       )}
                     </select>
                   </td>
@@ -475,7 +483,7 @@ export default function PurchaseOrderEditor({
               ))}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
                     No line items yet.
                   </td>
                 </tr>
