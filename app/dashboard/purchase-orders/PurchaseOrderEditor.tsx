@@ -20,6 +20,11 @@ type PurchaseOrder = {
   supplier_id: string | null;
   status: "Draft" | "Ordered" | "Received";
   order_date: string | null;
+  delivery_address: string | null;
+  site_contact_name: string | null;
+  site_contact_phone: string | null;
+  delivery_date: string | null;
+  delivery_time: string | null;
   notes: string | null;
   archived: boolean;
 };
@@ -61,6 +66,11 @@ export default function PurchaseOrderEditor({
     supplier_id: purchaseOrder?.supplier_id || "",
     status: purchaseOrder?.status || "Draft",
     order_date: purchaseOrder?.order_date || new Date().toISOString().slice(0, 10),
+    delivery_address: purchaseOrder?.delivery_address || "",
+    site_contact_name: purchaseOrder?.site_contact_name || "",
+    site_contact_phone: purchaseOrder?.site_contact_phone || "",
+    delivery_date: purchaseOrder?.delivery_date || "",
+    delivery_time: purchaseOrder?.delivery_time || "",
     notes: purchaseOrder?.notes || "",
   });
 
@@ -112,6 +122,11 @@ export default function PurchaseOrderEditor({
       supplier_id: form.supplier_id || null,
       status: form.status,
       order_date: form.order_date || null,
+      delivery_address: form.delivery_address || null,
+      site_contact_name: form.site_contact_name || null,
+      site_contact_phone: form.site_contact_phone || null,
+      delivery_date: form.delivery_date || null,
+      delivery_time: form.delivery_time || null,
       notes: form.notes || null,
     };
 
@@ -287,6 +302,50 @@ export default function PurchaseOrderEditor({
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.order_date}
             onChange={(e) => setForm({ ...form, order_date: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          Deliver to (address)
+          <input
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            value={form.delivery_address}
+            onChange={(e) => setForm({ ...form, delivery_address: e.target.value })}
+            placeholder="Site address the order should be delivered to"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Site contact name
+          <input
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            value={form.site_contact_name}
+            onChange={(e) => setForm({ ...form, site_contact_name: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Site contact phone
+          <input
+            type="tel"
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            value={form.site_contact_phone}
+            onChange={(e) => setForm({ ...form, site_contact_phone: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Delivery date
+          <input
+            type="date"
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            value={form.delivery_date}
+            onChange={(e) => setForm({ ...form, delivery_date: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          Delivery time
+          <input
+            type="time"
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            value={form.delivery_time}
+            onChange={(e) => setForm({ ...form, delivery_time: e.target.value })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
