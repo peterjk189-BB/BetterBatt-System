@@ -79,8 +79,8 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
 
-  // Delivery fee items are tracked internally for costing, but the customer-facing
-  // quote shouldn't show a price for them or count them toward the total.
+  // Delivery fee items still count toward the total (the customer is still paying for
+  // it), but the quote shouldn't show its price broken out as its own line.
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
 
   const computed = lines.map((l) => {
@@ -93,7 +93,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
   });
 
   const customerDiscountPct = project.customers?.discount_pct || 0;
-  const chargeBeforeMarkup = computed.reduce((s, l) => (l.isDelivery ? s : s + l.charge), 0);
+  const chargeBeforeMarkup = computed.reduce((s, l) => s + l.charge, 0);
   const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
