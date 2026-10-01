@@ -183,14 +183,14 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
           <tbody>
             {computed.map((l, i) => (
               <Fragment key={i}>
-                <tr className="border-b border-gray-100">
+                <tr className={l.note ? "" : "border-b border-gray-200"}>
                   <td className="py-3">{l.parts?.name || "—"}</td>
                   {project.show_qty_on_quote && <td className="py-3 text-right">{l.qty_m2} m²</td>}
                   <td className="py-3 text-right">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
                 </tr>
                 {l.note && (
-                  <tr className="border-b border-gray-100">
-                    <td colSpan={project.show_qty_on_quote ? 3 : 2} className="pb-2.5 text-xs text-gray-600 italic">
+                  <tr className="border-b border-gray-200">
+                    <td colSpan={project.show_qty_on_quote ? 3 : 2} className="pb-3 text-xs text-gray-600 italic">
                       {l.note}
                     </td>
                   </tr>
