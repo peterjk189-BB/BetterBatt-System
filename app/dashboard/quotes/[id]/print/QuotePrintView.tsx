@@ -131,13 +131,13 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
           <img
             src="/logo.png"
             alt="Better Batt Insulation"
-            className="h-10 w-auto object-contain"
+            className="h-16 w-auto object-contain"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
             }}
           />
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400">Quote</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500">Quote</div>
             <div className="text-3xl font-light">Q{project.quote_number}</div>
           </div>
         </div>
@@ -146,21 +146,21 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
         <div className="mt-6 flex justify-between text-sm">
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-gray-400">Prepared for</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500">Prepared for</div>
             <div className="mt-1 text-[15px] font-semibold">{project.customers?.name || "—"}</div>
             {(project.contact_name || project.contact_phone) && (
-              <div className="mt-0.5 text-gray-500">
+              <div className="mt-0.5 text-gray-700">
                 {[project.contact_name, project.contact_phone].filter(Boolean).join(" · ")}
               </div>
             )}
           </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-gray-400">Date</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-500">Date</div>
             <div className="mt-1">
               {project.entry_date ? new Date(project.entry_date).toLocaleDateString("en-AU") : "—"}
             </div>
-            <div className="mt-2.5 text-[10px] uppercase tracking-wider text-gray-400">Site</div>
-            <div className="mt-1 text-gray-500">
+            <div className="mt-2.5 text-[10px] uppercase tracking-wider text-gray-500">Site</div>
+            <div className="mt-1 text-gray-700">
               {[project.lot_no && `Lot ${project.lot_no}`, project.address, project.suburb]
                 .filter(Boolean)
                 .join(", ") || "—"}
@@ -170,7 +170,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
         <table className="mt-9 w-full text-sm">
           <thead>
-            <tr className="border-b border-black text-left text-[10px] uppercase tracking-wider text-gray-400">
+            <tr className="border-b border-black text-left text-[10px] uppercase tracking-wider text-gray-500">
               <th className="pb-2.5 font-semibold">Product</th>
               {project.show_qty_on_quote && <th className="pb-2.5 text-right font-semibold">Qty (m²)</th>}
               <th className="pb-2.5 text-right font-semibold">Price</th>
@@ -186,7 +186,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
                 </tr>
                 {l.note && (
                   <tr className="border-b border-gray-100">
-                    <td colSpan={project.show_qty_on_quote ? 3 : 2} className="pb-2.5 text-xs text-gray-400 italic">
+                    <td colSpan={project.show_qty_on_quote ? 3 : 2} className="pb-2.5 text-xs text-gray-600 italic">
                       {l.note}
                     </td>
                   </tr>
@@ -195,7 +195,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
             ))}
             {computed.length === 0 && (
               <tr>
-                <td colSpan={project.show_qty_on_quote ? 3 : 2} className="py-6 text-center text-gray-400">
+                <td colSpan={project.show_qty_on_quote ? 3 : 2} className="py-6 text-center text-gray-500">
                   No line items.
                 </td>
               </tr>
@@ -204,18 +204,18 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
         </table>
 
         {project.notes && (
-          <div className="mt-3.5 text-xs text-gray-400 italic">{project.notes}</div>
+          <div className="mt-3.5 text-xs text-gray-600 italic">{project.notes}</div>
         )}
 
         <div className="mt-7 flex justify-end">
           <div className="w-60">
             {/* Customer discount is folded into the subtotal below but not itemized here —
                 it's commercial info the customer doesn't need to see broken out. */}
-            <div className="flex justify-between py-1 text-sm text-gray-500">
+            <div className="flex justify-between py-1 text-sm text-gray-600">
               <span>Subtotal</span>
               <span>{fmtCurrency(subtotal)}</span>
             </div>
-            <div className="flex justify-between py-1 text-sm text-gray-500">
+            <div className="flex justify-between py-1 text-sm text-gray-600">
               <span>GST (10%)</span>
               <span>{fmtCurrency(gst)}</span>
             </div>
@@ -226,7 +226,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
           </div>
         </div>
 
-        <div className="mt-8 flex justify-between text-[10px] text-gray-300">
+        <div className="mt-8 flex justify-between text-[10px] text-gray-500">
           <span>Better Batt Insulation</span>
           <span>Thank you for the opportunity to quote.</span>
         </div>
