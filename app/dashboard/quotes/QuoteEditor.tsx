@@ -92,6 +92,16 @@ export default function QuoteEditor({
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
   const isNew = !project;
 
+  // Local copy so a customer created on the fly (below) shows up in the dropdown right away.
+  const [customerList, setCustomerList] = useState(customers);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: "",
+    category: "Private" as Customer["category"],
+    discount_pct: 0,
+  });
+  const [savingCustomer, setSavingCustomer] = useState(false);
+
   const [form, setForm] = useState({
     customer_id: project?.customer_id || "",
     contact_name: project?.contact_name || "",
@@ -125,8 +135,40 @@ export default function QuoteEditor({
   const [error, setError] = useState<string | null>(null);
 
   function setCustomer(customerId: string) {
-    const c = customers.find((x) => x.id === customerId);
+    if (customerId === "__new__") {
+      setNewCustomerForm({ name: "", category: (form.category as Customer["category"]) || "Private", discount_pct: 0 });
+      setNewCustomerOpen(true);
+      return;
+    }
+    const c = customerList.find((x) => x.id === customerId);
     setForm((f) => ({ ...f, customer_id: customerId, category: c?.category || f.category }));
+  }
+
+  async function saveNewCustomer() {
+    if (!newCustomerForm.name.trim()) {
+      alert("Please enter a customer name.");
+      return;
+    }
+    setSavingCustomer(true);
+    const { data, error: insertErr } = await supabase
+      .from("customers")
+      .insert({
+        name: newCustomerForm.name.trim(),
+        category: newCustomerForm.category,
+        discount_pct: newCustomerForm.discount_pct,
+        payment_terms: "7 Days",
+      })
+      .select()
+      .single();
+    setSavingCustomer(false);
+    if (insertErr || !data) {
+      alert(insertErr?.message || "Failed to create customer.");
+      return;
+    }
+    const created = data as Customer;
+    setCustomerList((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+    setForm((f) => ({ ...f, customer_id: created.id, category: created.category || f.category }));
+    setNewCustomerOpen(false);
   }
 
   function updateLine(idx: number, patch: Partial<Line>) {
@@ -296,11 +338,12 @@ export default function QuoteEditor({
             onChange={(e) => setCustomer(e.target.value)}
           >
             <option value="">Select customer...</option>
-            {customers.map((c) => (
+            {customerList.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
+            <option value="__new__">+ Add new customer...</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -608,6 +651,69 @@ export default function QuoteEditor({
           </div>
         </div>
       </div>
+
+      {newCustomerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-[var(--surface)] p-5 shadow-xl">
+            <h3 className="text-lg font-bold">Add new customer</h3>
+            <div className="mt-4 flex flex-col gap-3">
+              <label className="flex flex-col gap-1 text-sm">
+                Name
+                <input
+                  autoFocus
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={newCustomerForm.name}
+                  onChange={(e) => setNewCustomerForm({ ...newCustomerForm, name: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Category
+                <select
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={newCustomerForm.category}
+                  onChange={(e) =>
+                    setNewCustomerForm({ ...newCustomerForm, category: e.target.value as Customer["category"] })
+                  }
+                >
+                  {CATEGORIES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Discount %
+                <input
+                  type="number"
+                  step="0.1"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={newCustomerForm.discount_pct}
+                  onChange={(e) =>
+                    setNewCustomerForm({ ...newCustomerForm, discount_pct: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <p className="text-xs text-[var(--muted)]">
+                You can fill in contact details, payment terms, etc. later from the Customers page.
+              </p>
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setNewCustomerOpen(false)}
+                className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveNewCustomer}
+                disabled={savingCustomer}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {savingCustomer ? "Saving..." : "Add customer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
