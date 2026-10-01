@@ -128,43 +128,51 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
       <div
         ref={printableRef}
-        className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-12 text-black print:border-none print:p-0"
+        className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-[#201f1c] print:border-none print:p-0"
       >
-        <div className="flex items-center justify-between">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo.png"
-            alt="Better Batt Insulation"
-            className="h-16 w-auto object-contain"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = "none";
-            }}
-          />
+        <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#141413] px-6 py-5">
+          <div className="flex items-center gap-3.5">
+            <div className="flex items-center rounded-lg bg-white px-2.5 py-1.5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Better Batt Insulation"
+                className="h-9 w-auto object-contain"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </div>
+            <div>
+              <div className="text-xl font-extrabold text-white">Better Batt Insulation</div>
+              <div className="mt-0.5 text-[11px] text-gray-300">Insulation supply &amp; install</div>
+            </div>
+          </div>
           <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-gray-500">Quote</div>
-            <div className="text-3xl font-light">Q{project.quote_number}</div>
+            <div className="text-[10px] uppercase tracking-wider text-gray-300">Quote</div>
+            <div className="text-2xl font-extrabold text-white">Q{project.quote_number}</div>
           </div>
         </div>
 
-        <div className="mt-5 h-0.5 w-16 bg-[#fdb930]" />
-
-        <div className="mt-6 flex justify-between text-sm">
-          <div>
-            <div className="text-[10px] uppercase tracking-wider text-gray-500">Prepared for</div>
-            <div className="mt-1 text-[15px] font-semibold">{project.customers?.name || "—"}</div>
+        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+          <div className="rounded-lg bg-[#f6f5f2] px-3.5 py-3">
+            <div className="text-[9px] uppercase tracking-wider text-[#8c887f]">Customer</div>
+            <div className="mt-0.5 text-[13px] font-bold">{project.customers?.name || "—"}</div>
             {(project.contact_name || project.contact_phone) && (
-              <div className="mt-0.5 text-gray-700">
+              <div className="mt-0.5 text-xs text-[#6b6862]">
                 {[project.contact_name, project.contact_phone].filter(Boolean).join(" · ")}
               </div>
             )}
           </div>
-          <div className="text-right">
-            <div className="text-[10px] uppercase tracking-wider text-gray-500">Date</div>
-            <div className="mt-1">
+          <div className="rounded-lg bg-[#f6f5f2] px-3.5 py-3">
+            <div className="text-[9px] uppercase tracking-wider text-[#8c887f]">Date</div>
+            <div className="mt-0.5 text-[13px] font-bold">
               {project.entry_date ? new Date(project.entry_date).toLocaleDateString("en-AU") : "—"}
             </div>
-            <div className="mt-2.5 text-[10px] uppercase tracking-wider text-gray-500">Site</div>
-            <div className="mt-1 text-gray-700">
+          </div>
+          <div className="rounded-lg bg-[#f6f5f2] px-3.5 py-3">
+            <div className="text-[9px] uppercase tracking-wider text-[#8c887f]">Site</div>
+            <div className="mt-0.5 text-[13px] font-bold">
               {[project.lot_no && `Lot ${project.lot_no}`, project.address, project.suburb]
                 .filter(Boolean)
                 .join(", ") || "—"}
@@ -172,25 +180,30 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
           </div>
         </div>
 
-        <table className="mt-9 w-full text-sm">
+        <table className="mt-5 w-full text-sm">
           <thead>
-            <tr className="border-b border-black text-left text-[10px] uppercase tracking-wider text-gray-500">
-              <th className="pb-2.5 font-semibold">Product</th>
-              {project.show_qty_on_quote && <th className="pb-2.5 text-right font-semibold">Qty (m²)</th>}
-              <th className="pb-2.5 text-right font-semibold">Price</th>
+            <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
+              <th className="rounded-l-lg px-2.5 py-2 font-semibold">Product</th>
+              {project.show_qty_on_quote && <th className="px-2.5 py-2 text-right font-semibold">Qty (m²)</th>}
+              <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>
             </tr>
           </thead>
           <tbody>
             {computed.map((l, i) => (
               <Fragment key={i}>
-                <tr className={l.note ? "" : "border-b border-gray-400"}>
-                  <td className="py-1.5">{l.parts?.name || "—"}</td>
-                  {project.show_qty_on_quote && <td className="py-1.5 text-right">{l.qty_m2} m²</td>}
-                  <td className="py-1.5 text-right">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
+                <tr className={l.note ? "" : "border-b border-gray-300"}>
+                  <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
+                  {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.qty_m2} m²</td>}
+                  <td className="px-2.5 py-1.5 text-right font-medium">
+                    {l.isDelivery ? "" : fmtCurrency(l.charge)}
+                  </td>
                 </tr>
                 {l.note && (
-                  <tr className="border-b border-gray-400">
-                    <td colSpan={project.show_qty_on_quote ? 3 : 2} className="pb-1.5 text-xs text-gray-600 italic">
+                  <tr className="border-b border-gray-300">
+                    <td
+                      colSpan={project.show_qty_on_quote ? 3 : 2}
+                      className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]"
+                    >
                       {l.note}
                     </td>
                   </tr>
@@ -208,29 +221,29 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
         </table>
 
         {project.notes && (
-          <div className="mt-3.5 text-xs text-gray-600 italic">{project.notes}</div>
+          <div className="mt-4 rounded-lg bg-[#f6f5f2] px-3.5 py-2.5 text-xs text-[#6b6862]">{project.notes}</div>
         )}
 
-        <div className="mt-7 flex justify-end">
-          <div className="w-60">
-            {/* Customer discount is folded into the subtotal below but not itemized here —
-                it's commercial info the customer doesn't need to see broken out. */}
-            <div className="flex justify-between py-1 text-sm text-gray-600">
+        <div className="mt-4 flex justify-end">
+          {/* Customer discount is folded into the subtotal below but not itemized here —
+              it's commercial info the customer doesn't need to see broken out. */}
+          <div className="w-64 rounded-lg bg-[#f6f5f2] p-3.5">
+            <div className="flex justify-between py-0.5 text-sm text-[#6b6862]">
               <span>Subtotal</span>
-              <span>{fmtCurrency(subtotal)}</span>
+              <span className="text-[#201f1c]">{fmtCurrency(subtotal)}</span>
             </div>
-            <div className="flex justify-between py-1 text-sm text-gray-600">
+            <div className="flex justify-between py-0.5 text-sm text-[#6b6862]">
               <span>GST (10%)</span>
-              <span>{fmtCurrency(gst)}</span>
+              <span className="text-[#201f1c]">{fmtCurrency(gst)}</span>
             </div>
-            <div className="mt-2 flex items-baseline justify-between border-t-2 border-black pt-2.5">
-              <span className="text-sm font-semibold">Total</span>
-              <span className="text-xl font-bold text-[#b8860f]">{fmtCurrency(total)}</span>
+            <div className="mt-1.5 flex justify-between border-t border-[#e4e1da] pt-2 text-base font-extrabold">
+              <span>Total</span>
+              <span>{fmtCurrency(total)}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 flex justify-between text-[10px] text-gray-500">
+        <div className="mt-6 flex justify-between border-t border-gray-100 pt-3 text-[10px] text-[#9a968d]">
           <span>Better Batt Insulation</span>
           <span>Thank you for the opportunity to quote.</span>
         </div>
