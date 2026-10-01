@@ -23,6 +23,8 @@ type Line = {
   labour_items: { code: string; description: string; contractor_rate: number } | null;
 };
 
+type StatusFilter = "all" | "unpaid" | "paid";
+
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
@@ -31,14 +33,21 @@ function fmtDate(d: string | null) {
   return d ? new Date(d).toLocaleDateString("en-AU") : "—";
 }
 
+function csvCell(v: string | number) {
+  const s = String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; lines: Line[] }) {
   const supabase = createClient();
   const [paidOverrides, setPaidOverrides] = useState<Record<string, boolean>>({});
-  const [showPaid, setShowPaid] = useState(false);
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const subById = useMemo(() => Object.fromEntries(subs.map((s) => [s.id, s])), [subs]);
+  const [status, setStatus] = useState<StatusFilter>("unpaid");
+  const [contractorFilter, setContractorFilter] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const computed = useMemo(
     () =>
@@ -54,18 +63,33 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     [lines, paidOverrides]
   );
 
+  const unassignedLines = computed.filter((l) => !l.contractorId);
+
+  // Apply the status/date/contractor filters once, shared by the summary report,
+  // the per-contractor cards and the CSV export.
+  const filtered = useMemo(
+    () =>
+      computed.filter((l) => {
+        if (!l.contractorId) return false;
+        if (status === "unpaid" && l.paid) return false;
+        if (status === "paid" && !l.paid) return false;
+        if (contractorFilter && l.contractorId !== contractorFilter) return false;
+        if (dateFrom && (!l.task_date || l.task_date < dateFrom)) return false;
+        if (dateTo && (!l.task_date || l.task_date > dateTo)) return false;
+        return true;
+      }),
+    [computed, status, contractorFilter, dateFrom, dateTo]
+  );
+
   const byContractor = useMemo(() => {
-    const map = new Map<string, typeof computed>();
-    for (const l of computed) {
-      if (!l.contractorId) continue;
-      const arr = map.get(l.contractorId) || [];
+    const map = new Map<string, typeof filtered>();
+    for (const l of filtered) {
+      const arr = map.get(l.contractorId as string) || [];
       arr.push(l);
-      map.set(l.contractorId, arr);
+      map.set(l.contractorId as string, arr);
     }
     return map;
-  }, [computed]);
-
-  const unassignedLines = computed.filter((l) => !l.contractorId);
+  }, [filtered]);
 
   async function togglePaid(line: (typeof computed)[number]) {
     const next = !line.paid;
@@ -80,56 +104,190 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
-  const contractorRows = subs
-    .filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+  const summaryRows = subs
     .map((s) => {
       const subLines = byContractor.get(s.id) || [];
       const owed = subLines.filter((l) => !l.paid).reduce((sum, l) => sum + l.cost, 0);
       const paidTotal = subLines.filter((l) => l.paid).reduce((sum, l) => sum + l.cost, 0);
-      return { sub: s, lines: subLines, owed, paidTotal };
+      return { sub: s, lines: subLines, owed, paidTotal, total: owed + paidTotal };
     })
-    .filter((row) => row.lines.length > 0);
+    .filter((row) => row.lines.length > 0)
+    .sort((a, b) => b.owed - a.owed);
 
-  const grandOwed = contractorRows.reduce((s, r) => s + r.owed, 0);
-  const grandPaid = contractorRows.reduce((s, r) => s + r.paidTotal, 0);
+  const contractorRows = summaryRows.filter((row) => row.sub.name.toLowerCase().includes(search.toLowerCase()));
+
+  const grandOwed = summaryRows.reduce((s, r) => s + r.owed, 0);
+  const grandPaid = summaryRows.reduce((s, r) => s + r.paidTotal, 0);
+  const grandLines = summaryRows.reduce((s, r) => s + r.lines.length, 0);
+
+  function exportCsv() {
+    const header = ["Contractor", "Date", "Work order", "Customer", "Task", "Qty", "Amount", "Paid", "Note"];
+    const rows: string[] = [header.join(",")];
+    for (const row of contractorRows) {
+      for (const l of [...row.lines].sort((a, b) => (a.task_date || "").localeCompare(b.task_date || ""))) {
+        rows.push(
+          [
+            csvCell(row.sub.name),
+            csvCell(fmtDate(l.task_date)),
+            csvCell(l.work_orders?.wo_number || "—"),
+            csvCell(
+              l.work_orders?.projects
+                ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
+                : "—"
+            ),
+            csvCell(l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"),
+            csvCell(l.qty),
+            csvCell(l.cost.toFixed(2)),
+            csvCell(l.paid ? "Yes" : "No"),
+            csvCell(l.note || ""),
+          ].join(",")
+        );
+      }
+    }
+    const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `contractor-payments-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Contractor Payments</h1>
+        <button
+          onClick={exportCsv}
+          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+        >
+          Export CSV
+        </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Total owed (unpaid)</div>
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Owed (filtered)</div>
           <div className="mt-1 text-2xl font-bold text-red-700">{fmtCurrency(grandOwed)}</div>
         </div>
         <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Total paid</div>
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (filtered)</div>
           <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandPaid)}</div>
+        </div>
+        <div className="rounded-xl border border-[var(--border)] p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Task lines (filtered)</div>
+          <div className="mt-1 text-2xl font-bold">{grandLines}</div>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
-        <input
-          placeholder="Search contractor..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
-        />
-        <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-          <input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} />
-          Show paid lines too
+      <div className="mt-6 flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4">
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+          From
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
+          />
         </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+          To
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+          Status
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StatusFilter)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
+          >
+            <option value="unpaid">Unpaid</option>
+            <option value="paid">Paid</option>
+            <option value="all">All</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+          Contractor
+          <select
+            value={contractorFilter}
+            onChange={(e) => setContractorFilter(e.target.value)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
+          >
+            <option value="">All contractors</option>
+            {subs.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+          Search
+          <input
+            placeholder="Filter by name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
+          />
+        </label>
+        {(dateFrom || dateTo || contractorFilter || search || status !== "unpaid") && (
+          <button
+            onClick={() => {
+              setDateFrom("");
+              setDateTo("");
+              setContractorFilter("");
+              setSearch("");
+              setStatus("unpaid");
+            }}
+            className="text-sm text-[var(--muted)] hover:underline"
+          >
+            Reset filters
+          </button>
+        )}
       </div>
 
-      <div className="mt-4 flex flex-col gap-5">
+      {contractorRows.length > 0 && (
+        <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)]">
+          <table className="w-full whitespace-nowrap text-sm">
+            <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-4 py-2">Contractor</th>
+                <th className="px-4 py-2 text-right">Lines</th>
+                <th className="px-4 py-2 text-right">Owed</th>
+                <th className="px-4 py-2 text-right">Paid</th>
+                <th className="px-4 py-2 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, total }) => (
+                <tr key={sub.id} className="border-t border-[var(--border)]">
+                  <td className="px-4 py-2 font-medium">
+                    <a href={`#contractor-${sub.id}`} className="hover:underline">
+                      {sub.name}
+                    </a>
+                  </td>
+                  <td className="px-4 py-2 text-right text-[var(--muted)]">{subLines.length}</td>
+                  <td className="px-4 py-2 text-right font-medium text-red-700">{fmtCurrency(owed)}</td>
+                  <td className="px-4 py-2 text-right">{fmtCurrency(paidTotal)}</td>
+                  <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-col gap-5">
         {contractorRows.map(({ sub, lines: subLines, owed, paidTotal }) => {
-          const visibleLines = (showPaid ? subLines : subLines.filter((l) => !l.paid)).sort((a, b) =>
-            (b.task_date || "").localeCompare(a.task_date || "")
-          );
+          const visibleLines = [...subLines].sort((a, b) => (b.task_date || "").localeCompare(a.task_date || ""));
           return (
-            <div key={sub.id} className="rounded-xl border border-[var(--border)]">
+            <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
                 <div>
                   <div className="font-semibold">{sub.name}</div>
@@ -149,72 +307,66 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                 </div>
               </div>
 
-              {visibleLines.length === 0 ? (
-                <div className="px-4 py-4 text-sm text-[var(--muted)]">
-                  {showPaid ? "No task lines." : "Nothing unpaid — nice."}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full whitespace-nowrap text-sm">
-                    <thead className="text-left text-xs uppercase text-[var(--muted)]">
-                      <tr>
-                        <th className="px-4 py-2">Date</th>
-                        <th className="px-4 py-2">Work order</th>
-                        <th className="px-4 py-2">Customer</th>
-                        <th className="px-4 py-2">Task</th>
-                        <th className="px-4 py-2 text-right">Qty</th>
-                        <th className="px-4 py-2 text-right">$</th>
-                        <th className="px-4 py-2">Note</th>
-                        <th className="px-4 py-2">Paid</th>
+              <div className="overflow-x-auto">
+                <table className="w-full whitespace-nowrap text-sm">
+                  <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                    <tr>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Work order</th>
+                      <th className="px-4 py-2">Customer</th>
+                      <th className="px-4 py-2">Task</th>
+                      <th className="px-4 py-2 text-right">Qty</th>
+                      <th className="px-4 py-2 text-right">$</th>
+                      <th className="px-4 py-2">Note</th>
+                      <th className="px-4 py-2">Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleLines.map((l) => (
+                      <tr key={l.id} className="border-t border-[var(--border)]">
+                        <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
+                        <td className="px-4 py-2">
+                          {l.work_orders ? (
+                            <Link
+                              href={`/dashboard/work-orders/${l.work_order_id}`}
+                              className="text-accent hover:underline"
+                            >
+                              {l.work_orders.wo_number}
+                            </Link>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-[var(--muted)]">
+                          {l.work_orders?.projects
+                            ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
+                            : "—"}
+                        </td>
+                        <td className="px-4 py-2">
+                          {l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right">{l.qty}</td>
+                        <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
+                        <td className="px-4 py-2 text-[var(--muted)]">{l.note || "—"}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="checkbox"
+                            checked={l.paid}
+                            disabled={savingId === l.id}
+                            onChange={() => togglePaid(l)}
+                          />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {visibleLines.map((l) => (
-                        <tr key={l.id} className="border-t border-[var(--border)]">
-                          <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
-                          <td className="px-4 py-2">
-                            {l.work_orders ? (
-                              <Link
-                                href={`/dashboard/work-orders/${l.work_order_id}`}
-                                className="text-accent hover:underline"
-                              >
-                                {l.work_orders.wo_number}
-                              </Link>
-                            ) : (
-                              "—"
-                            )}
-                          </td>
-                          <td className="px-4 py-2 text-[var(--muted)]">
-                            {l.work_orders?.projects
-                              ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-2">
-                            {l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"}
-                          </td>
-                          <td className="px-4 py-2 text-right">{l.qty}</td>
-                          <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
-                          <td className="px-4 py-2 text-[var(--muted)]">{l.note || "—"}</td>
-                          <td className="px-4 py-2">
-                            <input
-                              type="checkbox"
-                              checked={l.paid}
-                              disabled={savingId === l.id}
-                              onChange={() => togglePaid(l)}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           );
         })}
         {contractorRows.length === 0 && (
           <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">
-            No contractor task lines found.
+            No task lines match these filters.
           </div>
         )}
       </div>
