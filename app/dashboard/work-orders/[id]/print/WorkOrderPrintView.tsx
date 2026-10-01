@@ -211,16 +211,10 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
 
         <div className="mt-5 flex justify-end">
           <div className="w-64 rounded-lg bg-gray-50 p-3 text-sm">
-            <div className="flex justify-between py-0.5 text-gray-500">
+            <div className="flex justify-between text-base font-bold">
               <span>Contractor total</span>
-              <span className="text-black">{fmtCurrency(contractorTotal)}</span>
+              <span>{fmtCurrency(contractorTotal)}</span>
             </div>
-            {workOrder.po_value != null && (
-              <div className="mt-1 flex justify-between border-t border-gray-200 pt-1.5 text-base font-bold">
-                <span>P/O value</span>
-                <span>{fmtCurrency(Number(workOrder.po_value))}</span>
-              </div>
-            )}
           </div>
         </div>
 
