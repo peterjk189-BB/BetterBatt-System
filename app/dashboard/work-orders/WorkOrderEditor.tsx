@@ -15,7 +15,7 @@ type Project = {
   customers: { name: string } | null;
 };
 
-type Sub = { id: string; name: string };
+type Sub = { id: string; name: string; phone: string | null; email: string | null };
 type LabourItem = { id: string; code: string; description: string; contractor_rate: number };
 type Part = { id: string; name: string };
 
@@ -73,6 +73,7 @@ export default function WorkOrderEditor({
 
   const labourItemById = useMemo(() => Object.fromEntries(labourItems.map((l) => [l.id, l])), [labourItems]);
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
+  const subById = useMemo(() => Object.fromEntries(subs.map((s) => [s.id, s])), [subs]);
 
   const [form, setForm] = useState({
     project_id: workOrder?.project_id || prefillHeader?.project_id || "",
@@ -124,6 +125,8 @@ export default function WorkOrderEditor({
     setForm((f) => ({ ...f, contractor_id: contractorId }));
     setLineItems((prev) => prev.map((l) => ({ ...l, subcontractor_id: contractorId || null })));
   }
+
+  const selectedContractor = form.contractor_id ? subById[form.contractor_id] : undefined;
 
   const contractorCost = lineItems.reduce((s, l) => {
     const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
@@ -222,6 +225,15 @@ export default function WorkOrderEditor({
               {workOrder!.archived ? "Restore" : "Archive"}
             </button>
           )}
+          {!isNew && (
+            <Link
+              href={`/dashboard/work-orders/${workOrder!.id}/print`}
+              target="_blank"
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Print preview
+            </Link>
+          )}
           <button
             onClick={save}
             disabled={saving}
@@ -269,6 +281,12 @@ export default function WorkOrderEditor({
               </option>
             ))}
           </select>
+          {selectedContractor && (
+            <div className="mt-1 text-xs text-[var(--muted)]">
+              {[selectedContractor.phone, selectedContractor.email].filter(Boolean).join(" · ") ||
+                "No mobile/email on file for this contractor."}
+            </div>
+          )}
         </label>
 
         <label className="flex flex-col gap-1 text-sm">

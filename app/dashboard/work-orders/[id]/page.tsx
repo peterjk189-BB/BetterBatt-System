@@ -13,7 +13,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
         .select("id, quote_number, address, suburb, job_type, quote_markup, customers(name)")
         .eq("archived", false)
         .order("quote_number", { ascending: false }),
-      supabase.from("subcontractors").select("id, name").eq("archived", false).order("name"),
+      supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
       supabase.from("labour_items").select("*").eq("archived", false).order("code"),
       supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
     ]);
