@@ -154,9 +154,9 @@ export default function QuotesList({
                 <td className="px-4 py-2">
                   <Link
                     href={`/dashboard/work-orders/new?project_id=${p.id}`}
-                    className="whitespace-nowrap text-xs font-medium text-accent hover:underline"
+                    className="whitespace-nowrap rounded-md bg-orange-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-orange-600"
                   >
-                    Create job
+                    Create work order
                   </Link>
                 </td>
               </tr>

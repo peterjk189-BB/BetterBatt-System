@@ -316,9 +316,9 @@ export default function QuoteEditor({
           {!isNew && (
             <Link
               href={`/dashboard/work-orders/new?project_id=${project!.id}`}
-              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
             >
-              Create job
+              Create work order
             </Link>
           )}
           <button
