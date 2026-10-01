@@ -142,12 +142,8 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
         <div className="mt-6 flex justify-end">
           <div className="w-64 text-sm">
-            {customerDiscountTotal > 0 && (
-              <div className="flex justify-between py-1">
-                <span className="text-gray-500">Discount ({customerDiscountPct}%)</span>
-                <span>-{fmtCurrency(customerDiscountTotal)}</span>
-              </div>
-            )}
+            {/* Customer discount is folded into the subtotal below but not itemized here —
+                it's commercial info the customer doesn't need to see broken out. */}
             <div className="flex justify-between py-1">
               <span className="text-gray-500">Subtotal</span>
               <span>{fmtCurrency(subtotal)}</span>
