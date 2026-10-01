@@ -126,6 +126,16 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
         </span>
       </div>
 
+      <style jsx global>{`
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+        }
+      `}</style>
+
       <div
         ref={printableRef}
         className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-[#201f1c] print:border-none print:p-0"
