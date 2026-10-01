@@ -183,8 +183,8 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Date</th>
-              <th className="px-2 py-1.5">Task</th>
               <th className="px-2 py-1.5">Product</th>
+              <th className="px-2 py-1.5">Notes</th>
               <th className="px-2 py-1.5 text-right">Qty</th>
               <th className="rounded-r-lg px-2 py-1.5 text-right">Contractor $</th>
             </tr>
@@ -193,10 +193,8 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
             {computed.map((l, i) => (
               <tr key={i} className="border-b border-gray-100">
                 <td className="px-2 py-2 text-gray-500">{fmtDate(l.task_date)}</td>
-                <td className="px-2 py-2">
-                  {l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"}
-                </td>
                 <td className="px-2 py-2 text-gray-600">{l.parts?.name || "—"}</td>
+                <td className="px-2 py-2">{l.note || "—"}</td>
                 <td className="px-2 py-2 text-right">{l.qty}</td>
                 <td className="px-2 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
               </tr>
