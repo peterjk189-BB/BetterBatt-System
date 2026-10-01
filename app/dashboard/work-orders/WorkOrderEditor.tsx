@@ -88,6 +88,7 @@ export default function WorkOrderEditor({
   });
 
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
+  const selectableParts = useMemo(() => parts.filter((p) => !isDeliveryItem(p.name)), [parts]);
 
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0
@@ -127,7 +128,20 @@ export default function WorkOrderEditor({
 
   function setContractor(contractorId: string) {
     setForm((f) => ({ ...f, contractor_id: contractorId }));
-    setLineItems((prev) => prev.map((l) => ({ ...l, subcontractor_id: contractorId || null })));
+    // Only backfill lines that don't already have their own contractor assigned —
+    // this preserves per-line overrides when a product line is split across
+    // more than one contractor.
+    setLineItems((prev) =>
+      prev.map((l) => (l.subcontractor_id ? l : { ...l, subcontractor_id: contractorId || null }))
+    );
+  }
+
+  function duplicateLine(idx: number) {
+    setLineItems((prev) => {
+      const source = prev[idx];
+      const copy: Line = { ...source, id: undefined, sort_order: prev.length };
+      return [...prev, copy];
+    });
   }
 
   const selectedContractor = form.contractor_id ? subById[form.contractor_id] : undefined;
@@ -184,7 +198,7 @@ export default function WorkOrderEditor({
       completed: !!l.completed,
       labour_item_id: l.labour_item_id || null,
       qty: Number(l.qty) || 0,
-      subcontractor_id: form.contractor_id || null,
+      subcontractor_id: l.subcontractor_id || form.contractor_id || null,
       paid: !!l.paid,
       note: l.note || null,
       sort_order: idx,
@@ -364,7 +378,13 @@ export default function WorkOrderEditor({
 
       <div className="mt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Task lines</h2>
+          <div>
+            <h2 className="text-lg font-bold">Task lines</h2>
+            <p className="text-xs text-[var(--muted)]">
+              Need more than one contractor on the same product? Use "Duplicate" on that line, split the qty
+              between the copies, and set each one's Contractor.
+            </p>
+          </div>
           <button onClick={addLine} className="text-sm text-accent hover:underline">
             + Add task
           </button>
@@ -375,6 +395,7 @@ export default function WorkOrderEditor({
             <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-3 py-2">Product</th>
+                <th className="px-3 py-2">Contractor</th>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">Compl.</th>
                 <th className="px-3 py-2">Task</th>
@@ -391,8 +412,33 @@ export default function WorkOrderEditor({
                 const cost = (Number(l.qty) || 0) * rate;
                 return (
                   <tr key={idx} className="border-t border-[var(--border)]">
-                    <td className="px-3 py-2 text-xs text-[var(--muted)]">
-                      {l.part_id ? partById[l.part_id]?.name || "—" : "—"}
+                    <td className="px-3 py-2">
+                      <select
+                        className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
+                        value={l.part_id || ""}
+                        onChange={(e) => updateLine(idx, { part_id: e.target.value || null })}
+                      >
+                        <option value="">Select product...</option>
+                        {selectableParts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
+                        value={l.subcontractor_id || ""}
+                        onChange={(e) => updateLine(idx, { subcontractor_id: e.target.value || null })}
+                      >
+                        <option value="">(use WO contractor)</option>
+                        {subs.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -448,7 +494,14 @@ export default function WorkOrderEditor({
                         placeholder="Site instructions, access, etc."
                       />
                     </td>
-                    <td className="px-3 py-2 text-right">
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => duplicateLine(idx)}
+                        className="mr-2 text-accent hover:underline"
+                        title="Duplicate this line to split it across another contractor"
+                      >
+                        Duplicate
+                      </button>
                       <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
                         Remove
                       </button>
@@ -458,7 +511,7 @@ export default function WorkOrderEditor({
               })}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
                     No task lines yet.
                   </td>
                 </tr>

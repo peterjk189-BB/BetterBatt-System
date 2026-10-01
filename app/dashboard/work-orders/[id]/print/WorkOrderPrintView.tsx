@@ -9,6 +9,7 @@ type Line = {
   note: string | null;
   parts: { name: string } | null;
   labour_items: { code: string; description: string; contractor_rate: number } | null;
+  subcontractors: { name: string } | null;
 };
 
 type WorkOrder = {
@@ -87,6 +88,13 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
       return { ...l, cost };
     });
   const contractorTotal = computed.reduce((s, l) => s + l.cost, 0);
+
+  // Most work orders have one contractor for every line, so the header box above
+  // already covers it. Only show a per-line Contractor column when a line has been
+  // split off to a different contractor than the one on the work order header.
+  const hasMixedContractors = computed.some(
+    (l) => l.subcontractors?.name && l.subcontractors.name !== workOrder.subcontractors?.name
+  );
 
   const siteLine = workOrder.projects
     ? [workOrder.projects.address, workOrder.projects.suburb].filter(Boolean).join(", ")
@@ -184,6 +192,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Date</th>
               <th className="px-2 py-1.5">Product</th>
+              {hasMixedContractors && <th className="px-2 py-1.5">Contractor</th>}
               <th className="px-2 py-1.5">Notes</th>
               <th className="px-2 py-1.5 text-right">Qty</th>
               <th className="rounded-r-lg px-2 py-1.5 text-right">Contractor $</th>
@@ -194,6 +203,9 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
               <tr key={i} className="border-b border-gray-100">
                 <td className="px-2 py-2 text-gray-500">{fmtDate(l.task_date)}</td>
                 <td className="px-2 py-2 text-gray-600">{l.parts?.name || "—"}</td>
+                {hasMixedContractors && (
+                  <td className="px-2 py-2">{l.subcontractors?.name || workOrder.subcontractors?.name || "—"}</td>
+                )}
                 <td className="px-2 py-2">{l.note || "—"}</td>
                 <td className="px-2 py-2 text-right">{l.qty}</td>
                 <td className="px-2 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
@@ -201,7 +213,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
             ))}
             {computed.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-gray-400">
+                <td colSpan={hasMixedContractors ? 6 : 5} className="py-6 text-center text-gray-400">
                   No task lines.
                 </td>
               </tr>
