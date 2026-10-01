@@ -27,7 +27,10 @@ function fmtCurrency(n: number) {
 }
 
 function fmtDate(d: string | null) {
-  return d ? new Date(d).toLocaleDateString("en-AU") : "—";
+  if (!d) return "—";
+  const date = new Date(d);
+  const weekday = date.toLocaleDateString("en-AU", { weekday: "long" });
+  return `${weekday}, ${date.toLocaleDateString("en-AU")}`;
 }
 
 function fmtTime(t: string | null) {
