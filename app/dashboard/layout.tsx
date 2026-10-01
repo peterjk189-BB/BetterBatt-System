@@ -29,6 +29,7 @@ export default async function DashboardLayout({
   const adminLinks = [
     { href: "/dashboard/quotes", label: "Quotes" },
     { href: "/dashboard/work-orders", label: "Work Orders" },
+    { href: "/dashboard/contractor-payments", label: "Contractor Payments" },
     { href: "/dashboard/purchase-orders", label: "Purchase Orders" },
     { href: "/dashboard/customers", label: "Customers" },
     { href: "/dashboard/suppliers", label: "Suppliers" },
