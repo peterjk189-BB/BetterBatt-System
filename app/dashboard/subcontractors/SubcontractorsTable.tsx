@@ -19,6 +19,7 @@ type Subcontractor = {
   notes: string | null;
   active: boolean;
   archived: boolean;
+  gst_registered: boolean;
 };
 
 type ProfilePhoto = { subcontractor_id: string; storage_path: string; created_at: string };
@@ -45,6 +46,7 @@ const emptyForm = {
   finished_date: "",
   notes: "",
   active: true,
+  gst_registered: false,
 };
 
 function fmtDate(d: string | null) {
@@ -195,6 +197,7 @@ export default function SubcontractorsTable({
               <th className="px-4 py-2">Finished</th>
               <th className="px-4 py-2">Notes</th>
               <th className="px-4 py-2">Active</th>
+              <th className="px-4 py-2">GST Registered</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -241,6 +244,13 @@ export default function SubcontractorsTable({
                     <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">Inactive</span>
                   )}
                 </td>
+                <td className="px-4 py-2">
+                  {s.gst_registered ? (
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">Yes</span>
+                  ) : (
+                    <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">No</span>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => toggleArchive(s)} className="text-[var(--muted)] hover:underline">
                     {s.archived ? "Restore" : "Archive"}
@@ -249,7 +259,7 @@ export default function SubcontractorsTable({
               </tr>
               {expandedId === s.id && (
                 <tr className="border-t border-[var(--border)] bg-[#faf9f7]">
-                  <td colSpan={13} className="px-4 py-5">
+                  <td colSpan={14} className="px-4 py-5">
                     <SubcontractorPanel
                       subcontractor={s}
                       attachments={attachmentsBySub[s.id] ?? []}
@@ -265,7 +275,7 @@ export default function SubcontractorsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={14} className="px-4 py-8 text-center text-[var(--muted)]">
                   No subcontractors found.
                 </td>
               </tr>
@@ -388,6 +398,14 @@ export default function SubcontractorsTable({
                   onChange={(e) => setForm({ ...form, active: e.target.checked })}
                 />
                 Active
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.gst_registered}
+                  onChange={(e) => setForm({ ...form, gst_registered: e.target.checked })}
+                />
+                GST registered
               </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">

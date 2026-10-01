@@ -18,6 +18,7 @@ export type Subcontractor = {
   notes: string | null;
   active: boolean;
   archived: boolean;
+  gst_registered: boolean;
 };
 
 export type Attachment = {
@@ -73,6 +74,7 @@ export default function SubcontractorPanel({
     finished_date: subcontractor.finished_date || "",
     notes: subcontractor.notes || "",
     active: subcontractor.active,
+    gst_registered: subcontractor.gst_registered,
   });
   const [archived, setArchived] = useState(subcontractor.archived);
   const [saving, setSaving] = useState(false);
@@ -400,6 +402,14 @@ export default function SubcontractorPanel({
               onChange={(e) => setForm({ ...form, active: e.target.checked })}
             />
             Active
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.gst_registered}
+              onChange={(e) => setForm({ ...form, gst_registered: e.target.checked })}
+            />
+            GST registered
           </label>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-type Sub = { id: string; name: string; phone: string | null; email: string | null };
+type Sub = { id: string; name: string; phone: string | null; email: string | null; gst_registered: boolean };
 
 type Line = {
   id: string;
@@ -109,7 +109,9 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const subLines = byContractor.get(s.id) || [];
       const owed = subLines.filter((l) => !l.paid).reduce((sum, l) => sum + l.cost, 0);
       const paidTotal = subLines.filter((l) => l.paid).reduce((sum, l) => sum + l.cost, 0);
-      return { sub: s, lines: subLines, owed, paidTotal, total: owed + paidTotal };
+      const gst = s.gst_registered ? owed * 0.1 : 0;
+      const owedWithGst = owed + gst;
+      return { sub: s, lines: subLines, owed, paidTotal, gst, owedWithGst, total: owed + paidTotal };
     })
     .filter((row) => row.lines.length > 0)
     .sort((a, b) => b.owed - a.owed);
@@ -117,17 +119,33 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const contractorRows = summaryRows.filter((row) => row.sub.name.toLowerCase().includes(search.toLowerCase()));
 
   const grandOwed = summaryRows.reduce((s, r) => s + r.owed, 0);
+  const grandGst = summaryRows.reduce((s, r) => s + r.gst, 0);
   const grandPaid = summaryRows.reduce((s, r) => s + r.paidTotal, 0);
   const grandLines = summaryRows.reduce((s, r) => s + r.lines.length, 0);
 
   function exportCsv() {
-    const header = ["Contractor", "Date", "Work order", "Customer", "Task", "Qty", "Amount", "Paid", "Note"];
+    const header = [
+      "Contractor",
+      "GST registered",
+      "Date",
+      "Work order",
+      "Customer",
+      "Task",
+      "Qty",
+      "Amount",
+      "GST",
+      "Amount + GST",
+      "Paid",
+      "Note",
+    ];
     const rows: string[] = [header.join(",")];
     for (const row of contractorRows) {
       for (const l of [...row.lines].sort((a, b) => (a.task_date || "").localeCompare(b.task_date || ""))) {
+        const lineGst = row.sub.gst_registered ? l.cost * 0.1 : 0;
         rows.push(
           [
             csvCell(row.sub.name),
+            csvCell(row.sub.gst_registered ? "Yes" : "No"),
             csvCell(fmtDate(l.task_date)),
             csvCell(l.work_orders?.wo_number || "—"),
             csvCell(
@@ -138,6 +156,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             csvCell(l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"),
             csvCell(l.qty),
             csvCell(l.cost.toFixed(2)),
+            csvCell(lineGst.toFixed(2)),
+            csvCell((l.cost + lineGst).toFixed(2)),
             csvCell(l.paid ? "Yes" : "No"),
             csvCell(l.note || ""),
           ].join(",")
@@ -166,10 +186,14 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         </button>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-[var(--border)] p-4">
           <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Owed (filtered)</div>
           <div className="mt-1 text-2xl font-bold text-red-700">{fmtCurrency(grandOwed)}</div>
+        </div>
+        <div className="rounded-xl border border-[var(--border)] p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">GST on owed (filtered)</div>
+          <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandGst)}</div>
         </div>
         <div className="rounded-xl border border-[var(--border)] p-4">
           <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (filtered)</div>
@@ -258,22 +282,30 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
               <tr>
                 <th className="px-4 py-2">Contractor</th>
+                <th className="px-4 py-2">GST reg.</th>
                 <th className="px-4 py-2 text-right">Lines</th>
                 <th className="px-4 py-2 text-right">Owed</th>
+                <th className="px-4 py-2 text-right">GST</th>
+                <th className="px-4 py-2 text-right">Owed + GST</th>
                 <th className="px-4 py-2 text-right">Paid</th>
                 <th className="px-4 py-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
-              {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, total }) => (
+              {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, gst, owedWithGst, total }) => (
                 <tr key={sub.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2 font-medium">
                     <a href={`#contractor-${sub.id}`} className="hover:underline">
                       {sub.name}
                     </a>
                   </td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{sub.gst_registered ? "Yes" : "No"}</td>
                   <td className="px-4 py-2 text-right text-[var(--muted)]">{subLines.length}</td>
                   <td className="px-4 py-2 text-right font-medium text-red-700">{fmtCurrency(owed)}</td>
+                  <td className="px-4 py-2 text-right">{sub.gst_registered ? fmtCurrency(gst) : "—"}</td>
+                  <td className="px-4 py-2 text-right font-semibold text-red-700">
+                    {sub.gst_registered ? fmtCurrency(owedWithGst) : fmtCurrency(owed)}
+                  </td>
                   <td className="px-4 py-2 text-right">{fmtCurrency(paidTotal)}</td>
                   <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(total)}</td>
                 </tr>
@@ -284,13 +316,20 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       )}
 
       <div className="mt-6 flex flex-col gap-5">
-        {contractorRows.map(({ sub, lines: subLines, owed, paidTotal }) => {
+        {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, gst, owedWithGst }) => {
           const visibleLines = [...subLines].sort((a, b) => (b.task_date || "").localeCompare(a.task_date || ""));
           return (
             <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
                 <div>
-                  <div className="font-semibold">{sub.name}</div>
+                  <div className="font-semibold">
+                    {sub.name}
+                    {sub.gst_registered && (
+                      <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-normal text-blue-800">
+                        GST registered
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-[var(--muted)]">
                     {[sub.phone, sub.email].filter(Boolean).join(" · ") || "No mobile/email on file"}
                   </div>
@@ -300,6 +339,18 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     <span className="text-[var(--muted)]">Owed </span>
                     <span className="font-bold text-red-700">{fmtCurrency(owed)}</span>
                   </div>
+                  {sub.gst_registered && (
+                    <>
+                      <div>
+                        <span className="text-[var(--muted)]">GST </span>
+                        <span className="font-semibold">{fmtCurrency(gst)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[var(--muted)]">Owed + GST </span>
+                        <span className="font-bold text-red-700">{fmtCurrency(owedWithGst)}</span>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <span className="text-[var(--muted)]">Paid </span>
                     <span className="font-semibold">{fmtCurrency(paidTotal)}</span>
