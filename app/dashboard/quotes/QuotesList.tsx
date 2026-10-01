@@ -125,6 +125,7 @@ export default function QuotesList({
               <th className="px-4 py-2">Date</th>
               <th className="px-4 py-2">Outcome</th>
               <th className="px-4 py-2 text-right">Est. total (ex markup)</th>
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -150,11 +151,19 @@ export default function QuotesList({
                       Number(p.quote_markup || 0)
                   )}
                 </td>
+                <td className="px-4 py-2">
+                  <Link
+                    href={`/dashboard/work-orders/new?project_id=${p.id}`}
+                    className="whitespace-nowrap text-xs font-medium text-accent hover:underline"
+                  >
+                    Create job
+                  </Link>
+                </td>
               </tr>
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} quotes found.
                 </td>
               </tr>
