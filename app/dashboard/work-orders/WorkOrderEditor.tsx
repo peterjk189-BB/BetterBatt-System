@@ -417,11 +417,11 @@ export default function WorkOrderEditor({
                 <th className="px-3 py-2">Contractor</th>
                 <th className="px-3 py-2">Date</th>
                 <th className="px-3 py-2">Compl.</th>
-                <th className="px-3 py-2">Task</th>
+                <th className="px-3 py-2">Note</th>
                 <th className="px-3 py-2 text-right">Qty</th>
                 <th className="px-3 py-2">Paid</th>
                 <th className="px-3 py-2 text-right">Contractor $</th>
-                <th className="px-3 py-2">Note</th>
+                <th className="px-3 py-2">Task</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -475,18 +475,12 @@ export default function WorkOrderEditor({
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <select
-                        className="rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={l.labour_item_id || ""}
-                        onChange={(e) => updateLine(idx, { labour_item_id: e.target.value })}
-                      >
-                        <option value="">Select task...</option>
-                        {labourItems.map((li) => (
-                          <option key={li.id} value={li.id}>
-                            {li.code} — {li.description}
-                          </option>
-                        ))}
-                      </select>
+                      <input
+                        className="w-40 rounded-lg border border-[var(--border)] px-2 py-1.5"
+                        value={l.note || ""}
+                        onChange={(e) => updateLine(idx, { note: e.target.value })}
+                        placeholder="Site instructions, access, etc."
+                      />
                     </td>
                     <td className="px-3 py-2">
                       <input
@@ -506,12 +500,18 @@ export default function WorkOrderEditor({
                     </td>
                     <td className="px-3 py-2 text-right font-medium">{fmtCurrency(cost)}</td>
                     <td className="px-3 py-2">
-                      <input
-                        className="w-40 rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={l.note || ""}
-                        onChange={(e) => updateLine(idx, { note: e.target.value })}
-                        placeholder="Site instructions, access, etc."
-                      />
+                      <select
+                        className="rounded-lg border border-[var(--border)] px-2 py-1.5"
+                        value={l.labour_item_id || ""}
+                        onChange={(e) => updateLine(idx, { labour_item_id: e.target.value })}
+                      >
+                        <option value="">Select task...</option>
+                        {labourItems.map((li) => (
+                          <option key={li.id} value={li.id}>
+                            {li.code} — {li.description}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">
                       <button
