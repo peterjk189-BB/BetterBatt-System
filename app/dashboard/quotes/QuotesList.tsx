@@ -20,6 +20,7 @@ type Project = {
 type Line = { project_id: string; part_id: string | null; qty_m2: number };
 type Part = {
   id: string;
+  name: string;
   coverage_m2: number;
   supply_charge_per_pack: number;
   supply_install_rate_per_m2: number;
@@ -56,6 +57,9 @@ export default function QuotesList({
     for (const l of lines) {
       const part = partById[l.part_id || ""];
       if (!part) continue;
+      // Delivery fee lines are tracked for internal costing but shouldn't count toward
+      // the customer-facing total shown here, matching the printed quote.
+      if (/delivery/i.test(part.name || "")) continue;
       const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
       const usedForCal = packs * part.coverage_m2;
       const charge = usedForCal * part.supply_install_rate_per_m2;

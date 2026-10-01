@@ -79,17 +79,21 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
 
+  // Delivery fee items are tracked internally for costing, but the customer-facing
+  // quote shouldn't show a price for them or count them toward the total.
+  const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
+
   const computed = lines.map((l) => {
     const part = l.parts;
-    if (!part) return { ...l, packs: 0, charge: 0 };
+    if (!part) return { ...l, packs: 0, charge: 0, isDelivery: false };
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
     const usedForCal = packs * part.coverage_m2;
     const charge = isSupplyOnly ? packs * part.supply_charge_per_pack : usedForCal * part.supply_install_rate_per_m2;
-    return { ...l, packs, charge };
+    return { ...l, packs, charge, isDelivery: isDeliveryItem(part.name) };
   });
 
   const customerDiscountPct = project.customers?.discount_pct || 0;
-  const chargeBeforeMarkup = computed.reduce((s, l) => s + l.charge, 0);
+  const chargeBeforeMarkup = computed.reduce((s, l) => (l.isDelivery ? s : s + l.charge), 0);
   const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
@@ -182,7 +186,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
                 <tr className="border-b border-gray-100">
                   <td className="py-3">{l.parts?.name || "—"}</td>
                   {project.show_qty_on_quote && <td className="py-3 text-right">{l.qty_m2} m²</td>}
-                  <td className="py-3 text-right">{fmtCurrency(l.charge)}</td>
+                  <td className="py-3 text-right">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
                 </tr>
                 {l.note && (
                   <tr className="border-b border-gray-100">
