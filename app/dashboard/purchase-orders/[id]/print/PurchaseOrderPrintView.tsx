@@ -78,9 +78,20 @@ export default function PurchaseOrderPrintView({
       <div className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0">
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xl font-bold">Better Batt Insulation</div>
-              <div className="text-xs text-gray-300">Purchase Order</div>
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt=""
+                className="h-10 w-auto rounded bg-white/90 object-contain p-0.5"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+              <div>
+                <div className="text-xl font-bold">Better Batt Insulation</div>
+                <div className="text-xs text-gray-300">Purchase Order</div>
+              </div>
             </div>
             <div className="text-right">
               <div className="text-xs uppercase tracking-wide text-gray-300">PO Number</div>
