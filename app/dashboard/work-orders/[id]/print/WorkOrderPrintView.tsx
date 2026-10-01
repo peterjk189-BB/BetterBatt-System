@@ -168,18 +168,10 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+        <div className="mt-3 grid grid-cols-1 gap-3 text-sm">
           <div className="rounded-lg border border-gray-200 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">P/O number</div>
             <div className="mt-0.5 font-semibold">{workOrder.po_number || "—"}</div>
-          </div>
-          <div className="rounded-lg border border-gray-200 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Entry date</div>
-            <div className="mt-0.5 font-semibold">{fmtDate(workOrder.entry_date)}</div>
-          </div>
-          <div className="rounded-lg border border-gray-200 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Completed date</div>
-            <div className="mt-0.5 font-semibold">{fmtDate(workOrder.completed_date)}</div>
           </div>
         </div>
 
