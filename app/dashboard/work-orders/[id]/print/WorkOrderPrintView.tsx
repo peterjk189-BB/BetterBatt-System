@@ -54,7 +54,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
       const canvas = await html2canvas(printableRef.current, { scale: 2, backgroundColor: "#ffffff" });
       const imgData = canvas.toDataURL("image/png");
 
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const imgWidth = pageWidth;
@@ -115,9 +115,17 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
         </span>
       </div>
 
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 landscape;
+          }
+        }
+      `}</style>
+
       <div
         ref={printableRef}
-        className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
+        className="mx-auto max-w-5xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
       >
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
