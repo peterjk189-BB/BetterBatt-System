@@ -125,6 +125,7 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
       <div
         ref={printableRef}
         className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
+      >
         <div className="mb-8 flex items-start justify-between">
           <div>
             <div className="text-2xl font-semibold">Quote Q{project.quote_number}</div>
