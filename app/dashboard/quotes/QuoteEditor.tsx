@@ -520,7 +520,7 @@ export default function QuoteEditor({
                   <td className="px-3 py-2 font-mono text-[var(--muted)]">{l.packs}</td>
                   <td className="px-3 py-2">
                     <input
-                      className="w-40 rounded-lg border border-[var(--border)] px-2 py-1.5"
+                      className="w-[28rem] max-w-full rounded-lg border border-[var(--border)] px-2 py-1.5"
                       value={l.note || ""}
                       onChange={(e) => updateLine(idx, { note: e.target.value })}
                     />
