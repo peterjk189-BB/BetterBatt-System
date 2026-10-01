@@ -87,9 +87,13 @@ export default function WorkOrderEditor({
     notes: workOrder?.notes || "",
   });
 
+  const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
+
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0
-      ? lines.map((l) => ({ ...l, completed: l.completed ?? false, paid: l.paid ?? false }))
+      ? lines
+          .filter((l) => !isDeliveryItem(l.part_id ? partById[l.part_id]?.name : undefined))
+          .map((l) => ({ ...l, completed: l.completed ?? false, paid: l.paid ?? false }))
       : []
   );
 

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import WorkOrderEditor from "../WorkOrderEditor";
 
+const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
+
 function computeQuoteTotal(
   project: { job_type: string; quote_markup: number },
   lines: { part_id: string | null; qty_m2: number }[],
@@ -50,11 +52,12 @@ export default async function NewWorkOrderPage({
     if (project) {
       const partById = Object.fromEntries((parts ?? []).map((p) => [p.id, p]));
       const total = computeQuoteTotal(project, lines ?? [], partById as any);
+      const nonDeliveryLines = (lines ?? []).filter((l) => !isDeliveryItem(partById[l.part_id || ""]?.name));
       prefill = {
         project_id: project.id,
         wo_number: `QW${project.quote_number}`,
         po_value: Math.round(total * 100) / 100,
-        lines: (lines ?? []).map((l) => ({
+        lines: nonDeliveryLines.map((l) => ({
           part_id: l.part_id,
           qty: l.qty_m2,
           note: l.note,

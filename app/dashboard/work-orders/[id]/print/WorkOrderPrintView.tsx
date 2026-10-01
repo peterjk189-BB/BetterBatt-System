@@ -77,11 +77,15 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
     }
   }
 
-  const computed = lines.map((l) => {
-    const rate = l.labour_items?.contractor_rate || 0;
-    const cost = (Number(l.qty) || 0) * rate;
-    return { ...l, cost };
-  });
+  const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
+
+  const computed = lines
+    .filter((l) => !isDeliveryItem(l.parts?.name))
+    .map((l) => {
+      const rate = l.labour_items?.contractor_rate || 0;
+      const cost = (Number(l.qty) || 0) * rate;
+      return { ...l, cost };
+    });
   const contractorTotal = computed.reduce((s, l) => s + l.cost, 0);
 
   const siteLine = workOrder.projects
