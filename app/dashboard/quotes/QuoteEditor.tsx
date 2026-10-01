@@ -185,16 +185,25 @@ export default function QuoteEditor({
 
   const isSupplyOnly = form.job_type === "SUPPLY ONLY";
 
-  const computedLines = lineItems.map((l) => ({ ...l, ...computeLine(partById[l.part_id || ""], l.qty_m2) }));
+  // Every customer can carry a standing discount % on their record — this was being
+  // captured but never actually applied to the quote math. Now it comes straight off
+  // the line items, on top of (and separate from) any manual discount/markup below.
+  const selectedCustomer = customerList.find((c) => c.id === form.customer_id);
+  const customerDiscountPct = selectedCustomer?.discount_pct || 0;
+
+  const computedLines = lineItems.map((l) => {
+    const c = computeLine(partById[l.part_id || ""], l.qty_m2);
+    const grossCharge = isSupplyOnly ? c.supplyOnlyCharge : c.supplyInstallCharge;
+    const discountAmount = grossCharge * (customerDiscountPct / 100);
+    return { ...l, ...c, grossCharge, discountAmount };
+  });
   const materialCost = computedLines.reduce((s, l) => s + l.materialCost, 0);
   const labourCost = isSupplyOnly ? 0 : computedLines.reduce((s, l) => s + l.labourCost, 0);
-  const chargeBeforeMarkup = computedLines.reduce(
-    (s, l) => s + (isSupplyOnly ? l.supplyOnlyCharge : l.supplyInstallCharge),
-    0
-  );
+  const chargeBeforeMarkup = computedLines.reduce((s, l) => s + l.grossCharge, 0);
+  const customerDiscountTotal = computedLines.reduce((s, l) => s + l.discountAmount, 0);
   const adjustmentAmount =
     adjustMode === "percent" ? Math.round(chargeBeforeMarkup * (adjustPercent / 100) * 100) / 100 : Number(form.quote_markup || 0);
-  const subtotal = chargeBeforeMarkup + adjustmentAmount;
+  const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
   const profit = subtotal - materialCost - labourCost;
@@ -488,6 +497,7 @@ export default function QuoteEditor({
                 <th className="px-3 py-2">Packs</th>
                 <th className="px-3 py-2">Note</th>
                 <th className="px-3 py-2 text-right">Charge</th>
+                <th className="px-3 py-2 text-right">Cust. discount</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -525,8 +535,9 @@ export default function QuoteEditor({
                       onChange={(e) => updateLine(idx, { note: e.target.value })}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right font-medium">
-                    {fmtCurrency(isSupplyOnly ? l.supplyOnlyCharge : l.supplyInstallCharge)}
+                  <td className="px-3 py-2 text-right font-medium">{fmtCurrency(l.grossCharge)}</td>
+                  <td className="px-3 py-2 text-right text-[var(--muted)]">
+                    {customerDiscountPct > 0 ? `-${fmtCurrency(l.discountAmount)}` : "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
@@ -602,10 +613,18 @@ export default function QuoteEditor({
       </div>
 
       {/* Totals */}
-      <div className="mt-6 grid grid-cols-2 gap-6 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-5">
+      <div className="mt-6 grid grid-cols-2 gap-6 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-3 lg:grid-cols-6">
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Line items</div>
           <div className="text-lg font-semibold">{fmtCurrency(chargeBeforeMarkup)}</div>
+        </div>
+        <div>
+          <div className="text-xs uppercase text-[var(--muted)]">
+            Customer discount{customerDiscountPct > 0 ? ` (${customerDiscountPct}%)` : ""}
+          </div>
+          <div className={`text-lg font-semibold ${customerDiscountTotal > 0 ? "text-red-700" : ""}`}>
+            {customerDiscountTotal > 0 ? `-${fmtCurrency(customerDiscountTotal)}` : fmtCurrency(0)}
+          </div>
         </div>
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
@@ -627,7 +646,7 @@ export default function QuoteEditor({
           <div className="text-lg font-bold text-accent">{fmtCurrency(total)}</div>
         </div>
 
-        <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-5">
+        <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-3 lg:col-span-6">
           <p className="mb-2 text-xs font-medium uppercase text-[var(--muted)]">
             Internal only — not shown to the customer
           </p>

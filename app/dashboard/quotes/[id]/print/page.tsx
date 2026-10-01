@@ -8,7 +8,7 @@ export default async function QuotePrintPage({ params }: { params: { id: string 
     supabase
       .from("projects")
       .select(
-        "id, quote_number, job_type, lot_no, address, suburb, entry_date, notes, quote_markup, show_qty_on_quote, contact_name, contact_phone, contact_email, customers(name)"
+        "id, quote_number, job_type, lot_no, address, suburb, entry_date, notes, quote_markup, show_qty_on_quote, contact_name, contact_phone, contact_email, customers(name, discount_pct)"
       )
       .eq("id", params.id)
       .single(),

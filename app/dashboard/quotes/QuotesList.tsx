@@ -14,7 +14,7 @@ type Project = {
   entry_date: string;
   quote_markup: number;
   archived: boolean;
-  customers: { name: string } | null;
+  customers: { name: string; discount_pct: number | null } | null;
 };
 
 type Line = { project_id: string; part_id: string | null; qty_m2: number };
@@ -144,7 +144,10 @@ export default function QuotesList({
                   </span>
                 </td>
                 <td className="px-4 py-2 text-right font-medium">
-                  {fmtCurrency((totalByProject[p.id] || 0) + Number(p.quote_markup || 0))}
+                  {fmtCurrency(
+                    (totalByProject[p.id] || 0) * (1 - (p.customers?.discount_pct || 0) / 100) +
+                      Number(p.quote_markup || 0)
+                  )}
                 </td>
               </tr>
             ))}

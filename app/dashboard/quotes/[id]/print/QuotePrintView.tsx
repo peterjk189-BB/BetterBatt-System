@@ -29,7 +29,7 @@ type Project = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
-  customers: { name: string } | null;
+  customers: { name: string; discount_pct: number | null } | null;
 };
 
 function fmtCurrency(n: number) {
@@ -48,8 +48,10 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
     return { ...l, packs, charge };
   });
 
+  const customerDiscountPct = project.customers?.discount_pct || 0;
   const chargeBeforeMarkup = computed.reduce((s, l) => s + l.charge, 0);
-  const subtotal = chargeBeforeMarkup + Number(project.quote_markup || 0);
+  const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
+  const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
 
@@ -140,6 +142,12 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
 
         <div className="mt-6 flex justify-end">
           <div className="w-64 text-sm">
+            {customerDiscountTotal > 0 && (
+              <div className="flex justify-between py-1">
+                <span className="text-gray-500">Discount ({customerDiscountPct}%)</span>
+                <span>-{fmtCurrency(customerDiscountTotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-1">
               <span className="text-gray-500">Subtotal</span>
               <span>{fmtCurrency(subtotal)}</span>
