@@ -140,6 +140,7 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
               <th className="px-4 py-2">Terms</th>
               <th className="px-4 py-2">Discount</th>
               <th className="px-4 py-2">Contact</th>
+              <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -155,8 +156,9 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
                 <td className="px-4 py-2">{c.payment_terms}</td>
                 <td className="px-4 py-2">{c.discount_pct}%</td>
                 <td className="px-4 py-2 text-[var(--muted)]">
-                  {c.contact_name || c.contact_phone || c.contact_email || "—"}
+                  {[c.contact_name, c.contact_phone].filter(Boolean).join(" · ") || "—"}
                 </td>
+                <td className="px-4 py-2 text-[var(--muted)]">{c.contact_email || "—"}</td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => openEdit(c)} className="text-accent hover:underline">
                     Edit
@@ -172,7 +174,7 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} customers found.
                 </td>
               </tr>
