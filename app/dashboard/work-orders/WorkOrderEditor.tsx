@@ -146,6 +146,10 @@ export default function WorkOrderEditor({
 
   const selectedContractor = form.contractor_id ? subById[form.contractor_id] : undefined;
 
+  const distinctLineContractorIds = Array.from(
+    new Set(lineItems.map((l) => l.subcontractor_id || form.contractor_id).filter((id): id is string => !!id))
+  );
+
   const contractorCost = lineItems.reduce((s, l) => {
     const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
     return s + (Number(l.qty) || 0) * rate;
@@ -243,7 +247,7 @@ export default function WorkOrderEditor({
               {workOrder!.archived ? "Restore" : "Archive"}
             </button>
           )}
-          {!isNew && (
+          {!isNew && distinctLineContractorIds.length <= 1 && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/print`}
               target="_blank"
@@ -251,6 +255,21 @@ export default function WorkOrderEditor({
             >
               Print preview
             </Link>
+          )}
+          {!isNew && distinctLineContractorIds.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--muted)]">Print preview (save first):</span>
+              {distinctLineContractorIds.map((id) => (
+                <Link
+                  key={id}
+                  href={`/dashboard/work-orders/${workOrder!.id}/print?contractor_id=${id}`}
+                  target="_blank"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-accent"
+                >
+                  {subById[id]?.name || "—"}
+                </Link>
+              ))}
+            </div>
           )}
           <button
             onClick={save}
