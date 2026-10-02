@@ -185,27 +185,21 @@ export default function SubcontractorsTable({
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
-              <th className="px-4 py-2">Name</th>
-              <th className="px-4 py-2">Company</th>
-              <th className="px-4 py-2">Address</th>
-              <th className="px-4 py-2">Postcode</th>
-              <th className="px-4 py-2">Mobile</th>
-              <th className="px-4 py-2">Home phone</th>
-              <th className="px-4 py-2">Email</th>
-              <th className="px-4 py-2">ABN</th>
-              <th className="px-4 py-2">Commenced</th>
-              <th className="px-4 py-2">Finished</th>
-              <th className="px-4 py-2">Notes</th>
-              <th className="px-4 py-2">Active</th>
-              <th className="px-4 py-2">GST Registered</th>
-              <th className="px-4 py-2"></th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Company</th>
+              <th className="px-3 py-2">Mobile</th>
+              <th className="px-3 py-2">Email</th>
+              <th className="px-3 py-2">ABN</th>
+              <th className="px-3 py-2">Active</th>
+              <th className="px-3 py-2">GST</th>
+              <th className="px-3 py-2"></th>
             </tr>
           </thead>
           <tbody>
             {visible.map((s) => (
               <Fragment key={s.id}>
                 <tr className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2 font-medium">
+                  <td className="px-3 py-2 font-medium">
                     <button onClick={() => toggleExpand(s.id)} className="flex items-center gap-2">
                       <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[#f2f0ec] text-xs font-semibold text-[var(--muted)]">
                         {avatarUrls[s.id] ? (
@@ -217,7 +211,7 @@ export default function SubcontractorsTable({
                       <span className="text-accent hover:underline">{s.name}</span>
                     </button>
                   </td>
-                  <td className="px-4 py-2 text-[var(--muted)]">
+                  <td className="px-3 py-2 text-[var(--muted)]">
                     {s.company_name ? (
                       <button onClick={() => toggleExpand(s.id)} className="text-accent hover:underline">
                         {s.company_name}
@@ -226,32 +220,24 @@ export default function SubcontractorsTable({
                       "—"
                     )}
                   </td>
-                <td className="px-4 py-2 text-[var(--muted)]">{s.address || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{s.postcode || "—"}</td>
-                <td className="px-4 py-2">{s.phone || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{s.home_phone || "—"}</td>
-                <td className="px-4 py-2">{s.email || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{s.abn || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(s.commencement_date)}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(s.finished_date)}</td>
-                <td className="max-w-xs whitespace-normal break-words px-4 py-2 text-[var(--muted)]">
-                  {s.notes || "—"}
-                </td>
-                <td className="px-4 py-2">
+                <td className="px-3 py-2">{s.phone || "—"}</td>
+                <td className="px-3 py-2">{s.email || "—"}</td>
+                <td className="px-3 py-2 text-[var(--muted)]">{s.abn || "—"}</td>
+                <td className="px-3 py-2">
                   {s.active ? (
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Active</span>
                   ) : (
                     <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">Inactive</span>
                   )}
                 </td>
-                <td className="px-4 py-2">
+                <td className="px-3 py-2">
                   {s.gst_registered ? (
                     <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">Yes</span>
                   ) : (
                     <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-700">No</span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-3 py-2 text-right">
                   <button onClick={() => toggleArchive(s)} className="text-[var(--muted)] hover:underline">
                     {s.archived ? "Restore" : "Archive"}
                   </button>
@@ -259,7 +245,7 @@ export default function SubcontractorsTable({
               </tr>
               {expandedId === s.id && (
                 <tr className="border-t border-[var(--border)] bg-[#faf9f7]">
-                  <td colSpan={14} className="px-4 py-5">
+                  <td colSpan={8} className="px-4 py-5">
                     <SubcontractorPanel
                       subcontractor={s}
                       attachments={attachmentsBySub[s.id] ?? []}
@@ -275,7 +261,7 @@ export default function SubcontractorsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
                   No subcontractors found.
                 </td>
               </tr>
