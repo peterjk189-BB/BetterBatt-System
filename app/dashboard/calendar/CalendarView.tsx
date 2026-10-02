@@ -37,12 +37,11 @@ type WoEvent = {
   id: string;
   workOrderId: string;
   woNumber: string;
-  contractorName: string;
+  contractorNames: string;
   builderName: string;
   address: string;
   qty: number;
-  jobLabel: string;
-  task: string;
+  tasks: string[];
 };
 
 type PoEvent = {
@@ -95,26 +94,62 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
       map.set(date, arr);
     };
 
+    // Group task lines by date + work order so a work order with several line
+    // items on the same day shows as one combined calendar entry.
+    const woGroups = new Map<
+      string,
+      {
+        date: string;
+        workOrderId: string;
+        woNumber: string;
+        builderName: string;
+        address: string;
+        qty: number;
+        contractorNames: Set<string>;
+        tasks: string[];
+      }
+    >();
+
     for (const l of woLines) {
       if (!l.task_date || !l.work_orders || l.work_orders.archived) continue;
       const contractorName = l.subcontractors?.name || l.work_orders.subcontractors?.name || "Unassigned";
       const project = l.work_orders.projects;
       const builderName = project?.customers?.name || "—";
       const address = project ? [project.address, project.suburb].filter(Boolean).join(", ") || "—" : "—";
-      const jobLabel = project ? `Q${project.quote_number} — ${builderName}${address !== "—" ? ` (${address})` : ""}` : "—";
       const task = l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task";
-      push(l.task_date, {
+
+      const key = `${l.task_date}|${l.work_order_id}`;
+      const existing = woGroups.get(key);
+      if (existing) {
+        existing.qty += Number(l.qty) || 0;
+        existing.contractorNames.add(contractorName);
+        existing.tasks.push(task);
+      } else {
+        woGroups.set(key, {
+          date: l.task_date,
+          workOrderId: l.work_order_id,
+          woNumber: l.work_orders.wo_number,
+          builderName,
+          address,
+          qty: Number(l.qty) || 0,
+          contractorNames: new Set([contractorName]),
+          tasks: [task],
+        });
+      }
+    }
+
+    for (const g of woGroups.values()) {
+      push(g.date, {
         kind: "wo",
-        date: l.task_date,
-        id: l.id,
-        workOrderId: l.work_order_id,
-        woNumber: l.work_orders.wo_number,
-        contractorName,
-        builderName,
-        address,
-        qty: Number(l.qty) || 0,
-        jobLabel,
-        task,
+        date: g.date,
+        id: `${g.date}|${g.workOrderId}`,
+        workOrderId: g.workOrderId,
+        woNumber: g.woNumber,
+        contractorNames: Array.from(g.contractorNames).join(", "),
+        builderName: g.builderName,
+        address: g.address,
+        qty: g.qty,
+        tasks: g.tasks,
       });
     }
 
@@ -236,11 +271,11 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
                             <Link
                               key={`wo-${ev.id}`}
                               href={`/dashboard/work-orders/${ev.workOrderId}`}
-                              title={`${ev.woNumber} — ${ev.jobLabel} — ${ev.task} (${ev.contractorName})`}
+                              title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})`}
                               className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
                             >
                               <div className="truncate font-medium">
-                                {ev.woNumber} · {ev.contractorName}
+                                {ev.woNumber} · {ev.contractorNames}
                               </div>
                               <div className="truncate text-orange-800">
                                 {ev.builderName} — {ev.address}
