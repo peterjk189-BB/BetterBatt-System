@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Part = {
   id: string;
@@ -523,6 +524,14 @@ export default function PartsTable({
                   (newSuppliers.length > 0 ? ` Created ${newSuppliers.length} new supplier(s).` : "") +
                   (skipped > 0 ? ` Skipped ${skipped} row(s) with no item name.` : "")
               );
+              logAudit(supabase, {
+                eventType: "create",
+                entityType: "part",
+                entityLabel: `CSV import — ${data.length} item(s)`,
+                details:
+                  (newSuppliers.length > 0 ? `${newSuppliers.length} new supplier(s). ` : "") +
+                  (skipped > 0 ? `${skipped} row(s) skipped.` : ""),
+              });
             }
           } else {
             alert("No valid rows found in that file — check the item name column is filled in.");
@@ -547,6 +556,13 @@ export default function PartsTable({
       .single();
     if (!error && data) {
       setParts((prev) => prev.map((x) => (x.id === p.id ? (data as Part) : x)));
+      logAudit(supabase, {
+        eventType: "update",
+        entityType: "part",
+        entityId: p.id,
+        entityLabel: p.name,
+        details: `${field}: ${value}`,
+      });
     } else if (error) {
       alert(error.message);
     }
@@ -562,6 +578,13 @@ export default function PartsTable({
       .single();
     if (!error && data) {
       setParts((prev) => prev.map((x) => (x.id === p.id ? (data as Part) : x)));
+      logAudit(supabase, {
+        eventType: p.archived ? "update" : "delete",
+        entityType: "part",
+        entityId: p.id,
+        entityLabel: p.name,
+        details: p.archived ? "Restored" : "Archived",
+      });
     }
   }
 
@@ -573,6 +596,7 @@ export default function PartsTable({
       setParts((prev) => [data as Part, ...prev]);
       setModalOpen(false);
       setForm(emptyForm);
+      logAudit(supabase, { eventType: "create", entityType: "part", entityId: data.id, entityLabel: data.name });
     } else if (error) {
       alert(error.message);
     }

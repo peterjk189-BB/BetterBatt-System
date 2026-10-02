@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Role = "admin" | "office" | "installer";
 
@@ -59,6 +60,13 @@ export default function UsersTable({
       return;
     }
     setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role } : x)));
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "user",
+      entityId: u.id,
+      entityLabel: u.email,
+      details: `Role changed to ${role}`,
+    });
   }
 
   async function updateSubcontractor(u: User, subcontractorId: string) {
@@ -75,6 +83,15 @@ export default function UsersTable({
     setUsers((prev) =>
       prev.map((x) => (x.id === u.id ? { ...x, subcontractor_id: subcontractorId || null } : x))
     );
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "user",
+      entityId: u.id,
+      entityLabel: u.email,
+      details: subcontractorId
+        ? `Linked to subcontractor ${subById.get(subcontractorId) || subcontractorId}`
+        : "Unlinked from subcontractor",
+    });
   }
 
   async function removeUser(u: User) {
@@ -92,6 +109,7 @@ export default function UsersTable({
       return;
     }
     setUsers((prev) => prev.filter((x) => x.id !== u.id));
+    logAudit(supabase, { eventType: "delete", entityType: "user", entityId: u.id, entityLabel: u.email });
   }
 
   async function invite() {
@@ -125,6 +143,13 @@ export default function UsersTable({
     );
     setForm(emptyForm);
     setModalOpen(false);
+    logAudit(supabase, {
+      eventType: "create",
+      entityType: "user",
+      entityId: body.id,
+      entityLabel: body.email,
+      details: `Invited as ${form.role}`,
+    });
   }
 
   return (

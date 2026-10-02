@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Supplier = {
   id: string;
@@ -47,12 +48,14 @@ export default function SuppliersTable({ initial }: { initial: Supplier[] }) {
       if (!error && data) {
         setSuppliers((prev) => prev.map((s) => (s.id === editing.id ? (data as Supplier) : s)));
         setModalOpen(false);
+        logAudit(supabase, { eventType: "update", entityType: "supplier", entityId: data.id, entityLabel: data.name });
       } else if (error) alert(error.message);
     } else {
       const { data, error } = await supabase.from("suppliers").insert(form).select().single();
       if (!error && data) {
         setSuppliers((prev) => [data as Supplier, ...prev]);
         setModalOpen(false);
+        logAudit(supabase, { eventType: "create", entityType: "supplier", entityId: data.id, entityLabel: data.name });
       } else if (error) alert(error.message);
     }
     setSaving(false);
@@ -68,6 +71,13 @@ export default function SuppliersTable({ initial }: { initial: Supplier[] }) {
       .single();
     if (!error && data) {
       setSuppliers((prev) => prev.map((x) => (x.id === s.id ? (data as Supplier) : x)));
+      logAudit(supabase, {
+        eventType: s.archived ? "update" : "delete",
+        entityType: "supplier",
+        entityId: s.id,
+        entityLabel: s.name,
+        details: s.archived ? "Restored" : "Archived",
+      });
     }
   }
 

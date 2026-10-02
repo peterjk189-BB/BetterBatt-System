@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 export type Subcontractor = {
   id: string;
@@ -136,6 +137,12 @@ export default function SubcontractorPanel({
     setSavedMsg(true);
     setTimeout(() => setSavedMsg(false), 2000);
     onSubcontractorChange?.({ ...subcontractor, ...payload, archived });
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "subcontractor",
+      entityId: subcontractor.id,
+      entityLabel: form.name,
+    });
   }
 
   async function toggleArchive() {
@@ -147,6 +154,13 @@ export default function SubcontractorPanel({
     if (!error) {
       setArchived((v) => !v);
       onSubcontractorChange?.({ ...subcontractor, archived: !archived });
+      logAudit(supabase, {
+        eventType: archived ? "update" : "delete",
+        entityType: "subcontractor",
+        entityId: subcontractor.id,
+        entityLabel: subcontractor.name,
+        details: archived ? "Restored" : "Archived",
+      });
     }
   }
 

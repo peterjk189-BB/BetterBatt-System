@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type LabourItem = {
   id: string;
@@ -86,6 +87,12 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
     if (!error && data) {
       setItems((prev) => [data as LabourItem, ...prev]);
       setModalOpen(false);
+      logAudit(supabase, {
+        eventType: "create",
+        entityType: "labour_item",
+        entityId: data.id,
+        entityLabel: `${data.code} — ${data.description}`,
+      });
     } else if (error) alert(error.message);
     setSaving(false);
   }
@@ -97,6 +104,16 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
     if (error) {
       alert(error.message);
       setItems((prev) => prev.map((x) => (x.id === i.id ? i : x)));
+    } else {
+      logAudit(supabase, {
+        eventType: "update",
+        entityType: "labour_item",
+        entityId: i.id,
+        entityLabel: `${i.code} — ${i.description}`,
+        details: Object.entries(patch)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", "),
+      });
     }
   }
 
@@ -110,6 +127,13 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
       .single();
     if (!error && data) {
       setItems((prev) => prev.map((x) => (x.id === i.id ? (data as LabourItem) : x)));
+      logAudit(supabase, {
+        eventType: i.archived ? "update" : "delete",
+        entityType: "labour_item",
+        entityId: i.id,
+        entityLabel: `${i.code} — ${i.description}`,
+        details: i.archived ? "Restored" : "Archived",
+      });
     }
   }
 

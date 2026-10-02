@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 import SubcontractorPanel, { type Attachment } from "./SubcontractorPanel";
 
 type Subcontractor = {
@@ -114,6 +115,12 @@ export default function SubcontractorsTable({
     if (!error && data) {
       setSubs((prev) => [data as Subcontractor, ...prev]);
       setModalOpen(false);
+      logAudit(supabase, {
+        eventType: "create",
+        entityType: "subcontractor",
+        entityId: data.id,
+        entityLabel: data.name,
+      });
     } else if (error) alert(error.message);
     setSaving(false);
   }
@@ -163,6 +170,13 @@ export default function SubcontractorsTable({
       .single();
     if (!error && data) {
       setSubs((prev) => prev.map((x) => (x.id === s.id ? (data as Subcontractor) : x)));
+      logAudit(supabase, {
+        eventType: s.archived ? "update" : "delete",
+        entityType: "subcontractor",
+        entityId: s.id,
+        entityLabel: s.name,
+        details: s.archived ? "Restored" : "Archived",
+      });
     }
   }
 

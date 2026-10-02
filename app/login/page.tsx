@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function LoginPage() {
         setError(error.message);
         return;
       }
+      logAudit(supabase, { eventType: "login", entityType: "auth", entityLabel: email });
       router.push("/dashboard");
       router.refresh();
     } else {

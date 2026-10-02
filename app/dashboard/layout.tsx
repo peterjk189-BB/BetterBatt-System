@@ -39,7 +39,12 @@ export default async function DashboardLayout({
     { href: "/dashboard/subcontractors", label: "Subcontractors" },
     { href: "/dashboard/labour-items", label: "Labour Items" },
     { href: "/dashboard/parts", label: "Inventory" },
-    ...(isAdmin ? [{ href: "/dashboard/users", label: "Users" }] : []),
+    ...(isAdmin
+      ? [
+          { href: "/dashboard/users", label: "Users" },
+          { href: "/dashboard/audit-log", label: "Audit Log" },
+        ]
+      : []),
   ];
 
   return (

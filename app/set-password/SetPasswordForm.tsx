@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type EmailOtpType = "invite" | "recovery" | "email" | "signup" | "email_change";
 
@@ -101,6 +102,7 @@ export default function SetPasswordForm() {
       setError(error.message);
       return;
     }
+    logAudit(supabase, { eventType: "login", entityType: "auth", entityLabel: "First login (invite accepted)" });
     router.push("/dashboard");
     router.refresh();
   }

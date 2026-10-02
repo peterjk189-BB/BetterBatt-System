@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Customer = {
   id: string;
@@ -235,6 +236,7 @@ export default function QuoteEditor({
     };
 
     let projectId = project?.id;
+    let quoteNumberForLabel = project?.quote_number;
 
     if (isNew) {
       const { data, error: insertErr } = await supabase.from("projects").insert(payload).select().single();
@@ -244,6 +246,7 @@ export default function QuoteEditor({
         return;
       }
       projectId = data.id;
+      quoteNumberForLabel = data.quote_number;
     } else {
       const { error: updateErr } = await supabase.from("projects").update(payload).eq("id", projectId);
       if (updateErr) {
@@ -275,6 +278,13 @@ export default function QuoteEditor({
     }
 
     setSaving(false);
+    const customerName = customerList.find((c) => c.id === form.customer_id)?.name || "—";
+    logAudit(supabase, {
+      eventType: isNew ? "create" : "update",
+      entityType: "quote",
+      entityId: projectId,
+      entityLabel: `Q${quoteNumberForLabel} — ${customerName}`,
+    });
     router.push(`/dashboard/quotes/${projectId}`);
     router.refresh();
   }
@@ -283,6 +293,13 @@ export default function QuoteEditor({
     if (!project) return;
     if (!project.archived && !confirm(`Archive quote Q${project.quote_number}?`)) return;
     await supabase.from("projects").update({ archived: !project.archived }).eq("id", project.id);
+    logAudit(supabase, {
+      eventType: project.archived ? "update" : "delete",
+      entityType: "quote",
+      entityId: project.id,
+      entityLabel: `Q${project.quote_number}`,
+      details: project.archived ? "Restored" : "Archived",
+    });
     router.push("/dashboard/quotes");
     router.refresh();
   }

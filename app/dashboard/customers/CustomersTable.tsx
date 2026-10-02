@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Customer = {
   id: string;
@@ -73,6 +74,7 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
       if (!error && data) {
         setCustomers((prev) => prev.map((c) => (c.id === editing.id ? (data as Customer) : c)));
         setModalOpen(false);
+        logAudit(supabase, { eventType: "update", entityType: "customer", entityId: data.id, entityLabel: data.name });
       } else if (error) {
         alert(error.message);
       }
@@ -81,6 +83,7 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
       if (!error && data) {
         setCustomers((prev) => [data as Customer, ...prev]);
         setModalOpen(false);
+        logAudit(supabase, { eventType: "create", entityType: "customer", entityId: data.id, entityLabel: data.name });
       } else if (error) {
         alert(error.message);
       }
@@ -100,6 +103,13 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
       .single();
     if (!error && data) {
       setCustomers((prev) => prev.map((x) => (x.id === c.id ? (data as Customer) : x)));
+      logAudit(supabase, {
+        eventType: c.archived ? "update" : "delete",
+        entityType: "customer",
+        entityId: c.id,
+        entityLabel: c.name,
+        details: c.archived ? "Restored" : "Archived",
+      });
     }
   }
 

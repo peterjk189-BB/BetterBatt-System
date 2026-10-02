@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Supplier = { id: string; name: string };
 
@@ -142,6 +143,7 @@ export default function PurchaseOrderEditor({
     };
 
     let poId = purchaseOrder?.id;
+    let poNumberForLabel = purchaseOrder?.po_number;
 
     if (isNew) {
       const { data, error: insertErr } = await supabase.from("purchase_orders").insert(payload).select().single();
@@ -151,6 +153,7 @@ export default function PurchaseOrderEditor({
         return;
       }
       poId = data.id;
+      poNumberForLabel = data.po_number;
     } else {
       const { error: updateErr } = await supabase.from("purchase_orders").update(payload).eq("id", poId);
       if (updateErr) {
@@ -183,6 +186,12 @@ export default function PurchaseOrderEditor({
     }
 
     setSaving(false);
+    logAudit(supabase, {
+      eventType: isNew ? "create" : "update",
+      entityType: "purchase_order",
+      entityId: poId,
+      entityLabel: poNumberForLabel || "Purchase order",
+    });
     router.push(`/dashboard/purchase-orders/${poId}`);
     router.refresh();
   }
@@ -218,6 +227,13 @@ export default function PurchaseOrderEditor({
     }
 
     await supabase.from("purchase_orders").update({ status: "Received" }).eq("id", purchaseOrder.id);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "purchase_order",
+      entityId: purchaseOrder.id,
+      entityLabel: purchaseOrder.po_number || "Purchase order",
+      details: "Marked Received; stock applied to inventory",
+    });
     setApplying(false);
     router.refresh();
   }
@@ -226,6 +242,13 @@ export default function PurchaseOrderEditor({
     if (!purchaseOrder) return;
     if (!purchaseOrder.archived && !confirm(`Archive ${purchaseOrder.po_number || "this purchase order"}?`)) return;
     await supabase.from("purchase_orders").update({ archived: !purchaseOrder.archived }).eq("id", purchaseOrder.id);
+    logAudit(supabase, {
+      eventType: purchaseOrder.archived ? "update" : "delete",
+      entityType: "purchase_order",
+      entityId: purchaseOrder.id,
+      entityLabel: purchaseOrder.po_number || "Purchase order",
+      details: purchaseOrder.archived ? "Restored" : "Archived",
+    });
     router.push("/dashboard/purchase-orders");
     router.refresh();
   }

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Project = {
   id: string;
@@ -218,6 +219,12 @@ export default function WorkOrderEditor({
     }
 
     setSaving(false);
+    logAudit(supabase, {
+      eventType: isNew ? "create" : "update",
+      entityType: "work_order",
+      entityId: workOrderId,
+      entityLabel: form.wo_number.trim(),
+    });
     router.push(`/dashboard/work-orders/${workOrderId}`);
     router.refresh();
   }
@@ -226,6 +233,13 @@ export default function WorkOrderEditor({
     if (!workOrder) return;
     if (!workOrder.archived && !confirm(`Archive work order ${workOrder.wo_number}?`)) return;
     await supabase.from("work_orders").update({ archived: !workOrder.archived }).eq("id", workOrder.id);
+    logAudit(supabase, {
+      eventType: workOrder.archived ? "update" : "delete",
+      entityType: "work_order",
+      entityId: workOrder.id,
+      entityLabel: workOrder.wo_number,
+      details: workOrder.archived ? "Restored" : "Archived",
+    });
     router.push("/dashboard/work-orders");
     router.refresh();
   }

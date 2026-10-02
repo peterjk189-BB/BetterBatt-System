@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type Sub = { id: string; name: string; phone: string | null; email: string | null; gst_registered: boolean };
 
@@ -101,7 +102,15 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       // Revert on failure.
       setPaidOverrides((prev) => ({ ...prev, [line.id]: line.paid }));
       alert(`Failed to update: ${error.message}`);
+      return;
     }
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work_order_line_payment",
+      entityId: line.id,
+      entityLabel: line.work_orders?.wo_number || "Work order line",
+      details: next ? "Marked paid" : "Marked unpaid",
+    });
   }
 
   const summaryRows = subs
