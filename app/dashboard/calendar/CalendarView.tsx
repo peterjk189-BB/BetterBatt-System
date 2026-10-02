@@ -53,8 +53,13 @@ type PoEvent = {
 
 type DayEvent = WoEvent | PoEvent;
 
+// Local calendar date as YYYY-MM-DD. Deliberately avoids toISOString(), which
+// converts to UTC and shifts the date in timezones ahead of UTC (e.g. Sydney).
 function toDateOnly(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function mondayOf(d: Date) {
