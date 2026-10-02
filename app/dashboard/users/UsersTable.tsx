@@ -53,6 +53,10 @@ export default function UsersTable({
   const [tabsEditingUser, setTabsEditingUser] = useState<User | null>(null);
   const [tabsDraft, setTabsDraft] = useState<string[]>([]);
   const [savingTabs, setSavingTabs] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ full_name: "", email: "", password: "" });
+  const [editError, setEditError] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const subById = new Map(subcontractors.map((s) => [s.id, s.name]));
 
@@ -148,6 +152,62 @@ export default function UsersTable({
       details: `Tab access reset to default for role (${u.role})`,
     });
     setTabsEditingUser(null);
+  }
+
+  function openEditor(u: User) {
+    setEditingUser(u);
+    setEditForm({ full_name: u.full_name, email: u.email, password: "" });
+    setEditError(null);
+  }
+
+  async function saveEdit() {
+    if (!editingUser) return;
+    const u = editingUser;
+    setEditError(null);
+
+    if (!editForm.email.trim()) {
+      setEditError("Email can't be empty.");
+      return;
+    }
+    if (editForm.password && editForm.password.length < 6) {
+      setEditError("Password must be at least 6 characters.");
+      return;
+    }
+
+    setSavingEdit(true);
+    const res = await fetch("/api/users/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: u.id,
+        full_name: editForm.full_name.trim(),
+        email: editForm.email.trim(),
+        password: editForm.password || undefined,
+      }),
+    });
+    const body = await res.json();
+    setSavingEdit(false);
+    if (!res.ok) {
+      setEditError(body.error || "Failed to update user");
+      return;
+    }
+
+    const changes: string[] = [];
+    if (editForm.full_name.trim() !== u.full_name) changes.push("name");
+    if (editForm.email.trim() !== u.email) changes.push("email");
+    if (editForm.password) changes.push("password");
+
+    setUsers((prev) =>
+      prev.map((x) => (x.id === u.id ? { ...x, full_name: editForm.full_name.trim(), email: editForm.email.trim() } : x))
+    );
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "user",
+      entityId: u.id,
+      entityLabel: editForm.email.trim() || u.email,
+      details: changes.length ? `Updated: ${changes.join(", ")}` : "Updated",
+    });
+    setEditingUser(null);
   }
 
   async function removeUser(u: User) {
@@ -306,15 +366,20 @@ export default function UsersTable({
                 </td>
                 <td className="px-3 py-2 text-[var(--muted)]">{fmtDateTime(u.last_sign_in_at)}</td>
                 <td className="px-3 py-2 text-right">
-                  {u.id !== currentUserId && (
-                    <button
-                      onClick={() => removeUser(u)}
-                      disabled={removingId === u.id}
-                      className="text-red-700 hover:underline disabled:opacity-60"
-                    >
-                      {removingId === u.id ? "Removing..." : "Remove"}
+                  <div className="flex justify-end gap-3">
+                    <button onClick={() => openEditor(u)} className="text-accent hover:underline">
+                      Edit
                     </button>
-                  )}
+                    {u.id !== currentUserId && (
+                      <button
+                        onClick={() => removeUser(u)}
+                        disabled={removingId === u.id}
+                        className="text-red-700 hover:underline disabled:opacity-60"
+                      >
+                        {removingId === u.id ? "Removing..." : "Remove"}
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -480,6 +545,63 @@ export default function UsersTable({
                   {savingTabs ? "Saving..." : "Save"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)]">
+            <div className="border-b border-[var(--border)] px-6 py-4">
+              <h2 className="text-lg font-bold">Edit {editingUser.full_name || editingUser.email}</h2>
+            </div>
+            <div className="space-y-4 px-6 py-4">
+              {editError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{editError}</p>}
+              <label className="flex flex-col gap-1 text-sm">
+                Full name
+                <input
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={editForm.full_name}
+                  onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Email
+                <input
+                  type="email"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                New password (optional)
+                <input
+                  type="password"
+                  placeholder="Leave blank to keep their current password"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={editForm.password}
+                  onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                  minLength={6}
+                />
+              </label>
+              <p className="text-xs text-[var(--muted)]">
+                Changing email changes how they sign in — let them know. Use Role, Linked subcontractor and
+                Tabs on the main list to change those.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
+              <button onClick={() => setEditingUser(null)} className="rounded-lg px-4 py-2 text-sm">
+                Cancel
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={savingEdit || !editForm.email.trim()}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                {savingEdit ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </div>
