@@ -127,8 +127,9 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
     return map;
   }, [woLines, pos]);
 
-  const weekStarts = [addDays(centerWeekStart, -7), centerWeekStart, addDays(centerWeekStart, 7)];
+  const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
+  const thisWeekStartStr = toDateOnly(mondayOf(new Date()));
   const dayCount = showWeekends ? 7 : 5;
 
   function shiftWeeks(n: number) {
@@ -181,27 +182,27 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
       </div>
 
       <div className="mt-4 flex flex-col gap-4">
-        {weekStarts.map((weekStart, wi) => {
+        {weekStarts.map((weekStart) => {
           const days = Array.from({ length: dayCount }, (_, i) => addDays(weekStart, i));
           const weekEnd = addDays(weekStart, dayCount - 1);
-          const isCenter = wi === 1;
+          const isCurrentWeek = toDateOnly(weekStart) === thisWeekStartStr;
           return (
             <div
               key={weekStart.toISOString()}
               className={`overflow-hidden rounded-xl border ${
-                isCenter ? "border-accent" : "border-[var(--border)]"
+                isCurrentWeek ? "border-accent" : "border-[var(--border)]"
               }`}
             >
               <div
                 className={`flex items-center justify-between px-3 py-1.5 text-xs font-medium uppercase tracking-wide ${
-                  isCenter ? "bg-accent text-white" : "bg-[#f2f0ec] text-[var(--muted)]"
+                  isCurrentWeek ? "bg-accent text-white" : "bg-[#f2f0ec] text-[var(--muted)]"
                 }`}
               >
                 <span>
                   {weekStart.toLocaleDateString("en-AU", { day: "2-digit", month: "short" })} &ndash;{" "}
                   {weekEnd.toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
                 </span>
-                {isCenter && <span>Selected week</span>}
+                {isCurrentWeek && <span>This week</span>}
               </div>
               <div
                 className="grid divide-x divide-[var(--border)]"
