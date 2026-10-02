@@ -7,6 +7,7 @@ type WoLine = {
   id: string;
   task_date: string | null;
   note: string | null;
+  qty: number;
   work_order_id: string;
   subcontractor_id: string | null;
   work_orders: {
@@ -37,6 +38,9 @@ type WoEvent = {
   workOrderId: string;
   woNumber: string;
   contractorName: string;
+  builderName: string;
+  address: string;
+  qty: number;
   jobLabel: string;
   task: string;
 };
@@ -95,9 +99,9 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
       if (!l.task_date || !l.work_orders || l.work_orders.archived) continue;
       const contractorName = l.subcontractors?.name || l.work_orders.subcontractors?.name || "Unassigned";
       const project = l.work_orders.projects;
-      const jobLabel = project
-        ? `Q${project.quote_number} — ${project.customers?.name || "—"}${project.suburb ? ` (${project.suburb})` : ""}`
-        : "—";
+      const builderName = project?.customers?.name || "—";
+      const address = project ? [project.address, project.suburb].filter(Boolean).join(", ") || "—" : "—";
+      const jobLabel = project ? `Q${project.quote_number} — ${builderName}${address !== "—" ? ` (${address})` : ""}` : "—";
       const task = l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task";
       push(l.task_date, {
         kind: "wo",
@@ -106,6 +110,9 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
         workOrderId: l.work_order_id,
         woNumber: l.work_orders.wo_number,
         contractorName,
+        builderName,
+        address,
+        qty: Number(l.qty) || 0,
         jobLabel,
         task,
       });
@@ -230,9 +237,15 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
                               key={`wo-${ev.id}`}
                               href={`/dashboard/work-orders/${ev.workOrderId}`}
                               title={`${ev.woNumber} — ${ev.jobLabel} — ${ev.task} (${ev.contractorName})`}
-                              className="block truncate rounded bg-orange-100 px-1.5 py-0.5 text-[11px] text-orange-900 hover:bg-orange-200"
+                              className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
                             >
-                              {ev.woNumber} · {ev.contractorName}
+                              <div className="truncate font-medium">
+                                {ev.woNumber} · {ev.contractorName}
+                              </div>
+                              <div className="truncate text-orange-800">
+                                {ev.builderName} — {ev.address}
+                              </div>
+                              {ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>}
                             </Link>
                           ) : (
                             <Link

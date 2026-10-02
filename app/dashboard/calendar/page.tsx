@@ -7,7 +7,7 @@ export default async function CalendarPage() {
     supabase
       .from("work_order_lines")
       .select(
-        "id, task_date, note, work_order_id, subcontractor_id, work_orders(wo_number, archived, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description)"
+        "id, task_date, note, qty, work_order_id, subcontractor_id, work_orders(wo_number, archived, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description)"
       )
       .not("task_date", "is", null)
       .order("task_date"),
