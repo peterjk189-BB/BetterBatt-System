@@ -31,8 +31,19 @@ export async function POST(req: Request) {
 
   const admin = createAdminClient();
 
+  // Without an explicit redirectTo, Supabase sends the invite link to the
+  // project's "Site URL" in Auth settings — which defaults to localhost and
+  // leaves the invited person stuck on "can't reach this page". Point it at
+  // this deployment's set-password page instead.
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`) ||
+    (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+    "http://localhost:3000";
+
   const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName },
+    redirectTo: `${siteUrl}/set-password`,
   });
 
   if (inviteError || !invited?.user) {
