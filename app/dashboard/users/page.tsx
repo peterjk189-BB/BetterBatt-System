@@ -19,7 +19,7 @@ export default async function UsersPage() {
   const admin = createAdminClient();
   const [{ data: authUsers }, { data: profiles }, { data: subs }] = await Promise.all([
     admin.auth.admin.listUsers({ perPage: 200 }),
-    supabase.from("profiles").select("id, full_name, role, subcontractor_id"),
+    supabase.from("profiles").select("id, full_name, role, subcontractor_id, allowed_tabs"),
     supabase.from("subcontractors").select("id, name").eq("archived", false).order("name"),
   ]);
 
@@ -33,6 +33,7 @@ export default async function UsersPage() {
         full_name: profile?.full_name || (u.user_metadata?.full_name as string) || "",
         role: (profile?.role as "admin" | "office" | "installer") || "installer",
         subcontractor_id: profile?.subcontractor_id || null,
+        allowed_tabs: profile?.allowed_tabs ?? null,
         last_sign_in_at: u.last_sign_in_at || null,
         invited_at: u.invited_at || null,
         confirmed_at: u.email_confirmed_at || null,

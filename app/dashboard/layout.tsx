@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { ALL_TABS, effectiveTabs } from "@/lib/tabs";
 import SignOutButton from "./SignOutButton";
 import NavTabs from "./NavTabs";
+import AccessGuard from "./AccessGuard";
 
 export default async function DashboardLayout({
   children,
@@ -20,33 +22,17 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, role")
+    .select("full_name, role, allowed_tabs")
     .eq("id", user.id)
     .single();
 
   const isAdmin = profile?.role === "admin";
   const isOffice = profile?.role === "office";
-  const isStaff = isAdmin || isOffice;
 
-  const staffLinks = [
-    { href: "/dashboard/calendar", label: "Calendar" },
-    { href: "/dashboard/quotes", label: "Quotes" },
-    { href: "/dashboard/work-orders", label: "Work Orders" },
-    { href: "/dashboard/contractor-payments", label: "Contractor Payments" },
-    { href: "/dashboard/purchase-orders", label: "Purchase Orders" },
-    { href: "/dashboard/customers", label: "Customers" },
-    { href: "/dashboard/suppliers", label: "Suppliers" },
-    { href: "/dashboard/subcontractors", label: "Subcontractors" },
-    { href: "/dashboard/labour-items", label: "Labour Items" },
-    { href: "/dashboard/parts", label: "Inventory" },
-    { href: "/dashboard/reports", label: "Reports" },
-    ...(isAdmin
-      ? [
-          { href: "/dashboard/users", label: "Users" },
-          { href: "/dashboard/audit-log", label: "Audit Log" },
-        ]
-      : []),
-  ];
+  const myTabs = effectiveTabs(profile?.role, profile?.allowed_tabs ?? null);
+  const navLinks = ALL_TABS.filter((t) => myTabs.includes(t.key)).map((t) => ({ href: t.href, label: t.label }));
+  const allowedHrefs = navLinks.map((l) => l.href);
+  const hasAnyTab = myTabs.length > 0;
 
   return (
     <div className="min-h-screen">
@@ -63,13 +49,16 @@ export default async function DashboardLayout({
             <SignOutButton />
           </div>
         </div>
-        {isStaff && (
+        {hasAnyTab && (
           <div className="mx-auto max-w-[1600px] px-6 pb-3">
-            <NavTabs links={staffLinks} />
+            <NavTabs links={navLinks} />
           </div>
         )}
       </header>
-      <main className="mx-auto max-w-[1600px] px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-[1600px] px-6 py-8">
+        <AccessGuard allowedHrefs={allowedHrefs} />
+        {children}
+      </main>
     </div>
   );
 }
