@@ -25,8 +25,10 @@ export default async function DashboardLayout({
     .single();
 
   const isAdmin = profile?.role === "admin";
+  const isOffice = profile?.role === "office";
+  const isStaff = isAdmin || isOffice;
 
-  const adminLinks = [
+  const staffLinks = [
     { href: "/dashboard/calendar", label: "Calendar" },
     { href: "/dashboard/quotes", label: "Quotes" },
     { href: "/dashboard/work-orders", label: "Work Orders" },
@@ -37,7 +39,7 @@ export default async function DashboardLayout({
     { href: "/dashboard/subcontractors", label: "Subcontractors" },
     { href: "/dashboard/labour-items", label: "Labour Items" },
     { href: "/dashboard/parts", label: "Inventory" },
-    { href: "/dashboard/users", label: "Users" },
+    ...(isAdmin ? [{ href: "/dashboard/users", label: "Users" }] : []),
   ];
 
   return (
@@ -50,14 +52,14 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
             <span>
               {profile?.full_name || user.email}
-              {isAdmin ? " (admin)" : " (installer)"}
+              {isAdmin ? " (admin)" : isOffice ? " (office)" : " (installer)"}
             </span>
             <SignOutButton />
           </div>
         </div>
-        {isAdmin && (
+        {isStaff && (
           <div className="mx-auto max-w-[1600px] px-6 pb-3">
-            <NavTabs links={adminLinks} />
+            <NavTabs links={staffLinks} />
           </div>
         )}
       </header>

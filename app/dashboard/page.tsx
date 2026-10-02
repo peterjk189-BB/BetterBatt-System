@@ -12,7 +12,7 @@ export default async function DashboardHome() {
     .eq("id", user!.id)
     .single();
 
-  if (profile?.role !== "admin") {
+  if (profile?.role !== "admin" && profile?.role !== "office") {
     return (
       <div>
         <h1 className="text-2xl font-bold">Welcome</h1>

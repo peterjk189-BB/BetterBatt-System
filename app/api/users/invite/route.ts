@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const email = (body.email || "").trim();
   const fullName = (body.full_name || "").trim();
-  const role = body.role === "admin" ? "admin" : "installer";
+  const role = ["admin", "office", "installer"].includes(body.role) ? body.role : "installer";
   const subcontractorId = body.subcontractor_id || null;
 
   if (!email) {

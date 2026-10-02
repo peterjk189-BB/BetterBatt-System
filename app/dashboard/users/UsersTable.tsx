@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-type Role = "admin" | "installer";
+type Role = "admin" | "office" | "installer";
 
 type User = {
   id: string;
@@ -143,8 +143,10 @@ export default function UsersTable({
         </button>
       </div>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        Admins see and manage everything. Installers only see their own assigned work orders — link them to a
-        subcontractor record so the system knows which jobs are theirs.
+        Admins see and manage everything, including this Users page. Office has the same day-to-day access
+        (Quotes, Work Orders, Contractor Payments, etc.) but can&rsquo;t manage users. Installers only see their
+        own assigned work orders — link them to a subcontractor record so the system knows which jobs are
+        theirs.
       </p>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
@@ -178,6 +180,7 @@ export default function UsersTable({
                     className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm"
                   >
                     <option value="admin">Admin</option>
+                    <option value="office">Office</option>
                     <option value="installer">Installer</option>
                   </select>
                 </td>
@@ -265,6 +268,7 @@ export default function UsersTable({
                   onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
                 >
                   <option value="installer">Installer</option>
+                  <option value="office">Office</option>
                   <option value="admin">Admin</option>
                 </select>
               </label>

@@ -31,7 +31,7 @@ export default async function UsersPage() {
         id: u.id,
         email: u.email || "—",
         full_name: profile?.full_name || (u.user_metadata?.full_name as string) || "",
-        role: (profile?.role as "admin" | "installer") || "installer",
+        role: (profile?.role as "admin" | "office" | "installer") || "installer",
         subcontractor_id: profile?.subcontractor_id || null,
         last_sign_in_at: u.last_sign_in_at || null,
         invited_at: u.invited_at || null,
