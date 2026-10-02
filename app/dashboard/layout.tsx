@@ -37,6 +37,7 @@ export default async function DashboardLayout({
     { href: "/dashboard/subcontractors", label: "Subcontractors" },
     { href: "/dashboard/labour-items", label: "Labour Items" },
     { href: "/dashboard/parts", label: "Inventory" },
+    { href: "/dashboard/users", label: "Users" },
   ];
 
   return (
