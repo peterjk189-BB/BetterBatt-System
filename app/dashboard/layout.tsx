@@ -27,6 +27,7 @@ export default async function DashboardLayout({
   const isAdmin = profile?.role === "admin";
 
   const adminLinks = [
+    { href: "/dashboard/calendar", label: "Calendar" },
     { href: "/dashboard/quotes", label: "Quotes" },
     { href: "/dashboard/work-orders", label: "Work Orders" },
     { href: "/dashboard/contractor-payments", label: "Contractor Payments" },
