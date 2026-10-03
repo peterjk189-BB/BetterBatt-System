@@ -141,6 +141,17 @@ export default function QuotePrintView({
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
+          /* Keep a line item, its note, the totals box and each terms
+             paragraph from being sliced in half across a page break —
+             the whole block moves to the next page instead. */
+          .quote-row,
+          .quote-note,
+          .quote-totals,
+          .quote-terms-block,
+          .quote-terms-para {
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
         }
       `}</style>
 
@@ -209,7 +220,7 @@ export default function QuotePrintView({
           <tbody>
             {computed.map((l, i) => (
               <Fragment key={i}>
-                <tr className={l.note ? "" : "border-b border-gray-300"}>
+                <tr className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
                   <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
                   {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.qty_m2} m²</td>}
                   <td className="px-2.5 py-1.5 text-right font-medium">
@@ -217,7 +228,7 @@ export default function QuotePrintView({
                   </td>
                 </tr>
                 {l.note && (
-                  <tr className="border-b border-gray-300">
+                  <tr className="quote-note border-b border-gray-300">
                     <td
                       colSpan={project.show_qty_on_quote ? 3 : 2}
                       className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]"
@@ -245,7 +256,7 @@ export default function QuotePrintView({
         <div className="mt-4 flex justify-end">
           {/* Customer discount is folded into the subtotal below but not itemized here —
               it's commercial info the customer doesn't need to see broken out. */}
-          <div className="w-64 rounded-lg bg-[#f6f5f2] p-3.5">
+          <div className="quote-totals w-64 rounded-lg bg-[#f6f5f2] p-3.5">
             <div className="flex justify-between py-0.5 text-sm text-[#6b6862]">
               <span>Subtotal</span>
               <span className="text-[#201f1c]">{fmtCurrency(subtotal)}</span>
@@ -262,7 +273,7 @@ export default function QuotePrintView({
         </div>
 
         {termsAndConditions && termsAndConditions.trim() && (
-          <div className="mt-6 border-t border-gray-100 pt-4">
+          <div className="quote-terms-block mt-6 border-t border-gray-100 pt-4">
             <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8c887f]">Terms &amp; Conditions</div>
             <div className="mt-2 space-y-1.5">
               {termsAndConditions
@@ -270,7 +281,7 @@ export default function QuotePrintView({
                 .map((p) => p.trim())
                 .filter(Boolean)
                 .map((paragraph, i) => (
-                  <p key={i} className="text-[9.5px] leading-relaxed text-[#6b6862]">
+                  <p key={i} className="quote-terms-para text-[9.5px] leading-relaxed text-[#6b6862]">
                     {paragraph}
                   </p>
                 ))}
