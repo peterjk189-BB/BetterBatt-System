@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
@@ -5,6 +6,16 @@ import { resolveTabsForRequest } from "@/lib/preview";
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 }
+
+// Brand accent colors sampled from public/logo.png, cycled across the KPI tiles.
+const KPI_ACCENTS = ["#fdb930", "#b1841f", "#5f6062", "#2563eb"];
+
+const GROUP_ACCENTS: Record<string, string> = {
+  Sales: "#fdb930",
+  Operations: "#b1841f",
+  Insights: "#2563eb",
+  Admin: "#5f6062",
+};
 
 export default async function DashboardHome() {
   const supabase = await createClient();
@@ -90,15 +101,19 @@ export default async function DashboardHome() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">Dashboard</h1>
+      <div className="flex items-center gap-3">
+        <Image src="/logo.png" alt="Better Batt Insulation" width={140} height={70} className="h-10 w-auto" priority />
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+      </div>
 
       {kpis.length > 0 && (
         <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-          {kpis.map((k) => (
+          {kpis.map((k, i) => (
             <a
               key={k.href}
               href={k.href}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 hover:border-accent"
+              style={{ borderTopColor: KPI_ACCENTS[i % KPI_ACCENTS.length] }}
+              className="rounded-xl border border-t-4 border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm transition-colors hover:border-[var(--border)]"
             >
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">{k.label}</p>
               <p className="mt-1 text-2xl font-bold">{k.value}</p>
@@ -112,7 +127,8 @@ export default async function DashboardHome() {
           <a
             key={t.href}
             href={t.href}
-            className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 hover:border-accent"
+            style={{ borderLeftColor: GROUP_ACCENTS[t.group] ?? "var(--border)" }}
+            className="rounded-xl border border-l-4 border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:bg-[var(--bg)]"
           >
             <p className="font-semibold">{t.label}</p>
             <p className="mt-1 text-xs text-[var(--muted)]">{t.desc}</p>

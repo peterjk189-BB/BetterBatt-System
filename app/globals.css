@@ -9,6 +9,11 @@
   --muted: #6b6862;
   --border: #e4e1da;
   --accent: #2563eb;
+
+  /* Better Batt Insulation brand palette, sampled from public/logo.png */
+  --brand-gold: #fdb930;
+  --brand-gold-dark: #b1841f;
+  --brand-grey: #5f6062;
 }
 
 body {
