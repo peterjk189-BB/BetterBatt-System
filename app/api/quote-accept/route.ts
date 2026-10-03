@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail, siteUrl } from "@/lib/email";
 
 // Public endpoint — no login. Anyone with the quote's share_token (an
 // unguessable UUID) can accept it. Looked up only by that token, never by
@@ -54,6 +55,30 @@ export async function POST(req: Request) {
     entity_id: project.id,
     entity_label: `Q${project.quote_number}`,
     details: "Accepted online via customer link",
+  });
+
+  // Best-effort: let the office know a quote was just signed. Never block
+  // the customer's acceptance on this — if email isn't set up yet, or
+  // Resend rejects it (e.g. still in test mode), the acceptance itself has
+  // already been saved above.
+  const notifyEmail = process.env.OWNER_NOTIFY_EMAIL || "peterjk189@gmail.com";
+  const quoteLink = `${siteUrl()}/dashboard/quotes/${project.id}`;
+  await sendEmail({
+    to: notifyEmail,
+    subject: `Quote Q${project.quote_number} was just accepted`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="margin-bottom: 4px;">Q${project.quote_number} accepted ✅</h2>
+        <p style="color: #555;">
+          ${name} just accepted this quote online at ${new Date(acceptedAt).toLocaleString("en-AU")}.
+        </p>
+        <p style="margin: 24px 0;">
+          <a href="${quoteLink}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;">
+            Open quote in Better Batt System
+          </a>
+        </p>
+      </div>
+    `,
   });
 
   return NextResponse.json({ ok: true, already: false, accepted_at: acceptedAt });

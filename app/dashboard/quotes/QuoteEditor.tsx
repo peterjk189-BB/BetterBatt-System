@@ -109,6 +109,12 @@ export default function QuoteEditor({
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAddress, setEmailAddress] = useState(project?.contact_email || "");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
+
   async function copyCustomerLink() {
     if (!project?.share_token) return;
     const url = `${window.location.origin}/quote/${project.share_token}`;
@@ -120,6 +126,33 @@ export default function QuoteEditor({
     }
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  async function sendQuoteEmail() {
+    if (!project) return;
+    if (!emailAddress.trim()) {
+      setEmailError("Enter an email address");
+      return;
+    }
+    setEmailSending(true);
+    setEmailError("");
+    try {
+      const res = await fetch("/api/quote-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: project.id, to_email: emailAddress.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailError(data.error || "Something went wrong");
+        return;
+      }
+      setEmailSent(true);
+    } catch {
+      setEmailError("Something went wrong");
+    } finally {
+      setEmailSending(false);
+    }
   }
 
   const [form, setForm] = useState({
@@ -355,6 +388,18 @@ export default function QuoteEditor({
               className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
             >
               {linkCopied ? "Link copied!" : "Copy customer link"}
+            </button>
+          )}
+          {!isNew && project!.share_token && (
+            <button
+              onClick={() => {
+                setEmailOpen(true);
+                setEmailSent(false);
+                setEmailError("");
+              }}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Email to customer
             </button>
           )}
           {!isNew && (
@@ -784,6 +829,56 @@ export default function QuoteEditor({
                 {savingCustomer ? "Saving..." : "Add customer"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {emailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-[var(--surface)] p-5 shadow-xl">
+            <h3 className="text-lg font-bold">Email quote to customer</h3>
+            {emailSent ? (
+              <>
+                <p className="mt-3 text-sm text-green-700">Sent to {emailAddress}.</p>
+                <div className="mt-5 flex justify-end">
+                  <button
+                    onClick={() => setEmailOpen(false)}
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="mt-4 flex flex-col gap-1 text-sm">
+                  Customer&apos;s email
+                  <input
+                    autoFocus
+                    type="email"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={emailAddress}
+                    onChange={(e) => setEmailAddress(e.target.value)}
+                  />
+                </label>
+                {emailError && <p className="mt-2 text-sm text-red-700">{emailError}</p>}
+                <div className="mt-5 flex justify-end gap-3">
+                  <button
+                    onClick={() => setEmailOpen(false)}
+                    className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={sendQuoteEmail}
+                    disabled={emailSending}
+                    className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  >
+                    {emailSending ? "Sending..." : "Send"}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
