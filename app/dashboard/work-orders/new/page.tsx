@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserRole } from "@/lib/currentUser";
 import WorkOrderEditor from "../WorkOrderEditor";
 
 const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
@@ -27,7 +28,7 @@ export default async function NewWorkOrderPage({
   searchParams: { project_id?: string };
 }) {
   const supabase = await createClient();
-  const [{ data: projects }, { data: subs }, { data: labourItems }, { data: parts }] = await Promise.all([
+  const [{ data: projects }, { data: subs }, { data: labourItems }, { data: parts }, role] = await Promise.all([
     supabase
       .from("projects")
       .select("id, quote_number, address, suburb, job_type, quote_markup, customers(name)")
@@ -36,6 +37,7 @@ export default async function NewWorkOrderPage({
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
+    getCurrentUserRole(),
   ]);
 
   let prefill = null;
@@ -75,6 +77,7 @@ export default async function NewWorkOrderPage({
       subs={subs ?? []}
       labourItems={labourItems ?? []}
       parts={parts ?? []}
+      isAdmin={role === "admin"}
     />
   );
 }

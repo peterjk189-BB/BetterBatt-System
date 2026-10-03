@@ -6,9 +6,11 @@ import SubcontractorPanel, { type Attachment, type Subcontractor } from "../Subc
 export default function SubcontractorDetail({
   subcontractor,
   attachments,
+  isAdmin,
 }: {
   subcontractor: Subcontractor;
   attachments: Attachment[];
+  isAdmin: boolean;
 }) {
   return (
     <div className="max-w-3xl">
@@ -16,7 +18,7 @@ export default function SubcontractorDetail({
         &larr; Back to subcontractors
       </Link>
       <div className="mt-2">
-        <SubcontractorPanel subcontractor={subcontractor} attachments={attachments} />
+        <SubcontractorPanel subcontractor={subcontractor} attachments={attachments} isAdmin={isAdmin} />
       </div>
     </div>
   );

@@ -1,11 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUserRole } from "@/lib/currentUser";
 import PurchaseOrderEditor from "../PurchaseOrderEditor";
 
 export default async function NewPurchaseOrderPage() {
   const supabase = await createClient();
-  const [{ data: suppliers }, { data: parts }] = await Promise.all([
+  const [{ data: suppliers }, { data: parts }, role] = await Promise.all([
     supabase.from("suppliers").select("id, name").eq("archived", false).order("name"),
     supabase.from("parts").select("*").eq("archived", false).order("name"),
+    getCurrentUserRole(),
   ]);
 
   return (
@@ -14,6 +16,7 @@ export default async function NewPurchaseOrderPage() {
       lines={[]}
       suppliers={suppliers ?? []}
       parts={parts ?? []}
+      isAdmin={role === "admin"}
     />
   );
 }

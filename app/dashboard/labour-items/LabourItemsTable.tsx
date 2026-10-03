@@ -68,7 +68,7 @@ function InlineCell({
 
 const emptyForm = { code: "", description: "", contractor_rate: 0 };
 
-export default function LabourItemsTable({ initial }: { initial: LabourItem[] }) {
+export default function LabourItemsTable({ initial, isAdmin }: { initial: LabourItem[]; isAdmin: boolean }) {
   const supabase = createClient();
   const [items, setItems] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
@@ -197,9 +197,11 @@ export default function LabourItemsTable({ initial }: { initial: LabourItem[] })
                   />
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <button onClick={() => toggleArchive(i)} className="text-[var(--muted)] hover:underline">
-                    {i.archived ? "Restore" : "Archive"}
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => toggleArchive(i)} className="text-[var(--muted)] hover:underline">
+                      {i.archived ? "Restore" : "Archive"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -53,11 +53,13 @@ function isImageFile(name: string | null) {
 export default function SubcontractorPanel({
   subcontractor,
   attachments,
+  isAdmin,
   onSubcontractorChange,
   onAttachmentsChange,
 }: {
   subcontractor: Subcontractor;
   attachments: Attachment[];
+  isAdmin: boolean;
   onSubcontractorChange?: (s: Subcontractor) => void;
   onAttachmentsChange?: (files: Attachment[]) => void;
 }) {
@@ -300,9 +302,11 @@ export default function SubcontractorPanel({
         </div>
         <div className="flex items-center gap-3">
           {savedMsg && <span className="text-sm text-green-700">Saved</span>}
-          <button onClick={toggleArchive} className="text-sm text-[var(--muted)] underline">
-            {archived ? "Restore" : "Archive"}
-          </button>
+          {isAdmin && (
+            <button onClick={toggleArchive} className="text-sm text-[var(--muted)] underline">
+              {archived ? "Restore" : "Archive"}
+            </button>
+          )}
           <button
             onClick={save}
             disabled={saving}

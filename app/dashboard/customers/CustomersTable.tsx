@@ -32,7 +32,7 @@ const emptyForm = {
   contact_email: "",
 };
 
-export default function CustomersTable({ initial }: { initial: Customer[] }) {
+export default function CustomersTable({ initial, isAdmin }: { initial: Customer[]; isAdmin: boolean }) {
   const supabase = createClient();
   const [customers, setCustomers] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
@@ -173,12 +173,14 @@ export default function CustomersTable({ initial }: { initial: Customer[] }) {
                   <button onClick={() => openEdit(c)} className="text-accent hover:underline">
                     Edit
                   </button>
-                  <button
-                    onClick={() => toggleArchive(c)}
-                    className="ml-3 text-[var(--muted)] hover:underline"
-                  >
-                    {c.archived ? "Restore" : "Archive"}
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => toggleArchive(c)}
+                      className="ml-3 text-[var(--muted)] hover:underline"
+                    >
+                      {c.archived ? "Restore" : "Archive"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -308,9 +308,11 @@ function InlineSelect({
 export default function PartsTable({
   initial,
   suppliers,
+  isAdmin,
 }: {
   initial: Part[];
   suppliers: Supplier[];
+  isAdmin: boolean;
 }) {
   const supabase = createClient();
   const [parts, setParts] = useState(initial);
@@ -706,11 +708,11 @@ export default function PartsTable({
       case "value":
         return fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand);
       case "actions":
-        return (
+        return isAdmin ? (
           <button onClick={() => toggleArchive(p)} className="text-[var(--muted)] hover:underline">
             {p.archived ? "Restore" : "Archive"}
           </button>
-        );
+        ) : null;
       default:
         return null;
     }

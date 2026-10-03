@@ -15,7 +15,7 @@ type Supplier = {
 
 const emptyForm = { name: "", phone: "", email: "", notes: "" };
 
-export default function SuppliersTable({ initial }: { initial: Supplier[] }) {
+export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier[]; isAdmin: boolean }) {
   const supabase = createClient();
   const [suppliers, setSuppliers] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
@@ -119,12 +119,14 @@ export default function SuppliersTable({ initial }: { initial: Supplier[] }) {
                   <button onClick={() => openEdit(s)} className="text-accent hover:underline">
                     Edit
                   </button>
-                  <button
-                    onClick={() => toggleArchive(s)}
-                    className="ml-3 text-[var(--muted)] hover:underline"
-                  >
-                    {s.archived ? "Restore" : "Archive"}
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => toggleArchive(s)}
+                      className="ml-3 text-[var(--muted)] hover:underline"
+                    >
+                      {s.archived ? "Restore" : "Archive"}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

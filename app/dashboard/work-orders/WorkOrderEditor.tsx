@@ -59,6 +59,7 @@ export default function WorkOrderEditor({
   subs,
   labourItems,
   parts,
+  isAdmin,
 }: {
   workOrder: WorkOrder | null;
   lines: Line[];
@@ -67,6 +68,7 @@ export default function WorkOrderEditor({
   subs: Sub[];
   labourItems: LabourItem[];
   parts: Part[];
+  isAdmin: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -256,7 +258,7 @@ export default function WorkOrderEditor({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          {!isNew && (
+          {!isNew && isAdmin && (
             <button onClick={toggleArchive} className="text-sm text-[var(--muted)] hover:underline">
               {workOrder!.archived ? "Restore" : "Archive"}
             </button>

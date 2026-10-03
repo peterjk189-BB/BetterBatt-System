@@ -57,9 +57,11 @@ function fmtDate(d: string | null) {
 export default function SubcontractorsTable({
   initial,
   photos,
+  isAdmin,
 }: {
   initial: Subcontractor[];
   photos: ProfilePhoto[];
+  isAdmin: boolean;
 }) {
   const supabase = createClient();
   const [subs, setSubs] = useState(initial);
@@ -252,9 +254,11 @@ export default function SubcontractorsTable({
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <button onClick={() => toggleArchive(s)} className="text-[var(--muted)] hover:underline">
-                    {s.archived ? "Restore" : "Archive"}
-                  </button>
+                  {isAdmin && (
+                    <button onClick={() => toggleArchive(s)} className="text-[var(--muted)] hover:underline">
+                      {s.archived ? "Restore" : "Archive"}
+                    </button>
+                  )}
                 </td>
               </tr>
               {expandedId === s.id && (
@@ -263,6 +267,7 @@ export default function SubcontractorsTable({
                     <SubcontractorPanel
                       subcontractor={s}
                       attachments={attachmentsBySub[s.id] ?? []}
+                      isAdmin={isAdmin}
                       onSubcontractorChange={(updated) =>
                         setSubs((prev) => prev.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)))
                       }

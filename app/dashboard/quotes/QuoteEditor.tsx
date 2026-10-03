@@ -82,11 +82,13 @@ export default function QuoteEditor({
   lines,
   customers,
   parts,
+  isAdmin,
 }: {
   project: Project | null;
   lines: Line[];
   customers: Customer[];
   parts: Part[];
+  isAdmin: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -316,7 +318,7 @@ export default function QuoteEditor({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          {!isNew && (
+          {!isNew && isAdmin && (
             <button onClick={toggleArchive} className="text-sm text-[var(--muted)] hover:underline">
               {project!.archived ? "Restore" : "Archive"}
             </button>

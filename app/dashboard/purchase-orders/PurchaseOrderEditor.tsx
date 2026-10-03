@@ -54,11 +54,13 @@ export default function PurchaseOrderEditor({
   lines,
   suppliers,
   parts,
+  isAdmin,
 }: {
   purchaseOrder: PurchaseOrder | null;
   lines: Line[];
   suppliers: Supplier[];
   parts: Part[];
+  isAdmin: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -265,7 +267,7 @@ export default function PurchaseOrderEditor({
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          {!isNew && (
+          {!isNew && isAdmin && (
             <button onClick={toggleArchive} className="text-sm text-[var(--muted)] hover:underline">
               {purchaseOrder!.archived ? "Restore" : "Archive"}
             </button>
