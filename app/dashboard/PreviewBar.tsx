@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 
 type Option = { id: string; label: string };
 
+const SAMPLE_OPTIONS = [
+  { value: "sample:office", label: "Sample Office view (no login)" },
+  { value: "sample:installer", label: "Sample Installer/Contractor view (no login)" },
+];
+
 export default function PreviewBar({
   users,
   previewing,
@@ -15,13 +20,14 @@ export default function PreviewBar({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  async function setPreview(userId: string) {
-    if (!userId) return;
+  async function setPreview(value: string) {
+    if (!value) return;
     setLoading(true);
+    const isSample = value.startsWith("sample:");
     await fetch("/api/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify(isSample ? { sample_role: value.slice("sample:".length) } : { user_id: value }),
     });
     router.refresh();
     setLoading(false);
@@ -45,8 +51,6 @@ export default function PreviewBar({
     );
   }
 
-  if (users.length === 0) return null;
-
   return (
     <select
       defaultValue=""
@@ -55,11 +59,22 @@ export default function PreviewBar({
       className="rounded-lg border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted)]"
     >
       <option value="">Preview as…</option>
-      {users.map((u) => (
-        <option key={u.id} value={u.id}>
-          {u.label}
-        </option>
-      ))}
+      <optgroup label="Sample views (no login needed)">
+        {SAMPLE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </optgroup>
+      {users.length > 0 && (
+        <optgroup label="Real users">
+          {users.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.label}
+            </option>
+          ))}
+        </optgroup>
+      )}
     </select>
   );
 }

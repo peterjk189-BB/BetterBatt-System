@@ -21,12 +21,22 @@ export async function POST(req: Request) {
 
   const body = await req.json();
   const userId = typeof body.user_id === "string" ? body.user_id : null;
-  if (!userId) {
-    return NextResponse.json({ error: "user_id is required" }, { status: 400 });
+  const sampleRole = typeof body.sample_role === "string" ? body.sample_role : null;
+
+  let cookieValue: string;
+  if (sampleRole) {
+    if (!["office", "installer"].includes(sampleRole)) {
+      return NextResponse.json({ error: "Invalid sample role" }, { status: 400 });
+    }
+    cookieValue = `role:${sampleRole}`;
+  } else if (userId) {
+    cookieValue = userId;
+  } else {
+    return NextResponse.json({ error: "user_id or sample_role is required" }, { status: 400 });
   }
 
   const res = NextResponse.json({ ok: true });
-  res.cookies.set(PREVIEW_COOKIE, userId, {
+  res.cookies.set(PREVIEW_COOKIE, cookieValue, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",

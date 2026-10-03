@@ -18,6 +18,13 @@ export type Previewing = { id: string; label: string; role: string } | null;
  * underneath, so a previewed page may show more data than that user would
  * actually see.
  */
+// A cookie value of the form "role:office" or "role:installer" previews a
+// generic default view for that role, with no real user account needed —
+// useful for seeing what a role looks like before anyone's actually been
+// invited as one.
+const SAMPLE_PREFIX = "role:";
+const SAMPLE_ROLES = ["office", "installer"];
+
 export async function resolveTabsForRequest(
   realRole: string | null | undefined,
   realAllowedTabs: string[] | null | undefined,
@@ -26,13 +33,26 @@ export async function resolveTabsForRequest(
   const isAdmin = realRole === "admin";
   if (isAdmin) {
     const cookieStore = await cookies();
-    const previewUserId = cookieStore.get(PREVIEW_COOKIE)?.value || null;
-    if (previewUserId && previewUserId !== realUserId) {
+    const previewValue = cookieStore.get(PREVIEW_COOKIE)?.value || null;
+
+    if (previewValue && previewValue.startsWith(SAMPLE_PREFIX)) {
+      const sampleRole = previewValue.slice(SAMPLE_PREFIX.length);
+      if (SAMPLE_ROLES.includes(sampleRole)) {
+        return {
+          tabs: effectiveTabs(sampleRole, null),
+          previewing: {
+            id: previewValue,
+            label: `Sample ${sampleRole} view (no login)`,
+            role: sampleRole,
+          },
+        };
+      }
+    } else if (previewValue && previewValue !== realUserId) {
       const supabase = await createClient();
       const { data: target } = await supabase
         .from("profiles")
         .select("id, full_name, role, allowed_tabs")
-        .eq("id", previewUserId)
+        .eq("id", previewValue)
         .single();
       if (target) {
         return {
