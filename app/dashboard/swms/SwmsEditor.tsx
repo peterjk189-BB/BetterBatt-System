@@ -24,6 +24,7 @@ import {
   type HazardRow,
   type Installer,
   type JobType,
+  type Scope,
   type SiteReport,
   type SwmsPhoto,
   type SwmsRecord,
@@ -73,7 +74,7 @@ export default function SwmsEditor({
     project_id: record?.project_id || prefill?.project_id || "",
     comments: record?.comments || "",
   });
-  const [scope, setScope] = useState<Record<string, boolean>>(record ? normaliseScope(record.scope, form.job_type) : normaliseScope({}, form.job_type));
+  const [scope, setScope] = useState<Scope>(record ? normaliseScope(record.scope) : normaliseScope({}));
   const [hazards, setHazards] = useState<HazardRow[]>(record ? normaliseHazards(record.hazards) : EMPTY_HAZARDS);
   const [siteReport, setSiteReport] = useState<SiteReport>(record ? normaliseSiteReport(record.site_report) : EMPTY_SITE_REPORT);
   const [photosChecklist, setPhotosChecklist] = useState<Record<string, boolean>>(
@@ -89,12 +90,6 @@ export default function SwmsEditor({
 
   function switchJobType(jt: JobType) {
     setForm((f) => ({ ...f, job_type: jt }));
-    setScope((s) => {
-      const next = normaliseScope({}, jt);
-      // keep ticks for items that exist under both job types
-      for (const k of Object.keys(next)) if (s[k]) next[k] = true;
-      return next;
-    });
   }
 
   const payload = useCallback(
@@ -351,20 +346,23 @@ export default function SwmsEditor({
         </div>
       </Section>
 
-      <Section title={`Scope of work · ${form.job_type}`}>
-        <div className="flex flex-col gap-2">
-          {SCOPE_ITEMS[form.job_type].map((item) => (
-            <label key={item} className="flex items-start gap-3 rounded-lg px-1 py-1.5 text-sm">
+      <Section title="Scope of work">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+          {SCOPE_ITEMS.map((item) => (
+            <label key={item} className="flex items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
               <input
                 type="checkbox"
                 className="mt-0.5 h-5 w-5 shrink-0 accent-[#b1841f]"
-                checked={!!scope[item]}
-                onChange={(e) => setScope((s) => ({ ...s, [item]: e.target.checked }))}
+                checked={!!scope.items[item]}
+                onChange={(e) => setScope((s) => ({ ...s, items: { ...s.items, [item]: e.target.checked } }))}
               />
               {item}
             </label>
           ))}
         </div>
+        <Field label="Repair" className="mt-3 max-w-sm">
+          <input className={inputCls} value={scope.repair_note} onChange={(e) => setScope((s) => ({ ...s, repair_note: e.target.value }))} />
+        </Field>
       </Section>
 
       <Section title="Site report" hint="Tick anything that applies, checked before installers start work.">

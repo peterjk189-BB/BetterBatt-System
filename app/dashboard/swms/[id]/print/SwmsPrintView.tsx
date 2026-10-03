@@ -48,7 +48,7 @@ export default function SwmsPrintView({
   photos: SwmsPhoto[];
   urls: Record<string, string>;
 }) {
-  const scope = normaliseScope(record.scope, record.job_type);
+  const scope = normaliseScope(record.scope);
   const hazards = normaliseHazards(record.hazards);
   const siteReport = normaliseSiteReport(record.site_report);
   const photosChecklist = normalisePhotosChecklist(record.photos_checklist);
@@ -97,13 +97,14 @@ export default function SwmsPrintView({
         </div>
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Scope of work</h3>
-        <div className="mt-3 flex flex-col gap-1.5">
-          {SCOPE_ITEMS[record.job_type].map((item) => (
-            <Box key={item} on={!!scope[item]}>
+        <div className="mt-3 grid grid-cols-4 gap-x-4 gap-y-1.5">
+          {SCOPE_ITEMS.map((item) => (
+            <Box key={item} on={!!scope.items[item]}>
               {item}
             </Box>
           ))}
         </div>
+        {scope.repair_note && <p className="mt-2">Repair: {scope.repair_note}</p>}
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Site report</h3>
         <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1.5 text-[12px]">

@@ -15,42 +15,19 @@ export const STATUS_STYLES: Record<string, string> = {
   Completed: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
 };
 
-/** Scope-of-work tick items, specific to each job type. */
-export const SCOPE_ITEMS: Record<JobType, string[]> = {
-  "Wall wrap (retrofit)": [
-    "Site and access checked before starting",
-    "Existing cladding/sheeting removed as required",
-    "Sarking/wall wrap installed to engaged wall",
-    "Joints and penetrations taped and sealed",
-    "Cladding/sheeting reinstated",
-    "Work area left clean and tidy",
-  ],
-  Ceiling: [
-    "Site and access checked before starting",
-    "Existing ceiling insulation removed (if required)",
-    "Ceiling batts installed to specified R-value",
-    "Clearance maintained around downlights, exhaust fans and flues",
-    "Clearance maintained around manholes and ceiling hatches",
-    "Ceiling space left clean and tidy",
-  ],
-  "Walls and ceiling": [
-    "Site and access checked before starting",
-    "Existing cladding/sheeting removed as required",
-    "Sarking/wall wrap installed to engaged wall",
-    "Joints and penetrations taped and sealed",
-    "Existing ceiling insulation removed (if required)",
-    "Ceiling batts installed to specified R-value",
-    "Clearance maintained around downlights, exhaust fans and flues",
-    "Work area left clean and tidy",
-  ],
-  Underfloor: [
-    "Site and access checked before starting",
-    "Underfloor insulation installed to specified R-value",
-    "Insulation supported/fixed per manufacturer instructions",
-    "Clearance maintained to pipes, wiring and ducting",
-    "Subfloor area left clean and tidy",
-  ],
-};
+/** Scope-of-work tick items — one fixed list for every job, matching the paper form. */
+export const SCOPE_ITEMS: string[] = [
+  "Dampcourse",
+  "Wrap - GF",
+  "Wrap - FF",
+  "5 Star Inspection",
+  "Wall Insulation",
+  "Sub/Mid Floor",
+  "Polyester Infill",
+  "Ceiling Load",
+  "Ceiling Spread",
+  "Fireseal",
+];
 
 export type HazardRow = {
   id: string;
@@ -174,11 +151,13 @@ export function normaliseSiteReport(raw: unknown): SiteReport {
   return { ...EMPTY_SITE_REPORT, ...src, items, stud_width };
 }
 
-export function normaliseScope(raw: unknown, jobType: JobType): Record<string, boolean> {
-  const src = (raw && typeof raw === "object" ? raw : {}) as Record<string, boolean>;
-  const out: Record<string, boolean> = {};
-  for (const item of SCOPE_ITEMS[jobType]) out[item] = !!src[item];
-  return out;
+export type Scope = { items: Record<string, boolean>; repair_note: string };
+export const EMPTY_SCOPE: Scope = { items: Object.fromEntries(SCOPE_ITEMS.map((i) => [i, false])), repair_note: "" };
+
+export function normaliseScope(raw: unknown): Scope {
+  const src = (raw && typeof raw === "object" ? raw : {}) as Partial<Scope>;
+  const items = { ...EMPTY_SCOPE.items, ...(src.items || {}) };
+  return { ...EMPTY_SCOPE, ...src, items };
 }
 
 export function normalisePhotosChecklist(raw: unknown): Record<string, boolean> {
@@ -209,7 +188,7 @@ export type SwmsRecord = {
   customer_id: string | null;
   project_id: string | null;
   work_order_id: string | null;
-  scope: Record<string, boolean>;
+  scope: Scope;
   hazards: HazardRow[];
   site_report: SiteReport;
   photos_checklist: Record<string, boolean>;
