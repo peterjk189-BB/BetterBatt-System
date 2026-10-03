@@ -74,7 +74,7 @@ create index if not exists idx_attachments_site_visit on attachments (site_visit
 
 alter table attachments drop constraint if exists attachments_category_check;
 alter table attachments add constraint attachments_category_check check (
-  category in ('Photo', 'SWMS', 'Other document', 'White Card', 'Photo ID', 'Driver''s Licence', 'Site plan')
+  category in ('Photo', 'SWMS', 'Other document', 'White Card', 'Photo ID', 'Driver''s Licence', 'Profile Photo', 'Site plan')
 );
 
 drop policy if exists "attachments: site visit users manage site visit photos" on attachments;
