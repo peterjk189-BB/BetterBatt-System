@@ -54,7 +54,40 @@ type PoEvent = {
   status: Po["status"];
 };
 
-type DayEvent = WoEvent | PoEvent;
+type Visit = {
+  id: string;
+  visit_number: number;
+  visit_date: string | null;
+  visit_time: string | null;
+  status: "Booked" | "Visited" | "Quoted" | "Cancelled";
+  customer_name: string | null;
+  address: string | null;
+  suburb: string | null;
+  archived: boolean;
+};
+
+type VisitEvent = {
+  kind: "visit";
+  date: string;
+  id: string;
+  visitId: string;
+  visitNumber: number;
+  time: string | null;
+  customerName: string;
+  address: string;
+  status: Visit["status"];
+};
+
+type DayEvent = WoEvent | PoEvent | VisitEvent;
+
+function fmtTime(t: string | null) {
+  if (!t) return "";
+  const [h, m] = t.split(":");
+  const hour = Number(h);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${m}${ampm}`;
+}
 
 // Local calendar date as YYYY-MM-DD. Deliberately avoids toISOString(), which
 // converts to UTC and shifts the date in timezones ahead of UTC (e.g. Sydney).
@@ -82,7 +115,7 @@ function addDays(d: Date, n: number) {
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos: Po[] }) {
+export default function CalendarView({ woLines, pos, visits }: { woLines: WoLine[]; pos: Po[]; visits: Visit[] }) {
   const [centerWeekStart, setCenterWeekStart] = useState(() => mondayOf(new Date()));
   const [showWeekends, setShowWeekends] = useState(true);
 
@@ -166,8 +199,23 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
       });
     }
 
+    for (const v of visits) {
+      if (!v.visit_date || v.archived) continue;
+      push(v.visit_date, {
+        kind: "visit",
+        date: v.visit_date,
+        id: v.id,
+        visitId: v.id,
+        visitNumber: v.visit_number,
+        time: v.visit_time,
+        customerName: v.customer_name || "New enquiry",
+        address: [v.address, v.suburb].filter(Boolean).join(", ") || "—",
+        status: v.status,
+      });
+    }
+
     return map;
-  }, [woLines, pos]);
+  }, [woLines, pos, visits]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -187,6 +235,12 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Calendar</h1>
         <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/site-visits/new"
+            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            + Add site visit
+          </Link>
           <button
             onClick={() => setShowWeekends((s) => !s)}
             className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-accent"
@@ -220,6 +274,9 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" /> PO delivery
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" /> Site visit
         </span>
       </div>
 
@@ -266,33 +323,52 @@ export default function CalendarView({ woLines, pos }: { woLines: WoLine[]; pos:
                       </div>
                       <div className="mt-1 flex flex-col gap-1">
                         {events.length === 0 && <span className="text-xs text-[var(--border)]">&nbsp;</span>}
-                        {events.map((ev) =>
-                          ev.kind === "wo" ? (
+                        {events.map((ev) => {
+                          if (ev.kind === "wo") {
+                            return (
+                              <Link
+                                key={`wo-${ev.id}`}
+                                href={`/dashboard/work-orders/${ev.workOrderId}`}
+                                title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})`}
+                                className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
+                              >
+                                <div className="truncate font-medium">
+                                  {ev.woNumber} · {ev.contractorNames}
+                                </div>
+                                <div className="truncate text-orange-800">
+                                  {ev.builderName} — {ev.address}
+                                </div>
+                                {ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>}
+                              </Link>
+                            );
+                          }
+                          if (ev.kind === "po") {
+                            return (
+                              <Link
+                                key={`po-${ev.id}`}
+                                href={`/dashboard/purchase-orders/${ev.poId}`}
+                                title={`PO ${ev.poNumber} — ${ev.supplierName} (${ev.status})`}
+                                className="block truncate rounded bg-blue-100 px-1.5 py-0.5 text-[11px] text-blue-900 hover:bg-blue-200"
+                              >
+                                PO {ev.poNumber} · {ev.supplierName}
+                              </Link>
+                            );
+                          }
+                          return (
                             <Link
-                              key={`wo-${ev.id}`}
-                              href={`/dashboard/work-orders/${ev.workOrderId}`}
-                              title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})`}
-                              className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
+                              key={`visit-${ev.id}`}
+                              href={`/dashboard/site-visits/${ev.visitId}`}
+                              title={`Site visit #${ev.visitNumber} — ${ev.customerName} (${ev.address}) — ${ev.status}`}
+                              className="block rounded bg-green-100 px-1.5 py-1 text-[11px] leading-tight text-green-900 hover:bg-green-200"
                             >
                               <div className="truncate font-medium">
-                                {ev.woNumber} · {ev.contractorNames}
+                                {ev.time ? `${fmtTime(ev.time)} · ` : ""}
+                                {ev.customerName}
                               </div>
-                              <div className="truncate text-orange-800">
-                                {ev.builderName} — {ev.address}
-                              </div>
-                              {ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>}
+                              <div className="truncate text-green-800">{ev.address}</div>
                             </Link>
-                          ) : (
-                            <Link
-                              key={`po-${ev.id}`}
-                              href={`/dashboard/purchase-orders/${ev.poId}`}
-                              title={`PO ${ev.poNumber} — ${ev.supplierName} (${ev.status})`}
-                              className="block truncate rounded bg-blue-100 px-1.5 py-0.5 text-[11px] text-blue-900 hover:bg-blue-200"
-                            >
-                              PO {ev.poNumber} · {ev.supplierName}
-                            </Link>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     </div>
                   );
