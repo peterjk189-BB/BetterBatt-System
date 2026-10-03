@@ -22,6 +22,14 @@ export const ALL_TABS = [
   },
   { key: "quotes", href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes", adminOnly: false, group: "Sales" },
   {
+    key: "swms",
+    href: "/dashboard/swms",
+    label: "SWMS / JSA",
+    desc: "Safe work method statement installers fill in on site before starting",
+    adminOnly: false,
+    group: "Operations",
+  },
+  {
     key: "work-orders",
     href: "/dashboard/work-orders",
     label: "Work Orders",
