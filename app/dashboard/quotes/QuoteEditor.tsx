@@ -55,6 +55,20 @@ type Line = {
   sort_order: number;
 };
 
+/** Values carried over from a site visit when a quote is started from it. */
+export type QuotePrefill = {
+  siteVisit: { id: string; visit_number: number };
+  customer_id: string;
+  customer_name: string;
+  category: string;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  address: string;
+  suburb: string;
+  lines: Line[];
+};
+
 const JOB_TYPES = ["S+F QUOTE", "SUPPLY & INSTALL", "SUPPLY ONLY", "MATERIAL QUOTE", "OPTION QUOTE"];
 const CATEGORIES = ["Builder", "Retro Fit", "Private"];
 const OUTCOMES = ["Open", "Accepted", "Lost", "Cancelled"];
@@ -86,12 +100,14 @@ export default function QuoteEditor({
   customers,
   parts,
   isAdmin,
+  prefill = null,
 }: {
   project: Project | null;
   lines: Line[];
   customers: Customer[];
   parts: Part[];
   isAdmin: boolean;
+  prefill?: QuotePrefill | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -156,16 +172,16 @@ export default function QuoteEditor({
   }
 
   const [form, setForm] = useState({
-    customer_id: project?.customer_id || "",
-    contact_name: project?.contact_name || "",
-    contact_phone: project?.contact_phone || "",
-    contact_email: project?.contact_email || "",
+    customer_id: project?.customer_id || prefill?.customer_id || "",
+    contact_name: project?.contact_name || prefill?.contact_name || "",
+    contact_phone: project?.contact_phone || prefill?.contact_phone || "",
+    contact_email: project?.contact_email || prefill?.contact_email || "",
     job_type: project?.job_type || "SUPPLY & INSTALL",
-    category: project?.category || "",
+    category: project?.category || prefill?.category || "",
     outcome: project?.outcome || "Open",
     lot_no: project?.lot_no || "",
-    address: project?.address || "",
-    suburb: project?.suburb || "",
+    address: project?.address || prefill?.address || "",
+    suburb: project?.suburb || prefill?.suburb || "",
     entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
     notes: project?.notes || "",
     quote_markup: project?.quote_markup ?? 0,
@@ -181,6 +197,8 @@ export default function QuoteEditor({
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0
       ? lines.map((l) => ({ ...l }))
+      : prefill && prefill.lines.length > 0
+      ? prefill.lines.map((l) => ({ ...l }))
       : [{ part_id: "", qty_m2: 0, note: "", sort_order: 0 }]
   );
 
@@ -189,7 +207,7 @@ export default function QuoteEditor({
 
   function setCustomer(customerId: string) {
     if (customerId === "__new__") {
-      setNewCustomerForm({ name: "", category: (form.category as Customer["category"]) || "Private", discount_pct: 0 });
+      setNewCustomerForm({ name: form.customer_id ? "" : prefill?.customer_name || "", category: (form.category as Customer["category"]) || "Private", discount_pct: 0 });
       setNewCustomerOpen(true);
       return;
     }
@@ -299,6 +317,9 @@ export default function QuoteEditor({
       }
       projectId = data.id;
       quoteNumberForLabel = data.quote_number;
+      if (prefill?.siteVisit) {
+        await supabase.from("site_visits").update({ project_id: data.id, status: "Quoted" }).eq("id", prefill.siteVisit.id);
+      }
     } else {
       const { error: updateErr } = await supabase.from("projects").update(payload).eq("id", projectId);
       if (updateErr) {
@@ -423,6 +444,18 @@ export default function QuoteEditor({
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
           {error}
+        </div>
+      )}
+
+      {isNew && prefill && (
+        <div className="mt-4 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-4 py-2 text-sm text-[#5c430b]">
+          Started from{" "}
+          <Link href={`/dashboard/site-visits/${prefill.siteVisit.id}`} className="font-semibold underline">
+            site visit SV{prefill.siteVisit.visit_number}
+          </Link>
+          . Address, contact and measured m² are filled in
+          {prefill.customer_id ? "" : ` — pick or add the customer (“+ Add new customer” starts with ${prefill.customer_name || "the visit's name"})`}
+          {prefill.lines.some((l) => !l.part_id) ? ", and choose the product on any line left blank" : ""}.
         </div>
       )}
 

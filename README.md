@@ -57,3 +57,19 @@ office/admin account:
 Not started yet — see `coverage-claude-code-brief.md` for the full build plan
 (core quoting/work order/purchasing workflow, then calendar/contractor
 pay/reports/attachments).
+
+## Site Visits
+
+Replaces the paper/PDF Site Visit Checklist. Book a visit when a customer
+calls or emails, then fill it in on site from a phone or iPad: roof, storeys,
+truss size, ceiling/underfloor access, measured m² (with a room-by-room
+length × width calculator), products, notes, captioned photos, and a site
+plan drawn over a photo of the plans. Saved visits autosave as you go.
+**Create quote** starts a new quote with the address, contact and measured m²
+already filled in and links the two; **Print / PDF** gives the office the same
+layout as the old form.
+
+**One-time setup:** run `supabase/migrations/0016_site_visits.sql` in the
+Supabase SQL Editor. Admin and office users get the tab automatically; to let
+an estimator or installer do visits, tick **Site Visits** for them on the
+Users page (the database checks that tick too).

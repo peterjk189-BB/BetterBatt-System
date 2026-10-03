@@ -12,6 +12,14 @@
 // the sidebar.
 export const ALL_TABS = [
   { key: "calendar", href: "/dashboard/calendar", label: "Calendar", desc: "Work orders and PO deliveries by week", adminOnly: false, group: "Operations" },
+  {
+    key: "site-visits",
+    href: "/dashboard/site-visits",
+    label: "Site Visits",
+    desc: "On-site checklist, measurements and photos before quoting",
+    adminOnly: false,
+    group: "Sales",
+  },
   { key: "quotes", href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes", adminOnly: false, group: "Sales" },
   {
     key: "work-orders",
