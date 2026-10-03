@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   PHOTO_ITEMS,
   SCOPE_ITEMS,
+  SITE_REPORT_COLUMNS,
   normaliseHazards,
   normaliseInstallers,
   normalisePhotosChecklist,
@@ -104,16 +105,29 @@ export default function SwmsPrintView({
         </div>
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Site report</h3>
-        <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2">
-          <Box on={siteReport.power_isolated}>Power isolated / explained to customer</Box>
-          <Box on={siteReport.ladder_required}>Ladder required</Box>
-          <Box on={siteReport.confined_space}>Confined space entry</Box>
-          <Value label="Access" value={siteReport.access_rating} />
-          <Value label="Stud width" value={siteReport.stud_width ? `${siteReport.stud_width} mm` : ""} />
+        <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1.5 text-[12px]">
+          {SITE_REPORT_COLUMNS.map((col, ci) => (
+            <div key={ci} className="flex flex-col gap-1.5">
+              {col.map((item) => (
+                <Box key={item} on={!!siteReport.items[item]}>
+                  {item}
+                </Box>
+              ))}
+            </div>
+          ))}
         </div>
-        {siteReport.site_hazards_notes && (
-          <p className="mt-2 whitespace-pre-wrap rounded bg-[#f6f5f2] p-2 text-[12px]">{siteReport.site_hazards_notes}</p>
-        )}
+        {siteReport.other_note && <p className="mt-2 text-[12px]">Other: {siteReport.other_note}</p>}
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5">
+          <Box on={siteReport.power_isolated_tagged}>Power isolated and tagged (photo)</Box>
+          <Box on={siteReport.power_restored}>Power restored</Box>
+        </div>
+        <div className="mt-3 grid grid-cols-5 gap-2 text-[12px]">
+          <Value label="GF walls" value={siteReport.stud_width.gf_walls} />
+          <Value label="FF walls" value={siteReport.stud_width.ff_walls} />
+          <Value label="Sub floor" value={siteReport.stud_width.sub_floor} />
+          <Value label="Mid floor" value={siteReport.stud_width.mid_floor} />
+          <Value label="Ceiling" value={siteReport.stud_width.ceiling_spacing} />
+        </div>
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Hazard & control measures</h3>
         <table className="mt-3 w-full border-collapse text-[12px]">

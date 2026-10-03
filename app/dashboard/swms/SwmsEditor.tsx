@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import {
-  ACCESS_RATINGS,
   EMPTY_HAZARDS,
   EMPTY_SITE_REPORT,
   JOB_TYPES,
   PHOTO_ITEMS,
   SCOPE_ITEMS,
+  SITE_REPORT_COLUMNS,
   SWMS_STATUSES,
   STATUS_STYLES,
   normaliseHazards,
@@ -366,51 +366,61 @@ export default function SwmsEditor({
         </div>
       </Section>
 
-      <Section title="Site report" hint="Checked before installers start work.">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            <Toggle on={siteReport.power_isolated} onClick={() => setSiteReport((s) => ({ ...s, power_isolated: !s.power_isolated }))}>
-              Power isolated / explained to customer
-            </Toggle>
-            <Toggle on={siteReport.ladder_required} onClick={() => setSiteReport((s) => ({ ...s, ladder_required: !s.ladder_required }))}>
-              Ladder required
-            </Toggle>
-            <Toggle on={siteReport.confined_space} onClick={() => setSiteReport((s) => ({ ...s, confined_space: !s.confined_space }))}>
-              Confined space entry
-            </Toggle>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Field label="Access rating">
-              <select
-                className={inputCls}
-                value={siteReport.access_rating}
-                onChange={(e) => setSiteReport((s) => ({ ...s, access_rating: e.target.value }))}
-              >
-                <option value="">—</option>
-                {ACCESS_RATINGS.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Stud width (mm)">
-              <input
-                inputMode="numeric"
-                className={inputCls}
-                placeholder="e.g. 90"
-                value={siteReport.stud_width}
-                onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: e.target.value.replace(/[^0-9]/g, "") }))}
-              />
-            </Field>
-          </div>
-          <Field label="Site hazards noticed">
-            <textarea
-              rows={3}
+      <Section title="Site report" hint="Tick anything that applies, checked before installers start work.">
+        <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
+          {SITE_REPORT_COLUMNS.map((col, ci) => (
+            <div key={ci} className="flex flex-col gap-1">
+              {col.map((item) => (
+                <label key={item} className="flex items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-[#b1841f]"
+                    checked={!!siteReport.items[item]}
+                    onChange={(e) => setSiteReport((s) => ({ ...s, items: { ...s.items, [item]: e.target.checked } }))}
+                  />
+                  {item}
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+        <Field label="Other" className="mt-2">
+          <input
+            className={inputCls}
+            value={siteReport.other_note}
+            onChange={(e) => setSiteReport((s) => ({ ...s, other_note: e.target.value }))}
+            placeholder="Anything else noticed on site"
+          />
+        </Field>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Toggle on={siteReport.power_isolated_tagged} onClick={() => setSiteReport((s) => ({ ...s, power_isolated_tagged: !s.power_isolated_tagged }))}>
+            Power isolated and tagged (photo)
+          </Toggle>
+          <Toggle on={siteReport.power_restored} onClick={() => setSiteReport((s) => ({ ...s, power_restored: !s.power_restored }))}>
+            Power restored
+          </Toggle>
+        </div>
+
+        <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Stud width</h3>
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <Field label="GF walls">
+            <input className={inputCls} value={siteReport.stud_width.gf_walls} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, gf_walls: e.target.value } }))} />
+          </Field>
+          <Field label="FF walls">
+            <input className={inputCls} value={siteReport.stud_width.ff_walls} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, ff_walls: e.target.value } }))} />
+          </Field>
+          <Field label="Sub floor">
+            <input className={inputCls} value={siteReport.stud_width.sub_floor} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, sub_floor: e.target.value } }))} />
+          </Field>
+          <Field label="Mid floor">
+            <input className={inputCls} value={siteReport.stud_width.mid_floor} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, mid_floor: e.target.value } }))} />
+          </Field>
+          <Field label="Ceiling spacing">
+            <input
               className={inputCls}
-              value={siteReport.site_hazards_notes}
-              onChange={(e) => setSiteReport((s) => ({ ...s, site_hazards_notes: e.target.value }))}
-              placeholder="e.g. Loose tiles near manhole, exposed wiring in ceiling space"
+              value={siteReport.stud_width.ceiling_spacing}
+              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, ceiling_spacing: e.target.value } }))}
             />
           </Field>
         </div>

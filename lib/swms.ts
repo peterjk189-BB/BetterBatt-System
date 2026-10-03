@@ -109,28 +109,46 @@ export const DEFAULT_HAZARDS: Omit<HazardRow, "id">[] = [
 
 export const EMPTY_HAZARDS: HazardRow[] = DEFAULT_HAZARDS.map((h, i) => ({ id: `h${i + 1}`, ...h }));
 
-export type SiteReport = {
-  power_isolated: boolean;
-  ladder_required: boolean;
-  confined_space: boolean;
-  access_rating: string;
-  stud_width: string;
-  site_hazards_notes: string;
-};
+/** The full Site Report tick-box grid, laid out in the same 3 columns as the paper form. */
+export const SITE_REPORT_COLUMNS: string[][] = [
+  ["Muddy site", "Walk around clean", "Broken windows", "Staples in pipe", "Elevated footing", "Roof on fascia on", "Tile stacks on roof"],
+  ["Fall protection", "Plaster deliveries", "Ceiling loaded", "Carpet/tiles", "Marks/dirty", "Plaster damage", "Manhole cover"],
+  ["Electrical rough in", "Plumbing rough in", "Fans/downlights", "Duct fit off", "Displaced tiles", "Material excess", "2 metre fall zone"],
+];
+export const SITE_REPORT_ITEMS: string[] = SITE_REPORT_COLUMNS.flat();
 
-export const ACCESS_RATINGS = ["Excellent", "Good", "Hard", "Limited", "Can't do"];
+/** The 5 stud-width/spacing fields from the paper form's "STUD WIDTH" box. */
+export type StudWidth = { gf_walls: string; ff_walls: string; sub_floor: string; mid_floor: string; ceiling_spacing: string };
+export const EMPTY_STUD_WIDTH: StudWidth = { gf_walls: "", ff_walls: "", sub_floor: "", mid_floor: "", ceiling_spacing: "" };
+
+export type SiteReport = {
+  items: Record<string, boolean>;
+  power_isolated_tagged: boolean;
+  power_restored: boolean;
+  other_note: string;
+  stud_width: StudWidth;
+};
 
 export const EMPTY_SITE_REPORT: SiteReport = {
-  power_isolated: false,
-  ladder_required: false,
-  confined_space: false,
-  access_rating: "",
-  stud_width: "",
-  site_hazards_notes: "",
+  items: Object.fromEntries(SITE_REPORT_ITEMS.map((i) => [i, false])),
+  power_isolated_tagged: false,
+  power_restored: false,
+  other_note: "",
+  stud_width: EMPTY_STUD_WIDTH,
 };
 
-/** Ticked once each item's done/confirmed, shown as a checklist on the form. */
-export const PHOTO_ITEMS = ["Before photos taken", "Access point photos taken", "Completed work photos taken", "Any hazards/damage photographed"];
+/** Ticked once each item's done/confirmed, shown as a checklist on the form — matches the paper form's "Tick photo's taken" list. */
+export const PHOTO_ITEMS = [
+  "All installed areas (min 6 photos)",
+  "Site board (must be included)",
+  "Insulated heater platform",
+  "Split packs in ceiling",
+  "Areas that can not be completed",
+  "Any site damage",
+  "Showing secured site / inc bin",
+  "Showing clean site after install",
+  "Polyester infills",
+];
 
 export type Installer = { name: string; signed_name: string; signed_at: string | null };
 
@@ -148,7 +166,9 @@ export function normaliseHazards(raw: unknown): HazardRow[] {
 
 export function normaliseSiteReport(raw: unknown): SiteReport {
   const src = (raw && typeof raw === "object" ? raw : {}) as Partial<SiteReport>;
-  return { ...EMPTY_SITE_REPORT, ...src };
+  const items = { ...EMPTY_SITE_REPORT.items, ...(src.items || {}) };
+  const stud_width = { ...EMPTY_STUD_WIDTH, ...(src.stud_width || {}) };
+  return { ...EMPTY_SITE_REPORT, ...src, items, stud_width };
 }
 
 export function normaliseScope(raw: unknown, jobType: JobType): Record<string, boolean> {
