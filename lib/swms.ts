@@ -117,9 +117,12 @@ export const SITE_REPORT_COLUMNS: string[][] = [
 ];
 export const SITE_REPORT_ITEMS: string[] = SITE_REPORT_COLUMNS.flat();
 
-/** The 5 stud-width/spacing fields from the paper form's "STUD WIDTH" box. */
-export type StudWidth = { gf_walls: string; ff_walls: string; sub_floor: string; mid_floor: string; ceiling_spacing: string };
-export const EMPTY_STUD_WIDTH: StudWidth = { gf_walls: "", ff_walls: "", sub_floor: "", mid_floor: "", ceiling_spacing: "" };
+/** Stud/joist centres — recorded for a foiling (wall wrap) job: external wall, internal walls, mid floor and ceilings. */
+export type StudWidth = { external_wall: string; internal_walls: string; mid_floor: string; ceiling: string };
+export const EMPTY_STUD_WIDTH: StudWidth = { external_wall: "", internal_walls: "", mid_floor: "", ceiling: "" };
+
+/** Job types where sarking/foil wrap is part of the scope — stud centres should be recorded for these. */
+export const FOILING_JOB_TYPES: JobType[] = ["Wall wrap (retrofit)", "Walls and ceiling"];
 
 export type SiteReport = {
   items: Record<string, boolean>;

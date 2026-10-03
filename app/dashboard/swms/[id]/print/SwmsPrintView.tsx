@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  FOILING_JOB_TYPES,
   PHOTO_ITEMS,
   SCOPE_ITEMS,
   SITE_REPORT_COLUMNS,
@@ -121,12 +122,14 @@ export default function SwmsPrintView({
           <Box on={siteReport.power_isolated_tagged}>Power isolated and tagged (photo)</Box>
           <Box on={siteReport.power_restored}>Power restored</Box>
         </div>
-        <div className="mt-3 grid grid-cols-5 gap-2 text-[12px]">
-          <Value label="GF walls" value={siteReport.stud_width.gf_walls} />
-          <Value label="FF walls" value={siteReport.stud_width.ff_walls} />
-          <Value label="Sub floor" value={siteReport.stud_width.sub_floor} />
+        <h3 className="mt-5 text-xs font-bold uppercase tracking-wide">
+          Stud centres{FOILING_JOB_TYPES.includes(record.job_type) ? " (foiling job)" : ""}
+        </h3>
+        <div className="mt-2 grid grid-cols-4 gap-2 text-[12px]">
+          <Value label="External wall" value={siteReport.stud_width.external_wall} />
+          <Value label="Internal walls" value={siteReport.stud_width.internal_walls} />
           <Value label="Mid floor" value={siteReport.stud_width.mid_floor} />
-          <Value label="Ceiling" value={siteReport.stud_width.ceiling_spacing} />
+          <Value label="Ceilings" value={siteReport.stud_width.ceiling} />
         </div>
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Hazard & control measures</h3>

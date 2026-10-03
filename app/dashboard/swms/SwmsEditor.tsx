@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import {
   EMPTY_HAZARDS,
   EMPTY_SITE_REPORT,
+  FOILING_JOB_TYPES,
   JOB_TYPES,
   PHOTO_ITEMS,
   SCOPE_ITEMS,
@@ -402,25 +403,37 @@ export default function SwmsEditor({
           </Toggle>
         </div>
 
-        <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Stud width</h3>
-        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-5">
-          <Field label="GF walls">
-            <input className={inputCls} value={siteReport.stud_width.gf_walls} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, gf_walls: e.target.value } }))} />
-          </Field>
-          <Field label="FF walls">
-            <input className={inputCls} value={siteReport.stud_width.ff_walls} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, ff_walls: e.target.value } }))} />
-          </Field>
-          <Field label="Sub floor">
-            <input className={inputCls} value={siteReport.stud_width.sub_floor} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, sub_floor: e.target.value } }))} />
-          </Field>
-          <Field label="Mid floor">
-            <input className={inputCls} value={siteReport.stud_width.mid_floor} onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, mid_floor: e.target.value } }))} />
-          </Field>
-          <Field label="Ceiling spacing">
+        <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Stud centres</h3>
+        <p className={`mt-1 text-xs ${FOILING_JOB_TYPES.includes(form.job_type) ? "font-medium text-[var(--brand-gold-dark)]" : "text-[var(--muted)]"}`}>
+          If this SWMS is a foiling job, please record the stud centre for the external wall, internal walls, mid floor and ceilings.
+        </p>
+        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="External wall">
             <input
               className={inputCls}
-              value={siteReport.stud_width.ceiling_spacing}
-              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, ceiling_spacing: e.target.value } }))}
+              value={siteReport.stud_width.external_wall}
+              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, external_wall: e.target.value } }))}
+            />
+          </Field>
+          <Field label="Internal walls">
+            <input
+              className={inputCls}
+              value={siteReport.stud_width.internal_walls}
+              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, internal_walls: e.target.value } }))}
+            />
+          </Field>
+          <Field label="Mid floor">
+            <input
+              className={inputCls}
+              value={siteReport.stud_width.mid_floor}
+              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, mid_floor: e.target.value } }))}
+            />
+          </Field>
+          <Field label="Ceilings">
+            <input
+              className={inputCls}
+              value={siteReport.stud_width.ceiling}
+              onChange={(e) => setSiteReport((s) => ({ ...s, stud_width: { ...s.stud_width, ceiling: e.target.value } }))}
             />
           </Field>
         </div>
