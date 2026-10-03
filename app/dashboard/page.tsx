@@ -23,7 +23,9 @@ export default async function DashboardHome() {
     .single();
 
   const { tabs: myTabs } = await resolveTabsForRequest(profile?.role, profile?.allowed_tabs ?? null, user!.id);
-  const tiles = ALL_TABS.filter((t) => myTabs.includes(t.key) && t.key !== "users" && t.key !== "audit-log");
+  const tiles = ALL_TABS.filter(
+    (t) => myTabs.includes(t.key) && t.key !== "users" && t.key !== "audit-log" && t.key !== "settings"
+  );
 
   if (tiles.length === 0) {
     return (

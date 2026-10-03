@@ -4,7 +4,7 @@ import QuotePrintView from "./QuotePrintView";
 
 export default async function QuotePrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const [{ data: project }, { data: lines }] = await Promise.all([
+  const [{ data: project }, { data: lines }, { data: settings }] = await Promise.all([
     supabase
       .from("projects")
       .select(
@@ -17,9 +17,16 @@ export default async function QuotePrintPage({ params }: { params: { id: string 
       .select("part_id, qty_m2, note, sort_order, parts(name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2)")
       .eq("project_id", params.id)
       .order("sort_order"),
+    supabase.from("company_settings").select("terms_and_conditions").eq("id", true).single(),
   ]);
 
   if (!project) notFound();
 
-  return <QuotePrintView project={project as any} lines={(lines ?? []) as any} />;
+  return (
+    <QuotePrintView
+      project={project as any}
+      lines={(lines ?? []) as any}
+      termsAndConditions={settings?.terms_and_conditions ?? ""}
+    />
+  );
 }

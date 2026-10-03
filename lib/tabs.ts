@@ -73,6 +73,14 @@ export const ALL_TABS = [
   },
   { key: "users", href: "/dashboard/users", label: "Users", desc: "Invite and manage app users", adminOnly: true, group: "Admin" },
   { key: "audit-log", href: "/dashboard/audit-log", label: "Audit Log", desc: "Sign-ins and record changes", adminOnly: true, group: "Admin" },
+  {
+    key: "settings",
+    href: "/dashboard/settings",
+    label: "Settings",
+    desc: "Quote terms & conditions and other company settings",
+    adminOnly: true,
+    group: "Admin",
+  },
 ] as const;
 
 export type TabKey = (typeof ALL_TABS)[number]["key"];

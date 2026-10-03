@@ -36,7 +36,15 @@ function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
-export default function QuotePrintView({ project, lines }: { project: Project; lines: Line[] }) {
+export default function QuotePrintView({
+  project,
+  lines,
+  termsAndConditions,
+}: {
+  project: Project;
+  lines: Line[];
+  termsAndConditions?: string;
+}) {
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -252,6 +260,23 @@ export default function QuotePrintView({ project, lines }: { project: Project; l
             </div>
           </div>
         </div>
+
+        {termsAndConditions && termsAndConditions.trim() && (
+          <div className="mt-6 border-t border-gray-100 pt-4">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8c887f]">Terms &amp; Conditions</div>
+            <div className="mt-2 space-y-1.5">
+              {termsAndConditions
+                .split(/\n\s*\n/)
+                .map((p) => p.trim())
+                .filter(Boolean)
+                .map((paragraph, i) => (
+                  <p key={i} className="text-[9.5px] leading-relaxed text-[#6b6862]">
+                    {paragraph}
+                  </p>
+                ))}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 flex justify-between border-t border-gray-100 pt-3 text-[10px] text-[#9a968d]">
           <span>Better Batt Insulation</span>
