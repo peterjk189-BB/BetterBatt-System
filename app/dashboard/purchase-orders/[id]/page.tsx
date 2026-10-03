@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserRole } from "@/lib/currentUser";
+import { getEffectiveRole } from "@/lib/currentUser";
 import PurchaseOrderEditor from "../PurchaseOrderEditor";
 
 export default async function PurchaseOrderPage({ params }: { params: { id: string } }) {
@@ -10,7 +10,7 @@ export default async function PurchaseOrderPage({ params }: { params: { id: stri
     supabase.from("purchase_order_lines").select("*").eq("purchase_order_id", params.id),
     supabase.from("suppliers").select("id, name").eq("archived", false).order("name"),
     supabase.from("parts").select("*").eq("archived", false).order("name"),
-    getCurrentUserRole(),
+    getEffectiveRole(),
   ]);
 
   if (!purchaseOrder) notFound();

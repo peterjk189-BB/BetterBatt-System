@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserRole } from "@/lib/currentUser";
+import { getEffectiveRole } from "@/lib/currentUser";
 import QuoteEditor from "../QuoteEditor";
 
 export default async function NewQuotePage() {
@@ -7,7 +7,7 @@ export default async function NewQuotePage() {
   const [{ data: customers }, { data: parts }, role] = await Promise.all([
     supabase.from("customers").select("*").eq("archived", false).order("name"),
     supabase.from("parts").select("*").eq("archived", false).order("name"),
-    getCurrentUserRole(),
+    getEffectiveRole(),
   ]);
 
   return (

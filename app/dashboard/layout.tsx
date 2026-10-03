@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { ALL_TABS, effectiveTabs } from "@/lib/tabs";
+import { ALL_TABS } from "@/lib/tabs";
+import { resolveTabsForRequest } from "@/lib/preview";
 import SignOutButton from "./SignOutButton";
 import NavTabs from "./NavTabs";
 import AccessGuard from "./AccessGuard";
+import PreviewBar from "./PreviewBar";
 
 export default async function DashboardLayout({
   children,
@@ -29,10 +31,27 @@ export default async function DashboardLayout({
   const isAdmin = profile?.role === "admin";
   const isOffice = profile?.role === "office";
 
-  const myTabs = effectiveTabs(profile?.role, profile?.allowed_tabs ?? null);
+  const { tabs: myTabs, previewing } = await resolveTabsForRequest(
+    profile?.role,
+    profile?.allowed_tabs ?? null,
+    user.id
+  );
   const navLinks = ALL_TABS.filter((t) => myTabs.includes(t.key)).map((t) => ({ href: t.href, label: t.label }));
   const allowedHrefs = navLinks.map((l) => l.href);
   const hasAnyTab = myTabs.length > 0;
+
+  let previewOptions: { id: string; label: string }[] = [];
+  if (isAdmin) {
+    const { data: otherProfiles } = await supabase
+      .from("profiles")
+      .select("id, full_name, role")
+      .neq("id", user.id)
+      .order("full_name");
+    previewOptions = (otherProfiles ?? []).map((p) => ({
+      id: p.id,
+      label: `${p.full_name || "Unnamed user"} (${p.role})`,
+    }));
+  }
 
   return (
     <div className="min-h-screen">
@@ -42,6 +61,7 @@ export default async function DashboardLayout({
             Better Batt System
           </Link>
           <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
+            {isAdmin && <PreviewBar users={previewOptions} previewing={previewing} />}
             <span>
               {profile?.full_name || user.email}
               {isAdmin ? " (admin)" : isOffice ? " (office)" : " (installer)"}

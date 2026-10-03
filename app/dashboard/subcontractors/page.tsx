@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserRole } from "@/lib/currentUser";
+import { getEffectiveRole } from "@/lib/currentUser";
 import SubcontractorsTable from "./SubcontractorsTable";
 
 export default async function SubcontractorsPage() {
@@ -12,7 +12,7 @@ export default async function SubcontractorsPage() {
       .eq("category", "Profile Photo")
       .not("subcontractor_id", "is", null)
       .order("created_at", { ascending: false }),
-    getCurrentUserRole(),
+    getEffectiveRole(),
   ]);
   return <SubcontractorsTable initial={data ?? []} photos={photos ?? []} isAdmin={role === "admin"} />;
 }

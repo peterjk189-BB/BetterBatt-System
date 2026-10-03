@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { ALL_TABS, effectiveTabs } from "@/lib/tabs";
+import { ALL_TABS } from "@/lib/tabs";
+import { resolveTabsForRequest } from "@/lib/preview";
 
 export default async function DashboardHome() {
   const supabase = await createClient();
@@ -13,7 +14,7 @@ export default async function DashboardHome() {
     .eq("id", user!.id)
     .single();
 
-  const myTabs = effectiveTabs(profile?.role, profile?.allowed_tabs ?? null);
+  const { tabs: myTabs } = await resolveTabsForRequest(profile?.role, profile?.allowed_tabs ?? null, user!.id);
   const tiles = ALL_TABS.filter((t) => myTabs.includes(t.key) && t.key !== "users" && t.key !== "audit-log");
 
   if (tiles.length === 0) {

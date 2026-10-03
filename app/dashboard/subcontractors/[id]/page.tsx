@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserRole } from "@/lib/currentUser";
+import { getEffectiveRole } from "@/lib/currentUser";
 import SubcontractorDetail from "./SubcontractorDetail";
 
 export default async function SubcontractorDetailPage({ params }: { params: { id: string } }) {
@@ -12,7 +12,7 @@ export default async function SubcontractorDetailPage({ params }: { params: { id
       .select("id, category, storage_path, file_name, created_at")
       .eq("subcontractor_id", params.id)
       .order("created_at", { ascending: false }),
-    getCurrentUserRole(),
+    getEffectiveRole(),
   ]);
 
   if (!subcontractor) notFound();

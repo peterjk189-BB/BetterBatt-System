@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getCurrentUserRole } from "@/lib/currentUser";
+import { getEffectiveRole } from "@/lib/currentUser";
 import QuoteEditor from "../QuoteEditor";
 
 export default async function QuotePage({ params }: { params: { id: string } }) {
@@ -10,7 +10,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
     supabase.from("project_lines").select("*").eq("project_id", params.id).order("sort_order"),
     supabase.from("customers").select("*").eq("archived", false).order("name"),
     supabase.from("parts").select("*").eq("archived", false).order("name"),
-    getCurrentUserRole(),
+    getEffectiveRole(),
   ]);
 
   if (!project) notFound();
