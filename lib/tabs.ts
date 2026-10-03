@@ -77,6 +77,22 @@ export const ALL_TABS = [
 
 export type TabKey = (typeof ALL_TABS)[number]["key"];
 
+/** Brand accent color per nav group, sampled from public/logo.png, shared by the sidebar and the dashboard home tiles. */
+export const GROUP_ACCENTS: Record<string, string> = {
+  Sales: "#fdb930",
+  Operations: "#b1841f",
+  Insights: "#2563eb",
+  Admin: "#5f6062",
+};
+
+/** Readable text color to pair with each GROUP_ACCENTS background (the bright gold needs dark text). */
+export const GROUP_ACCENT_TEXT: Record<string, string> = {
+  Sales: "#201f1c",
+  Operations: "#ffffff",
+  Insights: "#ffffff",
+  Admin: "#ffffff",
+};
+
 /** Tabs a user gets when they have no custom tab list saved (profiles.allowed_tabs is null). */
 export function defaultTabsForRole(role: string | null | undefined): string[] {
   if (role === "admin") return ALL_TABS.map((t) => t.key);

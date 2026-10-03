@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
-import { ALL_TABS } from "@/lib/tabs";
+import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
 
 function fmtCurrency(n: number) {
@@ -9,13 +9,6 @@ function fmtCurrency(n: number) {
 
 // Brand accent colors sampled from public/logo.png, cycled across the KPI tiles.
 const KPI_ACCENTS = ["#fdb930", "#b1841f", "#5f6062", "#2563eb"];
-
-const GROUP_ACCENTS: Record<string, string> = {
-  Sales: "#fdb930",
-  Operations: "#b1841f",
-  Insights: "#2563eb",
-  Admin: "#5f6062",
-};
 
 export default async function DashboardHome() {
   const supabase = await createClient();
