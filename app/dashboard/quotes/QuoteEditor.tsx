@@ -42,6 +42,9 @@ type Project = {
   quote_markup: number;
   show_qty_on_quote: boolean;
   archived: boolean;
+  share_token?: string | null;
+  accepted_at?: string | null;
+  accepted_name?: string | null;
 };
 
 type Line = {
@@ -104,6 +107,20 @@ export default function QuoteEditor({
     discount_pct: 0,
   });
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  async function copyCustomerLink() {
+    if (!project?.share_token) return;
+    const url = `${window.location.origin}/quote/${project.share_token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this link:", url);
+      return;
+    }
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
 
   const [form, setForm] = useState({
     customer_id: project?.customer_id || "",
@@ -332,6 +349,14 @@ export default function QuoteEditor({
               Print preview
             </Link>
           )}
+          {!isNew && project!.share_token && (
+            <button
+              onClick={copyCustomerLink}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              {linkCopied ? "Link copied!" : "Copy customer link"}
+            </button>
+          )}
           {!isNew && (
             <Link
               href={`/dashboard/work-orders/new?project_id=${project!.id}`}
@@ -353,6 +378,16 @@ export default function QuoteEditor({
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
           {error}
+        </div>
+      )}
+
+      {!isNew && project!.accepted_at && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900">
+          <span>✓</span>
+          <span>
+            Accepted online by <strong>{project!.accepted_name}</strong> on{" "}
+            {new Date(project!.accepted_at).toLocaleString("en-AU")}
+          </span>
         </div>
       )}
 
