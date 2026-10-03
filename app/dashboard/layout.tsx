@@ -5,6 +5,7 @@ import { ALL_TABS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
 import SignOutButton from "./SignOutButton";
 import NavTabs from "./NavTabs";
+import Sidebar from "./Sidebar";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
 
@@ -36,7 +37,11 @@ export default async function DashboardLayout({
     profile?.allowed_tabs ?? null,
     user.id
   );
-  const navLinks = ALL_TABS.filter((t) => myTabs.includes(t.key)).map((t) => ({ href: t.href, label: t.label }));
+  const navLinks = ALL_TABS.filter((t) => myTabs.includes(t.key)).map((t) => ({
+    href: t.href,
+    label: t.label,
+    group: t.group,
+  }));
   const allowedHrefs = navLinks.map((l) => l.href);
   const hasAnyTab = myTabs.length > 0;
 
@@ -70,15 +75,18 @@ export default async function DashboardLayout({
           </div>
         </div>
         {hasAnyTab && (
-          <div className="mx-auto max-w-[1600px] px-6 pb-3">
+          <div className="mx-auto max-w-[1600px] px-6 pb-3 sm:hidden">
             <NavTabs links={navLinks} />
           </div>
         )}
       </header>
-      <main className="mx-auto max-w-[1600px] px-6 py-8">
-        <AccessGuard allowedHrefs={allowedHrefs} />
-        {children}
-      </main>
+      <div className="mx-auto flex max-w-[1600px] items-start">
+        {hasAnyTab && <Sidebar links={navLinks} />}
+        <main className="min-w-0 flex-1 px-6 py-8">
+          <AccessGuard allowedHrefs={allowedHrefs} />
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

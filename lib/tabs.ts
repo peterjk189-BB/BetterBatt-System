@@ -1,5 +1,5 @@
 // Single source of truth for every tab/page in the dashboard, used by:
-// - the nav bar (app/dashboard/layout.tsx)
+// - the sidebar nav (app/dashboard/Sidebar.tsx) and mobile nav bar (NavTabs.tsx)
 // - the dashboard home tiles (app/dashboard/page.tsx)
 // - the Users admin page's "tabs this user can see" checklist
 // - the client-side access guard that redirects away from un-granted pages
@@ -7,15 +7,19 @@
 // `adminOnly: true` means the tab is never offered in the checklist for a
 // non-admin user, because the page itself hard-redirects anyone who isn't an
 // admin (Users, Audit Log) regardless of what's ticked here.
+//
+// `group` is purely cosmetic — it decides which heading a tab sits under in
+// the sidebar.
 export const ALL_TABS = [
-  { key: "calendar", href: "/dashboard/calendar", label: "Calendar", desc: "Work orders and PO deliveries by week", adminOnly: false },
-  { key: "quotes", href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes", adminOnly: false },
+  { key: "calendar", href: "/dashboard/calendar", label: "Calendar", desc: "Work orders and PO deliveries by week", adminOnly: false, group: "Operations" },
+  { key: "quotes", href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes", adminOnly: false, group: "Sales" },
   {
     key: "work-orders",
     href: "/dashboard/work-orders",
     label: "Work Orders",
     desc: "Contractor task lists and pay tracking",
     adminOnly: false,
+    group: "Operations",
   },
   {
     key: "contractor-payments",
@@ -23,6 +27,7 @@ export const ALL_TABS = [
     label: "Contractor Payments",
     desc: "Track what's owed and paid to contractors",
     adminOnly: false,
+    group: "Operations",
   },
   {
     key: "purchase-orders",
@@ -30,6 +35,7 @@ export const ALL_TABS = [
     label: "Purchase Orders",
     desc: "Orders placed with suppliers to restock inventory",
     adminOnly: false,
+    group: "Operations",
   },
   {
     key: "customers",
@@ -37,14 +43,16 @@ export const ALL_TABS = [
     label: "Customers",
     desc: "Builders, retro fit and private customers",
     adminOnly: false,
+    group: "Sales",
   },
-  { key: "suppliers", href: "/dashboard/suppliers", label: "Suppliers", desc: "Material suppliers", adminOnly: false },
+  { key: "suppliers", href: "/dashboard/suppliers", label: "Suppliers", desc: "Material suppliers", adminOnly: false, group: "Operations" },
   {
     key: "subcontractors",
     href: "/dashboard/subcontractors",
     label: "Subcontractors",
     desc: "Installer contact details and rates",
     adminOnly: false,
+    group: "Operations",
   },
   {
     key: "labour-items",
@@ -52,17 +60,19 @@ export const ALL_TABS = [
     label: "Labour Items",
     desc: "Contractor pay rate schedule",
     adminOnly: false,
+    group: "Operations",
   },
-  { key: "parts", href: "/dashboard/parts", label: "Inventory", desc: "Materials, pricing and stock on hand", adminOnly: false },
+  { key: "parts", href: "/dashboard/parts", label: "Inventory", desc: "Materials, pricing and stock on hand", adminOnly: false, group: "Operations" },
   {
     key: "reports",
     href: "/dashboard/reports",
     label: "Reports",
     desc: "Inventory, customer and supplier reports",
     adminOnly: false,
+    group: "Insights",
   },
-  { key: "users", href: "/dashboard/users", label: "Users", desc: "Invite and manage app users", adminOnly: true },
-  { key: "audit-log", href: "/dashboard/audit-log", label: "Audit Log", desc: "Sign-ins and record changes", adminOnly: true },
+  { key: "users", href: "/dashboard/users", label: "Users", desc: "Invite and manage app users", adminOnly: true, group: "Admin" },
+  { key: "audit-log", href: "/dashboard/audit-log", label: "Audit Log", desc: "Sign-ins and record changes", adminOnly: true, group: "Admin" },
 ] as const;
 
 export type TabKey = (typeof ALL_TABS)[number]["key"];
