@@ -303,6 +303,8 @@ export default function UsersTable({
       alert(
         `Account created for ${body.email} — no email was sent.\n\nTemporary password: ${createdPassword}\n\nShare this with them yourself; they can change it after logging in.`
       );
+    } else if (body.warning) {
+      alert(body.warning);
     }
   }
 

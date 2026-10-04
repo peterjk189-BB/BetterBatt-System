@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail as sendBrandedEmail, brandedEmailHtml } from "@/lib/email";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -36,6 +37,33 @@ export async function POST(req: Request) {
     "http://localhost:3000";
 
   const admin = createAdminClient();
+
+  if (process.env.RESEND_API_KEY) {
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+      type: "recovery",
+      email,
+      options: { redirectTo: `${siteUrl}/set-password` },
+    });
+    if (linkError || !linkData?.properties?.action_link) {
+      return NextResponse.json({ error: linkError?.message || "Failed to generate invite link" }, { status: 400 });
+    }
+    const sent = await sendBrandedEmail({
+      to: email,
+      subject: "Set your password for Better Batt System",
+      html: brandedEmailHtml({
+        previewText: "Set your password to get started on Better Batt System.",
+        heading: "Set your password",
+        bodyHtml: `<p>You've been given access to the Better Batt System. Click below to set your password and sign in.</p>`,
+        buttonText: "Set your password",
+        buttonUrl: linkData.properties.action_link,
+      }),
+    });
+    if (!sent.ok) {
+      return NextResponse.json({ error: sent.error }, { status: 400 });
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const { error } = await admin.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/set-password`,
   });

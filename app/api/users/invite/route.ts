@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendEmail as sendBrandedEmail, brandedEmailHtml } from "@/lib/email";
 
 async function requireAdmin() {
   const supabase = await createClient();
@@ -52,17 +53,57 @@ export async function POST(req: Request) {
 
   let newUserId: string;
   let newUserEmail: string;
+  let emailWarning: string | undefined;
 
   if (sendEmail) {
-    const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-      data: { full_name: fullName },
-      redirectTo: `${siteUrl}/set-password`,
-    });
-    if (inviteError || !invited?.user) {
-      return NextResponse.json({ error: inviteError?.message || "Failed to invite user" }, { status: 400 });
+    // When Resend is set up, send our own branded invite email rather than
+    // Supabase's plain default one — generateLink creates the account (same
+    // as inviteUserByEmail) but hands us the action link to send ourselves
+    // instead of Supabase emailing it.
+    if (process.env.RESEND_API_KEY) {
+      const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { data: { full_name: fullName }, redirectTo: `${siteUrl}/set-password` },
+      });
+      if (linkError || !linkData?.user) {
+        return NextResponse.json({ error: linkError?.message || "Failed to invite user" }, { status: 400 });
+      }
+      newUserId = linkData.user.id;
+      newUserEmail = linkData.user.email || email;
+
+      const actionLink = linkData.properties?.action_link;
+      const sent = actionLink
+        ? await sendBrandedEmail({
+            to: newUserEmail,
+            subject: "You're invited to Better Batt System",
+            html: brandedEmailHtml({
+              previewText: "Set your password to get started on Better Batt System.",
+              heading: `Welcome${fullName ? ", " + fullName : ""}`,
+              bodyHtml: `<p>You've been added as a user on the Better Batt System. Click below to set your password and sign in.</p>`,
+              buttonText: "Set your password",
+              buttonUrl: actionLink,
+            }),
+          })
+        : { ok: false as const, error: "No invite link was returned" };
+
+      if (!sent.ok) {
+        // Account's created either way — just the email didn't go out. Say
+        // so rather than pretending it worked; the admin can retry with
+        // the "Send invite" button on the Users list.
+        emailWarning = `Account created, but the invite email failed to send (${sent.error}). Use "Send invite" on the Users list to try again.`;
+      }
+    } else {
+      const { data: invited, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+        data: { full_name: fullName },
+        redirectTo: `${siteUrl}/set-password`,
+      });
+      if (inviteError || !invited?.user) {
+        return NextResponse.json({ error: inviteError?.message || "Failed to invite user" }, { status: 400 });
+      }
+      newUserId = invited.user.id;
+      newUserEmail = invited.user.email || email;
     }
-    newUserId = invited.user.id;
-    newUserEmail = invited.user.email || email;
   } else {
     // Creates the account outright with the password the admin set here —
     // email_confirm: true means it's ready to log in immediately, and
@@ -96,5 +137,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: profileError.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, id: newUserId, email: newUserEmail, emailed: sendEmail });
+  return NextResponse.json({ ok: true, id: newUserId, email: newUserEmail, emailed: sendEmail, warning: emailWarning });
 }
