@@ -25,6 +25,18 @@ export type Previewing = { id: string; label: string; role: string } | null;
 const SAMPLE_PREFIX = "role:";
 const SAMPLE_ROLES = ["office", "installer"];
 
+// defaultTabsForRole("installer") is deliberately empty — a *real* new
+// installer gets nothing until an admin ticks tabs for them on the Users
+// page. That's the right behaviour for a real account, but it means the
+// no-login "Sample installer view" would otherwise show an empty "no
+// access yet" dashboard, which defeats the point of a preview. So the
+// sample preview uses this illustrative set instead — the tabs an
+// installer would typically be granted — purely for showing what the
+// nav/pages look like.
+const SAMPLE_TABS: Record<string, string[]> = {
+  installer: ["calendar", "swms", "work-orders"],
+};
+
 export async function resolveTabsForRequest(
   realRole: string | null | undefined,
   realAllowedTabs: string[] | null | undefined,
@@ -39,7 +51,7 @@ export async function resolveTabsForRequest(
       const sampleRole = previewValue.slice(SAMPLE_PREFIX.length);
       if (SAMPLE_ROLES.includes(sampleRole)) {
         return {
-          tabs: effectiveTabs(sampleRole, null),
+          tabs: effectiveTabs(sampleRole, SAMPLE_TABS[sampleRole] ?? null),
           previewing: {
             id: previewValue,
             label: `Sample ${sampleRole} view (no login)`,
