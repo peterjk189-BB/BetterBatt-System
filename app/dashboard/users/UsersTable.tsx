@@ -26,6 +26,8 @@ const emptyForm = {
   full_name: "",
   role: "installer" as Role,
   subcontractor_id: "",
+  send_email: true,
+  password: "",
 };
 
 function fmtDateTime(d: string | null) {
@@ -229,6 +231,10 @@ export default function UsersTable({
   }
 
   async function invite() {
+    if (!form.send_email && form.password.length < 6) {
+      setInviteError("Temporary password must be at least 6 characters.");
+      return;
+    }
     setInviting(true);
     setInviteError(null);
     const res = await fetch("/api/users/invite", {
@@ -253,11 +259,12 @@ export default function UsersTable({
           subcontractor_id: form.subcontractor_id || null,
           allowed_tabs: null,
           last_sign_in_at: null,
-          invited_at: new Date().toISOString(),
-          confirmed_at: null,
+          invited_at: form.send_email ? new Date().toISOString() : null,
+          confirmed_at: form.send_email ? null : new Date().toISOString(),
         },
       ].sort((a, b) => a.email.localeCompare(b.email))
     );
+    const createdPassword = !form.send_email ? form.password : null;
     setForm(emptyForm);
     setModalOpen(false);
     logAudit(supabase, {
@@ -265,8 +272,13 @@ export default function UsersTable({
       entityType: "user",
       entityId: body.id,
       entityLabel: body.email,
-      details: `Invited as ${form.role}`,
+      details: form.send_email ? `Invited as ${form.role}` : `Created as ${form.role} without emailing`,
     });
+    if (createdPassword) {
+      alert(
+        `Account created for ${body.email} — no email was sent.\n\nTemporary password: ${createdPassword}\n\nShare this with them yourself; they can change it after logging in.`
+      );
+    }
   }
 
   function tabsSummary(u: User) {
@@ -288,7 +300,7 @@ export default function UsersTable({
           }}
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
         >
-          Invite user
+          Add user
         </button>
       </div>
       <p className="mt-1 text-sm text-[var(--muted)]">
@@ -398,7 +410,7 @@ export default function UsersTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
-              <h2 className="text-lg font-bold">Invite user</h2>
+              <h2 className="text-lg font-bold">Add user</h2>
             </div>
             <div className="space-y-4 px-6 py-4">
               {inviteError && (
@@ -450,9 +462,52 @@ export default function UsersTable({
                   </select>
                 </label>
               )}
+
+              <div className="flex flex-col gap-2 rounded-lg border border-[var(--border)] p-3 text-sm">
+                <label className="flex items-start gap-2">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    checked={form.send_email}
+                    onChange={() => setForm({ ...form, send_email: true })}
+                  />
+                  <span>
+                    <span className="font-medium">Send invite email</span>
+                    <br />
+                    <span className="text-xs text-[var(--muted)]">
+                      They&rsquo;ll get an email with a link to set their own password and sign in.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    checked={!form.send_email}
+                    onChange={() => setForm({ ...form, send_email: false })}
+                  />
+                  <span>
+                    <span className="font-medium">Create without emailing</span>
+                    <br />
+                    <span className="text-xs text-[var(--muted)]">
+                      Set a temporary password yourself and the account is ready right away — no email sent.
+                      Good for test accounts or setting someone up in advance.
+                    </span>
+                  </span>
+                </label>
+                {!form.send_email && (
+                  <input
+                    type="text"
+                    placeholder="Temporary password (min. 6 characters)"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  />
+                )}
+              </div>
+
               <p className="text-xs text-[var(--muted)]">
-                They&rsquo;ll get an email with a link to set their password and sign in. You can pick exactly
-                which tabs they see afterwards from the Users list.
+                You can pick exactly which tabs they see afterwards from the Users list.
               </p>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
@@ -461,10 +516,10 @@ export default function UsersTable({
               </button>
               <button
                 onClick={invite}
-                disabled={inviting || !form.email}
+                disabled={inviting || !form.email || (!form.send_email && form.password.length < 6)}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {inviting ? "Sending invite..." : "Send invite"}
+                {inviting ? "Saving..." : form.send_email ? "Send invite" : "Create user"}
               </button>
             </div>
           </div>
