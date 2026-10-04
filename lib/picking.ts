@@ -26,20 +26,19 @@ export type PickingLine = {
   note: string | null;
 };
 
-/** Packs required to cover the given m² (may be fractional — e.g. 3.4 packs). */
+/** Whole packs required to cover the given m² — always rounded up, since you can't open or order a fraction of a pack. */
 export function packsNeeded(qtyM2: number, coverageM2: number): number {
   if (!coverageM2 || coverageM2 <= 0) return 0;
-  return Math.round((qtyM2 / coverageM2) * 100) / 100;
+  return Math.ceil(qtyM2 / coverageM2 - 1e-9);
 }
 
-/** Suggested quantity to actually pick — rounded up to a whole pack, since you can't open a fraction of a new one. */
+/** Suggested quantity to actually pick — same as packsNeeded, kept as a separate name for where it's used as a default. */
 export function suggestedPick(qtyM2: number, coverageM2: number): number {
-  const needed = packsNeeded(qtyM2, coverageM2);
-  return needed === 0 ? 0 : Math.ceil(needed - 1e-9);
+  return packsNeeded(qtyM2, coverageM2);
 }
 
 export function fmtPacks(n: number): string {
-  return `${Number.isInteger(n) ? n : n.toFixed(2)} pack${n === 1 ? "" : "s"}`;
+  return `${n} pack${n === 1 ? "" : "s"}`;
 }
 
 export type PickStatus = "not-allocated" | "allocated" | "picked";

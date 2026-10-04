@@ -76,7 +76,7 @@ export default function PickingSlip({
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
-    const packs = Number(pickQty[l.id] ?? suggestedPick(l.qty, l.parts.coverage_m2));
+    const packs = Math.round(Number(pickQty[l.id] ?? suggestedPick(l.qty, l.parts.coverage_m2)));
     if (!packs || packs <= 0) {
       setError("Enter how many packs you're picking.");
       return;
@@ -86,9 +86,18 @@ export default function PickingSlip({
 
   return (
     <div>
-      <Link href={`/dashboard/work-orders/${workOrder.id}`} className="text-sm text-[var(--muted)] hover:underline">
-        &larr; Work order WO{workOrder.wo_number}
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href={`/dashboard/work-orders/${workOrder.id}`} className="text-sm text-[var(--muted)] hover:underline">
+          &larr; Work order WO{workOrder.wo_number}
+        </Link>
+        <Link
+          href={`/dashboard/work-orders/${workOrder.id}/picking-slip/print`}
+          target="_blank"
+          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+        >
+          Print picking slip
+        </Link>
+      </div>
       <h1 className="mt-1 text-2xl font-bold">Picking slip — WO{workOrder.wo_number}</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">
         {[workOrder.customerName, workOrder.address].filter(Boolean).join(" — ") || "No address on file"}
@@ -124,7 +133,7 @@ export default function PickingSlip({
               const needed = packsNeeded(qty, Number(l.parts.coverage_m2) || 0);
               const reserved = reservedByPart[l.part_id] || 0;
               const available = stockOnHand - reserved;
-              const shortfall = Math.max(0, Math.round((needed - available) * 100) / 100);
+              const shortfall = Math.max(0, Math.ceil(needed - available - 1e-9));
               const status = lineStatus(l);
               const busy = busyId === l.id;
 
@@ -167,7 +176,8 @@ export default function PickingSlip({
                           <div className="flex items-center gap-1.5">
                             <input
                               type="number"
-                              step="0.01"
+                              step="1"
+                              min="0"
                               placeholder={String(suggestedPick(l.qty, l.parts.coverage_m2))}
                               value={pickQty[l.id] ?? ""}
                               onChange={(e) => setPickQty((prev) => ({ ...prev, [l.id]: e.target.value }))}
