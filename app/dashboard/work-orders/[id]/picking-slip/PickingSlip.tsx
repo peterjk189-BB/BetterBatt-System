@@ -69,16 +69,19 @@ export default function PickingSlip({
     router.refresh();
   }
 
-  const allocate = (l: Line) => run(l.id, "Allocated from stock", () => supabase.rpc("allocate_wo_line", { p_line_id: l.id }));
-  const deallocate = (l: Line) => run(l.id, "Released allocation", () => supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
-  const unpick = (l: Line) => run(l.id, "Undid pick", () => supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
+  const allocate = (l: Line) =>
+    run(l.id, "Allocated from stock", async () => await supabase.rpc("allocate_wo_line", { p_line_id: l.id }));
+  const deallocate = (l: Line) =>
+    run(l.id, "Released allocation", async () => await supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
+  const unpick = (l: Line) =>
+    run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
     const packs = Number(pickQty[l.id] ?? suggestedPick(l.qty, l.parts.coverage_m2));
     if (!packs || packs <= 0) {
       setError("Enter how many packs you're picking.");
       return;
     }
-    return run(l.id, `Picked ${fmtPacks(packs)}`, () => supabase.rpc("pick_wo_line", { p_line_id: l.id, p_packs: packs }));
+    return run(l.id, `Picked ${fmtPacks(packs)}`, async () => await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_packs: packs }));
   };
 
   return (
