@@ -45,7 +45,7 @@ function row(task: string, hazards: string, controls: string): Omit<HazardRow, "
 }
 
 /** The 8 standard tasks/hazards every job is checked against, pre-filled as a sensible starting point and fully editable per job. */
-export const DEFAULT_HAZARDS: Omit<HazardRow, "id">[] = [
+export const DEFAULT_HAZARDS: Omit<HazardRow, "id" | "present" | "controlled">[] = [
   row(
     "Loading/unloading vehicle & moving materials to site",
     "Manual handling, muscle strain, dropped materials, traffic/vehicles on site",
