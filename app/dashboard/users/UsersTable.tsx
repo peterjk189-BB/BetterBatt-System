@@ -51,6 +51,7 @@ export default function UsersTable({
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [sendingInviteId, setSendingInviteId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [tabsEditingUser, setTabsEditingUser] = useState<User | null>(null);
   const [tabsDraft, setTabsDraft] = useState<string[]>([]);
@@ -210,6 +211,30 @@ export default function UsersTable({
       details: changes.length ? `Updated: ${changes.join(", ")}` : "Updated",
     });
     setEditingUser(null);
+  }
+
+  async function sendInvite(u: User) {
+    if (!confirm(`Email ${u.email} a link to set their own password and sign in?`)) return;
+    setSendingInviteId(u.id);
+    const res = await fetch("/api/users/send-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: u.email }),
+    });
+    const body = await res.json();
+    setSendingInviteId(null);
+    if (!res.ok) {
+      alert(body.error || "Failed to send invite email");
+      return;
+    }
+    alert(`Invite email sent to ${u.email}.`);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "user",
+      entityId: u.id,
+      entityLabel: u.email,
+      details: "Sent invite email",
+    });
   }
 
   async function removeUser(u: User) {
@@ -382,6 +407,15 @@ export default function UsersTable({
                     <button onClick={() => openEditor(u)} className="text-accent hover:underline">
                       Edit
                     </button>
+                    {u.id !== currentUserId && (
+                      <button
+                        onClick={() => sendInvite(u)}
+                        disabled={sendingInviteId === u.id}
+                        className="text-accent hover:underline disabled:opacity-60"
+                      >
+                        {sendingInviteId === u.id ? "Sending..." : "Send invite"}
+                      </button>
+                    )}
                     {u.id !== currentUserId && (
                       <button
                         onClick={() => removeUser(u)}
