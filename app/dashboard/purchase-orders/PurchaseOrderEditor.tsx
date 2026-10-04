@@ -71,15 +71,15 @@ export default function PurchaseOrderEditor({
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
 
   const [form, setForm] = useState({
-    supplier_id: purchaseOrder?.supplier_id || (isNew && initial?.supplier_id) || "",
+    supplier_id: purchaseOrder?.supplier_id || (isNew ? initial?.supplier_id : undefined) || "",
     status: purchaseOrder?.status || "Draft",
     order_date: purchaseOrder?.order_date || new Date().toISOString().slice(0, 10),
-    delivery_address: purchaseOrder?.delivery_address || (isNew && initial?.delivery_address) || "",
+    delivery_address: purchaseOrder?.delivery_address || (isNew ? initial?.delivery_address : undefined) || "",
     site_contact_name: purchaseOrder?.site_contact_name || "",
     site_contact_phone: purchaseOrder?.site_contact_phone || "",
     delivery_date: purchaseOrder?.delivery_date || "",
     delivery_time: purchaseOrder?.delivery_time || "",
-    notes: purchaseOrder?.notes || (isNew && initial?.notes) || "",
+    notes: purchaseOrder?.notes || (isNew ? initial?.notes : undefined) || "",
   });
 
   // Only the selected supplier's own products should be pickable on a line item — with no
