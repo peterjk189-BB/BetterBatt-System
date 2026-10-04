@@ -139,7 +139,9 @@ export default function SwmsPrintView({
             <tr className="border-b border-[#201f1c] text-left">
               <th className="py-1 pr-2 font-semibold">Task</th>
               <th className="py-1 pr-2 font-semibold">Hazards</th>
-              <th className="py-1 font-semibold">Control measures</th>
+              <th className="w-16 py-1 pr-2 text-center font-semibold">Present</th>
+              <th className="py-1 pr-2 font-semibold">Control measures</th>
+              <th className="w-16 py-1 text-center font-semibold">Controlled</th>
             </tr>
           </thead>
           <tbody>
@@ -147,7 +149,17 @@ export default function SwmsPrintView({
               <tr key={h.id} className="border-b border-[#e4e1da] align-top">
                 <td className="py-1.5 pr-2 font-medium">{h.task}</td>
                 <td className="py-1.5 pr-2 text-[#3a3834]">{h.hazards}</td>
-                <td className="py-1.5 text-[#3a3834]">{h.controls}</td>
+                <td className="py-1.5 pr-2 text-center">
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#201f1c] text-[10px] leading-none">
+                    {h.present ? "✓" : ""}
+                  </span>
+                </td>
+                <td className="py-1.5 pr-2 text-[#3a3834]">{h.controls}</td>
+                <td className="py-1.5 text-center">
+                  <span className="inline-flex h-3.5 w-3.5 items-center justify-center border border-[#201f1c] text-[10px] leading-none">
+                    {h.controlled ? "✓" : ""}
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>

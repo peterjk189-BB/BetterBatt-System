@@ -203,7 +203,7 @@ export default function SwmsEditor({
     setHazards((rows) => rows.map((r) => (r.id === hid ? { ...r, ...patch } : r)));
   }
   function addHazardRow() {
-    setHazards((rows) => [...rows, { id: `h${Date.now()}`, task: "", hazards: "", controls: "" }]);
+    setHazards((rows) => [...rows, { id: `h${Date.now()}`, task: "", hazards: "", present: false, controls: "", controlled: false }]);
   }
   function removeHazardRow(hid: string) {
     setHazards((rows) => rows.filter((r) => r.id !== hid));
@@ -458,12 +458,34 @@ export default function SwmsEditor({
                 </button>
               </div>
               <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Field label="Hazards">
-                  <textarea rows={2} className={`${inputCls} bg-white`} value={h.hazards} onChange={(e) => updateHazard(h.id, { hazards: e.target.value })} />
-                </Field>
-                <Field label="Control measures">
-                  <textarea rows={2} className={`${inputCls} bg-white`} value={h.controls} onChange={(e) => updateHazard(h.id, { controls: e.target.value })} />
-                </Field>
+                <div>
+                  <Field label="Hazards">
+                    <textarea rows={2} className={`${inputCls} bg-white`} value={h.hazards} onChange={(e) => updateHazard(h.id, { hazards: e.target.value })} />
+                  </Field>
+                  <label className="mt-1.5 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 shrink-0 accent-[#b1841f]"
+                      checked={h.present}
+                      onChange={(e) => updateHazard(h.id, { present: e.target.checked })}
+                    />
+                    Hazard present
+                  </label>
+                </div>
+                <div>
+                  <Field label="Control measures">
+                    <textarea rows={2} className={`${inputCls} bg-white`} value={h.controls} onChange={(e) => updateHazard(h.id, { controls: e.target.value })} />
+                  </Field>
+                  <label className="mt-1.5 flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 shrink-0 accent-[#1f6b35]"
+                      checked={h.controlled}
+                      onChange={(e) => updateHazard(h.id, { controlled: e.target.checked })}
+                    />
+                    Hazard controlled
+                  </label>
+                </div>
               </div>
             </div>
           ))}

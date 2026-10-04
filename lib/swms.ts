@@ -33,10 +33,14 @@ export type HazardRow = {
   id: string;
   task: string;
   hazards: string;
+  /** Ticked on site: this hazard is present on this job. */
+  present: boolean;
   controls: string;
+  /** Ticked on site: the control measure has been put in place. */
+  controlled: boolean;
 };
 
-function row(task: string, hazards: string, controls: string): Omit<HazardRow, "id"> {
+function row(task: string, hazards: string, controls: string): Omit<HazardRow, "id" | "present" | "controlled"> {
   return { task, hazards, controls };
 }
 
@@ -84,7 +88,7 @@ export const DEFAULT_HAZARDS: Omit<HazardRow, "id">[] = [
   ),
 ];
 
-export const EMPTY_HAZARDS: HazardRow[] = DEFAULT_HAZARDS.map((h, i) => ({ id: `h${i + 1}`, ...h }));
+export const EMPTY_HAZARDS: HazardRow[] = DEFAULT_HAZARDS.map((h, i) => ({ id: `h${i + 1}`, ...h, present: false, controlled: false }));
 
 /** The full Site Report tick-box grid, laid out in the same 3 columns as the paper form. */
 export const SITE_REPORT_COLUMNS: string[][] = [
@@ -138,7 +142,9 @@ export function normaliseHazards(raw: unknown): HazardRow[] {
       id: r?.id || `h${i + 1}`,
       task: r?.task || "",
       hazards: r?.hazards || "",
+      present: !!r?.present,
       controls: r?.controls || "",
+      controlled: !!r?.controlled,
     }));
   }
   return EMPTY_HAZARDS;
