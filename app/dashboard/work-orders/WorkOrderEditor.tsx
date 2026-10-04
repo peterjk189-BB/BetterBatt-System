@@ -263,6 +263,14 @@ export default function WorkOrderEditor({
               {workOrder!.archived ? "Restore" : "Archive"}
             </button>
           )}
+          {!isNew && (
+            <Link
+              href={`/dashboard/work-orders/${workOrder!.id}/picking-slip`}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Picking slip
+            </Link>
+          )}
           {!isNew && distinctLineContractorIds.length <= 1 && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/print`}

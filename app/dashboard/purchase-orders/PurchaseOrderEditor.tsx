@@ -55,12 +55,15 @@ export default function PurchaseOrderEditor({
   suppliers,
   parts,
   isAdmin,
+  initial,
 }: {
   purchaseOrder: PurchaseOrder | null;
   lines: Line[];
   suppliers: Supplier[];
   parts: Part[];
   isAdmin: boolean;
+  /** Prefill for a brand-new PO started from elsewhere (e.g. a picking slip's "Order shortfall"). Ignored when editing an existing PO. */
+  initial?: { part_id?: string; qty_pks?: number; supplier_id?: string; delivery_address?: string; notes?: string } | null;
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -68,15 +71,15 @@ export default function PurchaseOrderEditor({
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
 
   const [form, setForm] = useState({
-    supplier_id: purchaseOrder?.supplier_id || "",
+    supplier_id: purchaseOrder?.supplier_id || (isNew && initial?.supplier_id) || "",
     status: purchaseOrder?.status || "Draft",
     order_date: purchaseOrder?.order_date || new Date().toISOString().slice(0, 10),
-    delivery_address: purchaseOrder?.delivery_address || "",
+    delivery_address: purchaseOrder?.delivery_address || (isNew && initial?.delivery_address) || "",
     site_contact_name: purchaseOrder?.site_contact_name || "",
     site_contact_phone: purchaseOrder?.site_contact_phone || "",
     delivery_date: purchaseOrder?.delivery_date || "",
     delivery_time: purchaseOrder?.delivery_time || "",
-    notes: purchaseOrder?.notes || "",
+    notes: purchaseOrder?.notes || (isNew && initial?.notes) || "",
   });
 
   // Only the selected supplier's own products should be pickable on a line item — with no
@@ -86,9 +89,23 @@ export default function PurchaseOrderEditor({
     [parts, form.supplier_id]
   );
 
-  const [lineItems, setLineItems] = useState<Line[]>(
-    lines.length > 0 ? lines.map((l) => ({ ...l })) : []
-  );
+  const [lineItems, setLineItems] = useState<Line[]>(() => {
+    if (lines.length > 0) return lines.map((l) => ({ ...l }));
+    if (isNew && initial?.part_id) {
+      const part = parts.find((p) => p.id === initial.part_id);
+      return [
+        {
+          part_id: initial.part_id,
+          qty_multi: 0,
+          qty_pks: initial.qty_pks || 0,
+          received_multi: 0,
+          received_pks: 0,
+          unit_cost: part?.pack_cost_ex_gst || 0,
+        },
+      ];
+    }
+    return [];
+  });
 
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);

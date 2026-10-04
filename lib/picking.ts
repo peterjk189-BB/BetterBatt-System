@@ -1,0 +1,63 @@
+// Shared types and calculations for the picking slip — the reserve-and-pick
+// workflow for pulling materials off the shelf for a work order. Each work
+// order line already says which product and how many m² are needed; this
+// turns that into "how many packs" against real stock, and works out what's
+// still available once other jobs' reservations are taken into account.
+
+export type PickingPart = {
+  id: string;
+  name: string;
+  code: string | null;
+  coverage_m2: number;
+  pack_cost_ex_gst: number;
+  supplier_id: string | null;
+  stock_on_hand: number;
+};
+
+export type PickingLine = {
+  id: string;
+  qty: number; // m² needed, from the work order line
+  part_id: string | null;
+  allocated: boolean;
+  allocated_at: string | null;
+  picked: boolean;
+  picked_at: string | null;
+  packs_picked: number | null;
+  note: string | null;
+};
+
+/** Packs required to cover the given m² (may be fractional — e.g. 3.4 packs). */
+export function packsNeeded(qtyM2: number, coverageM2: number): number {
+  if (!coverageM2 || coverageM2 <= 0) return 0;
+  return Math.round((qtyM2 / coverageM2) * 100) / 100;
+}
+
+/** Suggested quantity to actually pick — rounded up to a whole pack, since you can't open a fraction of a new one. */
+export function suggestedPick(qtyM2: number, coverageM2: number): number {
+  const needed = packsNeeded(qtyM2, coverageM2);
+  return needed === 0 ? 0 : Math.ceil(needed - 1e-9);
+}
+
+export function fmtPacks(n: number): string {
+  return `${Number.isInteger(n) ? n : n.toFixed(2)} pack${n === 1 ? "" : "s"}`;
+}
+
+export type PickStatus = "not-allocated" | "allocated" | "picked";
+
+export function lineStatus(l: Pick<PickingLine, "allocated" | "picked">): PickStatus {
+  if (l.picked) return "picked";
+  if (l.allocated) return "allocated";
+  return "not-allocated";
+}
+
+export const STATUS_LABELS: Record<PickStatus, string> = {
+  "not-allocated": "Not allocated",
+  allocated: "Allocated",
+  picked: "Picked",
+};
+
+export const STATUS_STYLES: Record<PickStatus, string> = {
+  "not-allocated": "bg-[#f1f0ed] text-[#6b6862] border-[#e4e1da]",
+  allocated: "bg-[#fff4d6] text-[#7a5a0f] border-[#f3d48a]",
+  picked: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
+};
