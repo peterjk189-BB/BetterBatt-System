@@ -5,7 +5,7 @@ import SiteVisitEditor from "../SiteVisitEditor";
 
 export default async function SiteVisitPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const [{ data: visit }, { data: photos }, { data: customers }, role] = await Promise.all([
+  const [{ data: visit }, { data: photos }, { data: customers }, { data: staff }, role] = await Promise.all([
     supabase.from("site_visits").select("*, projects(quote_number)").eq("id", params.id).single(),
     supabase
       .from("attachments")
@@ -14,6 +14,7 @@ export default async function SiteVisitPage({ params }: { params: { id: string }
       .order("sort_order")
       .order("created_at"),
     supabase.from("customers").select("id, name, contact_phone, contact_email").eq("archived", false).order("name"),
+    supabase.from("profiles").select("id, full_name").order("full_name"),
     getEffectiveRole(),
   ]);
 
@@ -24,6 +25,7 @@ export default async function SiteVisitPage({ params }: { params: { id: string }
       visit={visit as any}
       photos={(photos ?? []) as any}
       customers={customers ?? []}
+      staff={staff ?? []}
       isAdmin={role === "admin"}
     />
   );

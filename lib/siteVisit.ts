@@ -104,10 +104,17 @@ export type SiteVisit = {
   checklist: Checklist;
   notes: string | null;
   project_id: string | null;
+  assigned_to: string | null;
   archived: boolean;
   created_at?: string;
   updated_at?: string;
 };
+
+export type Staff = { id: string; full_name: string | null };
+
+export function staffLabel(s: { full_name: string | null } | null | undefined) {
+  return s?.full_name || "Unnamed user";
+}
 
 export type VisitPhoto = {
   id: string;

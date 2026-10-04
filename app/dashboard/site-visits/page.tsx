@@ -7,7 +7,7 @@ export default async function SiteVisitsPage() {
     supabase
       .from("site_visits")
       .select(
-        "id, visit_number, visit_date, visit_time, status, visit_type, customer_name, phone, address, suburb, checklist, project_id, archived, projects(quote_number)"
+        "id, visit_number, visit_date, visit_time, status, visit_type, customer_name, phone, address, suburb, checklist, project_id, archived, assigned_to, profiles(full_name), projects(quote_number)"
       )
       .order("visit_date", { ascending: false })
       .order("visit_number", { ascending: false }),

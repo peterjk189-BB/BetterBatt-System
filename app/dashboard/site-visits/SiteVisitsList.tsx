@@ -6,8 +6,8 @@ import { STATUS_STYLES, measuredSummary, normaliseChecklist, type SiteVisit } fr
 
 type Row = Pick<
   SiteVisit,
-  "id" | "visit_number" | "visit_date" | "visit_time" | "status" | "visit_type" | "customer_name" | "phone" | "address" | "suburb" | "checklist" | "project_id" | "archived"
-> & { projects: { quote_number: number } | null };
+  "id" | "visit_number" | "visit_date" | "visit_time" | "status" | "visit_type" | "customer_name" | "phone" | "address" | "suburb" | "checklist" | "project_id" | "archived" | "assigned_to"
+> & { projects: { quote_number: number } | null; profiles: { full_name: string | null } | null };
 
 const FILTERS = ["All", "Booked", "Visited", "Quoted", "Cancelled"] as const;
 
@@ -129,6 +129,9 @@ export default function SiteVisitsList({ initial, photoCounts }: { initial: Row[
                   </span>
                 ))}
                 {photos > 0 && <span className="text-[var(--muted)]">{photos} photo{photos === 1 ? "" : "s"}</span>}
+                {v.profiles?.full_name && (
+                  <span className="rounded bg-[#eef2ff] px-1.5 py-0.5 font-medium text-[#3b4ba8]">{v.profiles.full_name}</span>
+                )}
                 {v.projects && <span className="ml-auto font-mono text-[#1f6b35]">Q{v.projects.quote_number}</span>}
               </div>
             </Link>

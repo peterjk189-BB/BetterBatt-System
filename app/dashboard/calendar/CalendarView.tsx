@@ -64,6 +64,8 @@ type Visit = {
   address: string | null;
   suburb: string | null;
   archived: boolean;
+  assigned_to: string | null;
+  profiles?: { full_name: string | null } | null;
 };
 
 type VisitEvent = {
@@ -76,6 +78,7 @@ type VisitEvent = {
   customerName: string;
   address: string;
   status: Visit["status"];
+  assignedToName: string | null;
 };
 
 type DayEvent = WoEvent | PoEvent | VisitEvent;
@@ -222,6 +225,7 @@ export default function CalendarView({
         customerName: v.customer_name || "New enquiry",
         address: [v.address, v.suburb].filter(Boolean).join(", ") || "—",
         status: v.status,
+        assignedToName: v.profiles?.full_name || null,
       });
     }
 
@@ -375,7 +379,9 @@ export default function CalendarView({
                             <Link
                               key={`visit-${ev.id}`}
                               href={`/dashboard/site-visits/${ev.visitId}`}
-                              title={`Site visit #${ev.visitNumber} — ${ev.customerName} (${ev.address}) — ${ev.status}`}
+                              title={`Site visit #${ev.visitNumber} — ${ev.customerName} (${ev.address}) — ${ev.status}${
+                                ev.assignedToName ? ` — ${ev.assignedToName}` : ""
+                              }`}
                               className="block rounded bg-green-100 px-1.5 py-1 text-[11px] leading-tight text-green-900 hover:bg-green-200"
                             >
                               <div className="truncate font-medium">
@@ -383,6 +389,7 @@ export default function CalendarView({
                                 {ev.customerName}
                               </div>
                               <div className="truncate text-green-800">{ev.address}</div>
+                              {ev.assignedToName && <div className="truncate text-green-800">{ev.assignedToName}</div>}
                             </Link>
                           );
                         })}

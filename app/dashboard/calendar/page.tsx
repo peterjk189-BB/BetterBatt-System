@@ -60,7 +60,7 @@ export default async function CalendarPage() {
       .order("delivery_date"),
     supabase
       .from("site_visits")
-      .select("id, visit_number, visit_date, visit_time, status, customer_name, address, suburb, archived")
+      .select("id, visit_number, visit_date, visit_time, status, customer_name, address, suburb, archived, assigned_to, profiles(full_name)")
       .eq("archived", false)
       .not("visit_date", "is", null),
   ]);

@@ -20,10 +20,12 @@ import {
   VISIT_TYPES,
   normaliseChecklist,
   roomArea,
+  staffLabel,
   visitLabel,
   type Checklist,
   type Room,
   type SiteVisit,
+  type Staff,
   type VisitPhoto,
 } from "@/lib/siteVisit";
 import SiteVisitPhotos from "./SiteVisitPhotos";
@@ -43,11 +45,13 @@ export default function SiteVisitEditor({
   visit,
   photos,
   customers,
+  staff,
   isAdmin,
 }: {
   visit: (SiteVisit & { projects?: { quote_number: number } | null }) | null;
   photos: VisitPhoto[];
   customers: Customer[];
+  staff: Staff[];
   isAdmin: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -67,6 +71,7 @@ export default function SiteVisitEditor({
     address: visit?.address || "",
     suburb: visit?.suburb || "",
     notes: visit?.notes || "",
+    assigned_to: visit?.assigned_to || "",
   });
   const [checklist, setChecklist] = useState<Checklist>(visit ? normaliseChecklist(visit.checklist) : { ...EMPTY_CHECKLIST });
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -89,6 +94,7 @@ export default function SiteVisitEditor({
       address: form.address.trim() || null,
       suburb: form.suburb.trim() || null,
       notes: form.notes || null,
+      assigned_to: form.assigned_to || null,
       checklist,
     }),
     [form, checklist]
@@ -320,6 +326,16 @@ export default function SiteVisitEditor({
           </Field>
           <Field label="Visit type" className="col-span-2">
             <Segmented options={[...VISIT_TYPES]} value={form.visit_type} onChange={(v) => set("visit_type", v)} />
+          </Field>
+          <Field label="Assigned to" className="col-span-2">
+            <select className={inputCls} value={form.assigned_to} onChange={(e) => set("assigned_to", e.target.value)}>
+              <option value="">Unassigned</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {staffLabel(s)}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Customer name" className="col-span-2">
             <input className={inputCls} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} autoComplete="off" />
