@@ -115,7 +115,18 @@ function addDays(d: Date, n: number) {
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-export default function CalendarView({ woLines, pos, visits }: { woLines: WoLine[]; pos: Po[]; visits: Visit[] }) {
+export default function CalendarView({
+  woLines,
+  pos,
+  visits,
+  installerNote,
+}: {
+  woLines: WoLine[];
+  pos: Po[];
+  visits: Visit[];
+  /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
+  installerNote?: string | null;
+}) {
   const [centerWeekStart, setCenterWeekStart] = useState(() => mondayOf(new Date()));
   const [showWeekends, setShowWeekends] = useState(true);
 
@@ -235,12 +246,14 @@ export default function CalendarView({ woLines, pos, visits }: { woLines: WoLine
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Calendar</h1>
         <div className="flex items-center gap-2">
-          <Link
-            href="/dashboard/site-visits/new"
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            + Add site visit
-          </Link>
+          {!installerNote && (
+            <Link
+              href="/dashboard/site-visits/new"
+              className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              + Add site visit
+            </Link>
+          )}
           <button
             onClick={() => setShowWeekends((s) => !s)}
             className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-accent"
@@ -268,17 +281,21 @@ export default function CalendarView({ woLines, pos, visits }: { woLines: WoLine
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-4 text-xs text-[var(--muted)]">
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> Work order task
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" /> PO delivery
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" /> Site visit
-        </span>
-      </div>
+      {installerNote ? (
+        <div className="mt-3 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-3 py-2 text-sm text-[#7a5a0f]">{installerNote}</div>
+      ) : (
+        <div className="mt-3 flex items-center gap-4 text-xs text-[var(--muted)]">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> Work order task
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" /> PO delivery
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" /> Site visit
+          </span>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-col gap-4">
         {weekStarts.map((weekStart) => {

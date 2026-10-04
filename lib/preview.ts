@@ -22,7 +22,7 @@ export type Previewing = { id: string; label: string; role: string } | null;
 // generic default view for that role, with no real user account needed —
 // useful for seeing what a role looks like before anyone's actually been
 // invited as one.
-const SAMPLE_PREFIX = "role:";
+export const SAMPLE_PREFIX = "role:";
 const SAMPLE_ROLES = ["office", "installer"];
 
 // defaultTabsForRole("installer") is deliberately empty — a *real* new
