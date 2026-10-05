@@ -89,8 +89,9 @@ export default function SwmsEditor({
   const firstRender = useRef(true);
   const notified = useRef(false);
 
-  // Once a Completed SWMS is saved, tell the office an inspection is due.
-  // The server only ever emails once per SWMS, so a repeat call is harmless.
+  // Once a Completed SWMS is saved, book the inspection onto the Calendar for
+  // the next weekday. The server only ever books once per SWMS (and never if
+  // the work order already has an inspection), so a repeat call is harmless.
   function notifyIfCompleted(swmsId: string, status: string) {
     if (status !== "Completed" || notified.current) return;
     notified.current = true;

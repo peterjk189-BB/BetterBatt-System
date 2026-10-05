@@ -4,10 +4,11 @@
 // Ceiling inspections — each one is switched on with an include_* tick and
 // only the ticked sections are shown and printed.
 
-export const INSPECTION_STATUSES = ["Draft", "Completed"] as const;
+export const INSPECTION_STATUSES = ["Scheduled", "Draft", "Completed"] as const;
 export type InspectionStatus = (typeof INSPECTION_STATUSES)[number];
 
 export const STATUS_STYLES: Record<string, string> = {
+  Scheduled: "bg-[#fde8e8] text-[#b91c1c] border-[#f5b5b5] font-bold",
   Draft: "bg-[#fff4d6] text-[#7a5a0f] border-[#f3d48a]",
   Completed: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
 };

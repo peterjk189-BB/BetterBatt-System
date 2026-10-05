@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
-import { emptySection, reinspectionSection, sectionsFromSwms, type InspectionPrefill, type SectionKey } from "@/lib/inspections";
+import { emptySection, reinspectionSection, type InspectionPrefill, type SectionKey } from "@/lib/inspections";
+import { prefillFromWorkOrder } from "@/lib/inspectionPrefill";
 import InspectionEditor from "../InspectionEditor";
 import WorkOrderPicker from "./WorkOrderPicker";
 
@@ -47,48 +48,8 @@ export default async function NewInspectionPage({
   }
 
   if (searchParams.work_order_id) {
-    const [{ data: wo }, { data: swmsList }] = await Promise.all([
-      supabase
-        .from("work_orders")
-        .select("id, wo_number, po_number, project_id, projects(address, suburb, customers(name)), subcontractors(name, company_name)")
-        .eq("id", searchParams.work_order_id)
-        .single(),
-      supabase
-        .from("swms")
-        .select("swms_number, job_type, scope, status, installers")
-        .eq("work_order_id", searchParams.work_order_id)
-        .eq("archived", false)
-        .order("swms_number", { ascending: false }),
-    ]);
-    if (wo) {
-      const project = (wo as any).projects;
-      const sub = (wo as any).subcontractors;
-      const swms = (swmsList ?? []).find((s) => s.status === "Completed") || (swmsList ?? [])[0];
-      const fromSwms = swms ? sectionsFromSwms(swms.job_type, swms.scope) : null;
-      const sections: Partial<Record<SectionKey, ReturnType<typeof emptySection>>> = {};
-      if (fromSwms) {
-        for (const k of ["foil", "wall", "ceiling"] as SectionKey[]) sections[k] = { ...emptySection(), options: fromSwms.options[k] };
-      }
-      const installerFromSwms = Array.isArray(swms?.installers)
-        ? (swms!.installers as { name?: string }[]).map((i) => i?.name).filter(Boolean).join(", ")
-        : "";
-      const prefill: InspectionPrefill = {
-        work_order_id: wo.id,
-        project_id: wo.project_id || undefined,
-        site_address: project?.address || "",
-        suburb: project?.suburb || "",
-        builder_name: project?.customers?.name || "",
-        contractor: sub?.company_name || sub?.name || "",
-        installer_name: installerFromSwms || sub?.name || "",
-        sales_order: wo.po_number || wo.wo_number || "",
-        ...(fromSwms ? fromSwms.include : {}),
-        sections,
-        source: swms
-          ? `Filled in from work order ${wo.wo_number} and SWMS${swms.swms_number} (${swms.job_type}). Check the ticked inspections suit the job.`
-          : `Filled in from work order ${wo.wo_number}. No SWMS yet, so tick the inspections this report covers.`,
-      };
-      return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
-    }
+    const prefill = await prefillFromWorkOrder(supabase, searchParams.work_order_id);
+    if (prefill) return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
   }
 
   const [{ data: workOrders }, { data: swms }, { data: inspections }] = await Promise.all([

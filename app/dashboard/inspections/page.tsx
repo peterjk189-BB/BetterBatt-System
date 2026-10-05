@@ -30,7 +30,7 @@ export default async function InspectionsPage() {
     const woSwms = (swms ?? []).filter((s) => s.work_order_id === w.id);
     const woIns = (records ?? []).filter((r) => r.work_order_id === w.id) as any[];
     const p = jobProgress(woSwms, woIns);
-    if (p.stage !== "inspection-due" && p.stage !== "reinspection-due") continue;
+    if (p.stage !== "inspection-due" && p.stage !== "reinspection-due" && p.stage !== "inspection-scheduled") continue;
     const completed = woSwms.filter((s) => s.status === "Completed").sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
     due.push({
       work_order_id: w.id,
@@ -42,9 +42,14 @@ export default async function InspectionsPage() {
       stage: p.stage,
       since: p.stage === "reinspection-due" ? null : completed?.updated_at || null,
       failed_inspection: p.stage === "reinspection-due" && p.latest ? { id: p.latest.id, inspection_number: p.latest.inspection_number } : null,
+      booked:
+        p.stage === "inspection-scheduled" && p.latest
+          ? { id: p.latest.id, inspection_number: p.latest.inspection_number, date: (p.latest as any).inspection_date }
+          : null,
     });
   }
-  due.sort((a, b) => (a.since || "").localeCompare(b.since || ""));
+  // Booked ones in date order first, then anything not yet booked.
+  due.sort((a, b) => (a.booked?.date || "9999").localeCompare(b.booked?.date || "9999") || (a.since || "").localeCompare(b.since || ""));
 
   return <InspectionsList initial={(records ?? []) as any} due={due} />;
 }

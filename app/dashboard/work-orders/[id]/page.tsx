@@ -29,7 +29,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
     supabase
       .from("inspections")
-      .select("id, inspection_number, status, result, parent_inspection_id, archived")
+      .select("id, inspection_number, status, result, parent_inspection_id, archived, inspection_date")
       .eq("work_order_id", params.id),
     getEffectiveRole(),
   ]);

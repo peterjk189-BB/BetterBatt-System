@@ -16,6 +16,8 @@ export type DueJob = {
   /** When the installer's SWMS was completed (first inspections only). */
   since: string | null;
   failed_inspection: { id: string; inspection_number: number } | null;
+  /** Already booked onto the Calendar (status Scheduled). */
+  booked: { id: string; inspection_number: number; date: string } | null;
 };
 
 type Row = {
@@ -35,7 +37,7 @@ type Row = {
   projects: { quote_number: number } | null;
 };
 
-const FILTERS = ["All", "Draft", "Completed", "PASS", "FAIL"] as const;
+const FILTERS = ["All", "Scheduled", "Draft", "Completed", "PASS", "FAIL"] as const;
 
 const RESULT_STYLES: Record<string, string> = {
   PASS: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
@@ -92,7 +94,7 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
       {due.length > 0 && (
         <div className="mt-5 rounded-xl border border-[#f3d48a] bg-[#fff8e6] p-4">
           <h2 className="text-sm font-bold text-[#5c440b]">
-            Inspections due <span className="ml-1 rounded-full bg-[#7a5a0f] px-2 py-0.5 text-xs text-white">{due.length}</span>
+            Inspections booked &amp; due <span className="ml-1 rounded-full bg-[#7a5a0f] px-2 py-0.5 text-xs text-white">{due.length}</span>
           </h2>
           <div className="mt-2 flex flex-col divide-y divide-[#f3d48a]">
             {due.map((d) => (
@@ -107,25 +109,37 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
                       WO {d.wo_number}
                     </Link>
                     {[d.builder, d.installer].filter(Boolean).map((x) => ` · ${x}`)}
-                    {d.stage === "reinspection-due" && d.failed_inspection
+                    {d.booked
+                      ? ""
+                      : d.stage === "reinspection-due" && d.failed_inspection
                       ? ` · INS${d.failed_inspection.inspection_number} FAILED`
                       : d.since
                       ? ` · SWMS in ${new Date(d.since).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`
                       : ""}
                   </div>
                 </div>
-                <Link
-                  href={
-                    d.failed_inspection
-                      ? `/dashboard/inspections/new?reinspect=${d.failed_inspection.id}`
-                      : `/dashboard/inspections/new?work_order_id=${d.work_order_id}`
-                  }
-                  className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold ${
-                    d.failed_inspection ? "bg-[#9b1c1c] text-white" : "bg-[#201f1c] text-white"
-                  }`}
-                >
-                  {d.failed_inspection ? "Re-inspect" : "Start inspection"}
-                </Link>
+                {d.booked ? (
+                  <Link
+                    href={`/dashboard/inspections/${d.booked.id}`}
+                    className="shrink-0 rounded-lg border-2 border-[#b91c1c] px-4 py-2 text-sm font-bold text-[#b91c1c]"
+                  >
+                    Booked{" "}
+                    {new Date(d.booked.date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+                  </Link>
+                ) : (
+                  <Link
+                    href={
+                      d.failed_inspection
+                        ? `/dashboard/inspections/new?reinspect=${d.failed_inspection.id}`
+                        : `/dashboard/inspections/new?work_order_id=${d.work_order_id}`
+                    }
+                    className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold ${
+                      d.failed_inspection ? "bg-[#9b1c1c] text-white" : "bg-[#201f1c] text-white"
+                    }`}
+                  >
+                    {d.failed_inspection ? "Re-inspect" : "Start inspection"}
+                  </Link>
+                )}
               </div>
             ))}
           </div>

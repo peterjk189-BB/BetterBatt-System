@@ -16,10 +16,11 @@ type WO = {
 const ORDER: Record<JobStage, number> = {
   "inspection-due": 0,
   "reinspection-due": 1,
-  inspecting: 2,
-  "swms-draft": 3,
-  "awaiting-swms": 4,
-  passed: 5,
+  "inspection-scheduled": 2,
+  inspecting: 3,
+  "swms-draft": 4,
+  "awaiting-swms": 5,
+  passed: 6,
 };
 
 export default function WorkOrderPicker({
@@ -74,6 +75,8 @@ export default function WorkOrderPicker({
           const href =
             p.stage === "reinspection-due" && p.latest
               ? `/dashboard/inspections/new?reinspect=${p.latest.id}`
+              : (p.stage === "inspection-scheduled" || p.stage === "inspecting") && p.latest
+              ? `/dashboard/inspections/${p.latest.id}`
               : `/dashboard/inspections/new?work_order_id=${w.id}`;
           return (
             <Link key={w.id} href={href} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-[#fafaf8]">

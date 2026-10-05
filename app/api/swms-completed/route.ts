@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
+import { nextInspectionDate, prefillFromWorkOrder, prefillToRow } from "@/lib/inspectionPrefill";
 
-// Called by the SWMS form whenever a SWMS is saved as Completed. Sends the
-// "inspection due" email once per SWMS (swms.inspection_notified_at) to the
-// addresses set on the Settings page. Safe to call repeatedly — it does
-// nothing unless this SWMS is Completed and hasn't been emailed about yet.
+// Called by the SWMS form whenever a SWMS is saved as Completed. Books the
+// inspection for that work order onto the Calendar: a 'Scheduled'
+// inspection dated the next weekday, filled in from the work order and
+// SWMS. Happens once per SWMS (swms.inspection_notified_at), and never if
+// the work order already has an inspection. Safe to call repeatedly.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const swmsId = typeof body.swms_id === "string" ? body.swms_id : undefined;
@@ -24,79 +25,57 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data: swms } = await admin
     .from("swms")
-    .select("id, swms_number, status, archived, inspection_notified_at, work_order_id, site_address, suburb, builder_name, job_type, installers")
+    .select("id, status, archived, inspection_notified_at, work_order_id")
     .eq("id", swmsId)
     .single();
-  if (!swms || swms.status !== "Completed" || swms.archived || swms.inspection_notified_at) {
-    return NextResponse.json({ ok: true, sent: false });
+  if (!swms || swms.status !== "Completed" || swms.archived || swms.inspection_notified_at || !swms.work_order_id) {
+    return NextResponse.json({ ok: true, scheduled: false });
   }
 
-  // Claim it first so a double save can't send two emails.
+  // Claim it first so a double save can't book two inspections.
   const { data: claimed } = await admin
     .from("swms")
     .update({ inspection_notified_at: new Date().toISOString() })
     .eq("id", swms.id)
     .is("inspection_notified_at", null)
     .select("id");
-  if (!claimed || claimed.length === 0) return NextResponse.json({ ok: true, sent: false });
+  if (!claimed || claimed.length === 0) return NextResponse.json({ ok: true, scheduled: false });
 
-  let woNumber: string | null = null;
-  let address = [swms.site_address, swms.suburb].filter(Boolean).join(", ");
-  let builder = swms.builder_name || "";
-  if (swms.work_order_id) {
-    const { data: wo } = await admin
-      .from("work_orders")
-      .select("wo_number, projects(address, suburb, customers(name))")
-      .eq("id", swms.work_order_id)
-      .single();
-    if (wo) {
-      woNumber = wo.wo_number;
-      const p = (wo as any).projects;
-      if (!address && p) address = [p.address, p.suburb].filter(Boolean).join(", ");
-      if (!builder) builder = p?.customers?.name || "";
-    }
+  const { data: existing } = await admin
+    .from("inspections")
+    .select("id")
+    .eq("work_order_id", swms.work_order_id)
+    .eq("archived", false)
+    .limit(1);
+  if (existing && existing.length > 0) return NextResponse.json({ ok: true, scheduled: false });
+
+  const prefill = await prefillFromWorkOrder(admin, swms.work_order_id);
+  if (!prefill) {
+    await admin.from("swms").update({ inspection_notified_at: null }).eq("id", swms.id);
+    return NextResponse.json({ ok: false, scheduled: false, error: "Work order not found" });
   }
 
-  const { data: settings } = await admin.from("company_settings").select("inspection_notify_emails").eq("id", true).single();
-  const recipients = String(settings?.inspection_notify_emails || "")
-    .split(/[,;\s]+/)
-    .map((e) => e.trim())
-    .filter((e) => e.includes("@"));
-  if (recipients.length === 0) recipients.push(process.env.OWNER_NOTIFY_EMAIL || "peterjk189@gmail.com");
+  const date = nextInspectionDate();
+  const { data: inserted, error } = await admin
+    .from("inspections")
+    .insert({ ...prefillToRow(prefill), status: "Scheduled", inspection_date: date, created_by: user.id })
+    .select("id, inspection_number")
+    .single();
+  if (error || !inserted) {
+    // Un-claim so the next save can try again.
+    await admin.from("swms").update({ inspection_notified_at: null }).eq("id", swms.id);
+    return NextResponse.json({ ok: false, scheduled: false, error: error?.message || "Could not book the inspection" });
+  }
 
-  const installers = Array.isArray(swms.installers)
-    ? (swms.installers as { name?: string }[]).map((i) => i?.name).filter(Boolean).join(", ")
-    : "";
-  const link = swms.work_order_id
-    ? `${siteUrl()}/dashboard/inspections/new?work_order_id=${swms.work_order_id}`
-    : `${siteUrl()}/dashboard/inspections`;
-  const where = address || builder || `SWMS${swms.swms_number}`;
-  const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  const result = await sendEmail({
-    to: recipients,
-    subject: `Inspection due — ${where}`,
-    html: brandedEmailHtml({
-      previewText: `SWMS${swms.swms_number} is in for ${where}. Time to inspect.`,
-      heading: "Inspection due",
-      bodyHtml: `
-        <p style="margin:0 0 12px;">The installer has completed the SWMS for this job, so it's ready to inspect.</p>
-        <table style="font-size:14px;border-collapse:collapse;">
-          <tr><td style="padding:2px 12px 2px 0;color:#888;">Site</td><td><strong>${esc(where)}</strong></td></tr>
-          ${builder ? `<tr><td style="padding:2px 12px 2px 0;color:#888;">Builder</td><td>${esc(builder)}</td></tr>` : ""}
-          ${woNumber ? `<tr><td style="padding:2px 12px 2px 0;color:#888;">Work order</td><td>${esc(woNumber)}</td></tr>` : ""}
-          <tr><td style="padding:2px 12px 2px 0;color:#888;">SWMS</td><td>SWMS${swms.swms_number}${swms.job_type ? ` — ${esc(swms.job_type)}` : ""}</td></tr>
-          ${installers ? `<tr><td style="padding:2px 12px 2px 0;color:#888;">Installer</td><td>${esc(installers)}</td></tr>` : ""}
-        </table>`,
-      buttonText: "Start inspection",
-      buttonUrl: link,
-    }),
+  await admin.from("audit_log").insert({
+    user_id: user.id,
+    user_name: "Auto-booked (SWMS completed)",
+    event_type: "create",
+    entity_type: "Inspection",
+    entity_id: inserted.id,
+    entity_label: `INS${inserted.inspection_number}${prefill.site_address ? " — " + prefill.site_address : ""}`,
+    details: `Booked for ${date} when the SWMS was completed`,
   });
 
-  if (!result.ok) {
-    // Un-claim so the next save can try again once email is working.
-    await admin.from("swms").update({ inspection_notified_at: null }).eq("id", swms.id);
-    return NextResponse.json({ ok: false, sent: false, error: result.error });
-  }
-  return NextResponse.json({ ok: true, sent: true });
+  return NextResponse.json({ ok: true, scheduled: true, inspection_id: inserted.id, date });
 }

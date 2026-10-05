@@ -12,12 +12,14 @@ export type ProgressInspection = {
   result: string | null;
   parent_inspection_id: string | null;
   archived?: boolean;
+  inspection_date?: string | null;
 };
 
 export type JobStage =
   | "awaiting-swms"
   | "swms-draft"
   | "inspection-due"
+  | "inspection-scheduled"
   | "inspecting"
   | "reinspection-due"
   | "passed";
@@ -26,6 +28,7 @@ export const STAGE_LABEL: Record<JobStage, string> = {
   "awaiting-swms": "Awaiting SWMS",
   "swms-draft": "SWMS in progress",
   "inspection-due": "Inspection due",
+  "inspection-scheduled": "Inspection booked",
   inspecting: "Inspection in progress",
   "reinspection-due": "FAIL — re-inspection due",
   passed: "Inspection PASS",
@@ -35,6 +38,7 @@ export const STAGE_STYLE: Record<JobStage, string> = {
   "awaiting-swms": "bg-[#f2f0ec] text-[#6b6862] border-[#e4e1da]",
   "swms-draft": "bg-[#fff4d6] text-[#7a5a0f] border-[#f3d48a]",
   "inspection-due": "bg-[#fff4d6] text-[#7a5a0f] border-[#f3d48a]",
+  "inspection-scheduled": "bg-[#fde8e8] text-[#b91c1c] border-[#f5b5b5] font-bold",
   inspecting: "bg-[#e8effd] text-[#1e40af] border-[#bfd0f7]",
   "reinspection-due": "bg-[#fde8e8] text-[#9b1c1c] border-[#f5b5b5]",
   passed: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
@@ -50,6 +54,7 @@ export function jobProgress(swms: ProgressSwms[], inspections: ProgressInspectio
   if (latest) {
     if (latest.result === "PASS") stage = "passed";
     else if (latest.result === "FAIL") stage = "reinspection-due";
+    else if (latest.status === "Scheduled") stage = "inspection-scheduled";
     else stage = "inspecting";
   } else if (swmsDone) stage = "inspection-due";
   else if (liveSwms.length) stage = "swms-draft";

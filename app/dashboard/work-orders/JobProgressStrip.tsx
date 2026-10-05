@@ -38,10 +38,20 @@ export default function JobProgressStrip({
           <Link
             href={`/dashboard/inspections/${ins.id}`}
             className={`${chip} ${
-              ins.result === "PASS" ? STAGE_STYLE.passed : ins.result === "FAIL" ? STAGE_STYLE["reinspection-due"] : STAGE_STYLE.inspecting
+              ins.result === "PASS"
+                ? STAGE_STYLE.passed
+                : ins.result === "FAIL"
+                ? STAGE_STYLE["reinspection-due"]
+                : ins.status === "Scheduled"
+                ? STAGE_STYLE["inspection-scheduled"]
+                : STAGE_STYLE.inspecting
             }`}
           >
-            {ins.parent_inspection_id ? "Re-inspection" : "Inspection"} {ins.result || "in progress"}
+            {ins.parent_inspection_id ? "Re-inspection" : "Inspection"}{" "}
+            {ins.result ||
+              (ins.status === "Scheduled"
+                ? `booked ${ins.inspection_date ? new Date(ins.inspection_date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : ""}`
+                : "in progress")}
             {ins.result === "PASS" ? " ✓" : ""}
           </Link>
         </span>

@@ -219,6 +219,12 @@ export default function InspectionEditor({
 
   function patchSection(key: SectionKey, fn: (s: SectionData) => SectionData) {
     setSections((all) => ({ ...all, [key]: fn(all[key]) }));
+    startedFilling();
+  }
+
+  // A booked (Scheduled) inspection becomes a Draft as soon as anyone starts filling it in.
+  function startedFilling() {
+    setForm((f) => (f.status === "Scheduled" ? { ...f, status: "Draft" } : f));
   }
 
   async function toggleArchive() {
@@ -345,7 +351,7 @@ export default function InspectionEditor({
 
       <Section title="Job details">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Field label="Date">
+          <Field label={form.status === "Scheduled" ? "Booked for" : "Date"}>
             <input type="date" className={inputCls} value={form.inspection_date} onChange={(e) => set("inspection_date", e.target.value)} />
           </Field>
           <Field label="Time">
@@ -398,7 +404,10 @@ export default function InspectionEditor({
                 <button
                   key={r}
                   type="button"
-                  onClick={() => set("result", form.result === r ? "" : r)}
+                  onClick={() => {
+                    set("result", form.result === r ? "" : r);
+                    startedFilling();
+                  }}
                   className={`min-h-[44px] rounded-lg border px-5 text-sm font-bold ${
                     form.result === r
                       ? r === "PASS"

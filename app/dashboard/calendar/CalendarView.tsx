@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { logAudit } from "@/lib/audit";
 
 type WoLine = {
   id: string;
@@ -81,7 +84,38 @@ type VisitEvent = {
   assignedToName: string | null;
 };
 
-type DayEvent = WoEvent | PoEvent | VisitEvent;
+type Inspection = {
+  id: string;
+  inspection_number: number;
+  inspection_date: string | null;
+  inspection_time: string | null;
+  status: "Scheduled" | "Draft" | "Completed";
+  result: "PASS" | "FAIL" | null;
+  site_address: string | null;
+  suburb: string | null;
+  builder_name: string | null;
+  installer_name: string | null;
+  parent_inspection_id: string | null;
+  archived: boolean;
+  work_orders: { wo_number: string } | null;
+};
+
+type InspectionEvent = {
+  kind: "inspection";
+  date: string;
+  id: string;
+  inspectionId: string;
+  number: number;
+  time: string | null;
+  status: Inspection["status"];
+  result: Inspection["result"];
+  address: string;
+  builderName: string;
+  woNumber: string | null;
+  reinspection: boolean;
+};
+
+type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent;
 
 function fmtTime(t: string | null) {
   if (!t) return "";
@@ -122,16 +156,40 @@ export default function CalendarView({
   woLines,
   pos,
   visits,
+  inspections = [],
   installerNote,
 }: {
   woLines: WoLine[];
   pos: Po[];
   visits: Visit[];
+  /** Site inspections (office only). Booked/in-progress ones show in bold red and can be moved to another day. */
+  inspections?: Inspection[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
   installerNote?: string | null;
 }) {
   const [centerWeekStart, setCenterWeekStart] = useState(() => mondayOf(new Date()));
   const [showWeekends, setShowWeekends] = useState(true);
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+  // Inspection dates moved here, shown straight away while the save happens.
+  const [movedDates, setMovedDates] = useState<Record<string, string>>({});
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropDate, setDropDate] = useState<string | null>(null);
+  const [moveError, setMoveError] = useState<string | null>(null);
+
+  async function moveInspection(id: string, number: number, from: string, to: string) {
+    if (!to || to === from) return;
+    setMoveError(null);
+    setMovedDates((m) => ({ ...m, [id]: to }));
+    const { error } = await supabase.from("inspections").update({ inspection_date: to }).eq("id", id);
+    if (error) {
+      setMovedDates((m) => ({ ...m, [id]: from }));
+      setMoveError(`Couldn't move INS${number}: ${error.message}`);
+      return;
+    }
+    logAudit(supabase, { eventType: "update", entityType: "Inspection", entityId: id, entityLabel: `INS${number}`, details: `Moved from ${from} to ${to}` });
+    router.refresh();
+  }
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, DayEvent[]>();
@@ -229,8 +287,30 @@ export default function CalendarView({
       });
     }
 
+    for (const ins of inspections) {
+      const date = movedDates[ins.id] || ins.inspection_date;
+      if (!date || ins.archived) continue;
+      push(date, {
+        kind: "inspection",
+        date,
+        id: ins.id,
+        inspectionId: ins.id,
+        number: ins.inspection_number,
+        time: ins.inspection_time,
+        status: ins.status,
+        result: ins.result,
+        address: [ins.site_address, ins.suburb].filter(Boolean).join(", ") || "—",
+        builderName: ins.builder_name || "",
+        woNumber: ins.work_orders?.wo_number || null,
+        reinspection: !!ins.parent_inspection_id,
+      });
+    }
+
+    // Booked inspections sit at the top of each day so they stand out.
+    for (const arr of map.values()) arr.sort((a, b) => (a.kind === "inspection" ? 0 : 1) - (b.kind === "inspection" ? 0 : 1));
+
     return map;
-  }, [woLines, pos, visits]);
+  }, [woLines, pos, visits, inspections, movedDates]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -298,8 +378,12 @@ export default function CalendarView({
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" /> Site visit
           </span>
+          <span className="flex items-center gap-1.5 font-bold text-[#b91c1c]">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#b91c1c]" /> Inspection — drag to another day, or tap Move
+          </span>
         </div>
       )}
+      {moveError && <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">{moveError}</div>}
 
       <div className="mt-4 flex flex-col gap-4">
         {weekStarts.map((weekStart) => {
@@ -333,7 +417,26 @@ export default function CalendarView({
                   const events = eventsByDate.get(dateStr) || [];
                   const isToday = dateStr === todayStr;
                   return (
-                    <div key={dateStr} className={`min-h-[110px] p-2 ${isToday ? "bg-amber-50" : ""}`}>
+                    <div
+                      key={dateStr}
+                      className={`min-h-[110px] p-2 ${isToday ? "bg-amber-50" : ""} ${
+                        dragId && dropDate === dateStr ? "bg-red-50 ring-2 ring-inset ring-[#b91c1c]" : ""
+                      }`}
+                      onDragOver={(e) => {
+                        if (!dragId) return;
+                        e.preventDefault();
+                        if (dropDate !== dateStr) setDropDate(dateStr);
+                      }}
+                      onDragLeave={() => setDropDate((d) => (d === dateStr ? null : d))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const id = e.dataTransfer.getData("text/inspection-id") || dragId;
+                        const ins = inspections.find((x) => x.id === id);
+                        setDragId(null);
+                        setDropDate(null);
+                        if (ins) moveInspection(ins.id, ins.inspection_number, movedDates[ins.id] || ins.inspection_date || "", dateStr);
+                      }}
+                    >
                       <div className="flex items-baseline justify-between">
                         <span className="text-[10px] font-semibold uppercase text-[var(--muted)]">
                           {DAY_LABELS[di]}
@@ -345,6 +448,20 @@ export default function CalendarView({
                       <div className="mt-1 flex flex-col gap-1">
                         {events.length === 0 && <span className="text-xs text-[var(--border)]">&nbsp;</span>}
                         {events.map((ev) => {
+                          if (ev.kind === "inspection") {
+                            return (
+                              <InspectionChip
+                                key={`ins-${ev.id}`}
+                                ev={ev}
+                                onDragStart={() => setDragId(ev.inspectionId)}
+                                onDragEnd={() => {
+                                  setDragId(null);
+                                  setDropDate(null);
+                                }}
+                                onMove={(to) => moveInspection(ev.inspectionId, ev.number, ev.date, to)}
+                              />
+                            );
+                          }
                           if (ev.kind === "wo") {
                             return (
                               <Link
@@ -402,6 +519,78 @@ export default function CalendarView({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function InspectionChip({
+  ev,
+  onDragStart,
+  onDragEnd,
+  onMove,
+}: {
+  ev: InspectionEvent;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onMove: (to: string) => void;
+}) {
+  const [moving, setMoving] = useState(false);
+  const done = ev.status === "Completed" || !!ev.result;
+  const label = ev.result ? ev.result : ev.status === "Scheduled" ? "Booked" : "In progress";
+
+  return (
+    <div
+      draggable={!done}
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/inspection-id", ev.inspectionId);
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      className={`rounded px-1.5 py-1 text-[11px] leading-tight ${
+        done
+          ? ev.result === "PASS"
+            ? "border border-green-300 bg-green-50 text-green-900"
+            : "border border-red-300 bg-red-50 text-red-900"
+          : "cursor-grab border-2 border-[#b91c1c] bg-[#fde8e8] font-bold text-[#b91c1c] active:cursor-grabbing"
+      }`}
+      title={`${ev.reinspection ? "Re-inspection" : "Inspection"} INS${ev.number} — ${ev.builderName} (${ev.address})${
+        ev.woNumber ? ` — WO ${ev.woNumber}` : ""
+      }`}
+    >
+      <Link href={`/dashboard/inspections/${ev.inspectionId}`} className="block hover:underline">
+        <div className="truncate uppercase">
+          {ev.time ? `${fmtTime(ev.time)} · ` : ""}
+          {ev.reinspection ? "Re-inspection" : "Inspection"} · {label}
+        </div>
+        <div className="truncate">{ev.address}</div>
+        {ev.builderName && <div className={`truncate ${done ? "" : "font-semibold"}`}>{ev.builderName}</div>}
+      </Link>
+      {!done &&
+        (moving ? (
+          <input
+            type="date"
+            autoFocus
+            defaultValue={ev.date}
+            onChange={(e) => {
+              if (e.target.value) {
+                onMove(e.target.value);
+                setMoving(false);
+              }
+            }}
+            onBlur={() => setMoving(false)}
+            className="mt-1 w-full rounded border border-[#b91c1c] bg-white px-1 py-0.5 text-[12px] font-normal text-[#201f1c]"
+            aria-label="Move inspection to"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setMoving(true)}
+            className="mt-1 rounded border border-[#b91c1c] bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]"
+          >
+            Move
+          </button>
+        ))}
     </div>
   );
 }
