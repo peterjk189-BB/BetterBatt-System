@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { fmtSplit, packsNeeded, suggestedSplit } from "@/lib/picking";
+import { fmtSplit, packsNeeded } from "@/lib/picking";
 
 type Line = {
   id: string;
@@ -11,7 +11,7 @@ type Line = {
   picked: boolean;
   multi_picked: number | null;
   packs_picked: number | null;
-  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number; multi: number; pks: number };
+  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number };
 };
 
 type WorkOrder = {
@@ -96,28 +96,31 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
               <th className="rounded-l-lg px-2 py-1.5">Code</th>
               <th className="px-2 py-1.5">Product</th>
               <th className="px-2 py-1.5">Notes</th>
-              <th className="px-2 py-1.5 text-right">Packs to pick</th>
-              <th className="rounded-r-lg px-2 py-1.5 text-center">Picked</th>
+              <th className="px-2 py-1.5 text-right">Packs needed</th>
+              <th className="rounded-r-lg px-2 py-1.5">Picked (write in what was used)</th>
             </tr>
           </thead>
           <tbody>
             {lines.map((l) => {
-              const split = l.picked
-                ? { multi: Number(l.multi_picked) || 0, pks: Number(l.packs_picked) || 0 }
-                : suggestedSplit(
-                    packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0),
-                    Number(l.parts.pack_per_multi) || 0,
-                    Number(l.parts.multi) || 0,
-                    Number(l.parts.pks) || 0
-                  );
+              const needed = packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+              const packPerMulti = Number(l.parts.pack_per_multi) || 0;
               return (
                 <tr key={l.id} className="border-b border-gray-100">
                   <td className="px-2 py-2 text-gray-500">{l.parts.code || "—"}</td>
-                  <td className="px-2 py-2 font-medium">{l.parts.name}</td>
+                  <td className="px-2 py-2 font-medium">
+                    {l.parts.name}
+                    {packPerMulti > 1 && <span className="ml-1 font-normal text-gray-400">({packPerMulti}/multi)</span>}
+                  </td>
                   <td className="px-2 py-2 text-gray-600">{l.note || "—"}</td>
-                  <td className="px-2 py-2 text-right font-semibold">{fmtSplit(split.multi, split.pks)}</td>
-                  <td className="px-2 py-2 text-center">
-                    <span className="inline-block h-4 w-4 rounded border border-gray-400">{l.picked ? "✓" : ""}</span>
+                  <td className="px-2 py-2 text-right font-semibold">{needed} pack{needed === 1 ? "" : "s"}</td>
+                  <td className="px-2 py-2">
+                    {l.picked ? (
+                      <span className="font-semibold">{fmtSplit(l.multi_picked || 0, l.packs_picked || 0)}</span>
+                    ) : (
+                      <span className="whitespace-nowrap text-gray-400">
+                        Multi: ______ &nbsp; Pks: ______
+                      </span>
+                    )}
                   </td>
                 </tr>
               );

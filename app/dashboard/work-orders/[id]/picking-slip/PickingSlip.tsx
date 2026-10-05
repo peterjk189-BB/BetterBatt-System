@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
-import { fmtPacks, fmtSplit, lineStatus, packsNeeded, suggestedPick, suggestedSplit, STATUS_LABELS, STATUS_STYLES } from "@/lib/picking";
+import { fmtPacks, fmtSplit, lineStatus, packsNeeded, STATUS_LABELS, STATUS_STYLES } from "@/lib/picking";
 
 type Part = {
   id: string;
@@ -15,9 +15,6 @@ type Part = {
   pack_cost_ex_gst: number;
   supplier_id: string | null;
   stock_on_hand: number;
-  pack_per_multi: number;
-  multi: number;
-  pks: number;
 };
 
 type Line = {
@@ -81,9 +78,8 @@ export default function PickingSlip({
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
-    const suggested = suggestedSplit(suggestedPick(l.qty, l.parts.coverage_m2), l.parts.pack_per_multi, l.parts.multi, l.parts.pks);
-    const multi = Math.round(Number(pickMulti[l.id] ?? suggested.multi)) || 0;
-    const pks = Math.round(Number(pickPks[l.id] ?? suggested.pks)) || 0;
+    const multi = Math.round(Number(pickMulti[l.id] || 0)) || 0;
+    const pks = Math.round(Number(pickPks[l.id] || 0)) || 0;
     if (multi <= 0 && pks <= 0) {
       setError("Enter how many multis and/or packs you're picking.");
       return;
@@ -180,49 +176,46 @@ export default function PickingSlip({
                           Allocate
                         </button>
                       )}
-                      {status === "allocated" && (() => {
-                        const suggested = suggestedSplit(needed, l.parts.pack_per_multi, l.parts.multi, l.parts.pks);
-                        return (
-                          <>
-                            <div className="flex items-end gap-1.5">
-                              <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                                Multi
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  placeholder={String(suggested.multi)}
-                                  value={pickMulti[l.id] ?? ""}
-                                  onChange={(e) => setPickMulti((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                                  className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
-                                />
-                              </label>
-                              <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                                Pks
-                                <input
-                                  type="number"
-                                  step="1"
-                                  min="0"
-                                  placeholder={String(suggested.pks)}
-                                  value={pickPks[l.id] ?? ""}
-                                  onChange={(e) => setPickPks((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                                  className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
-                                />
-                              </label>
-                              <button
-                                onClick={() => pick(l)}
-                                disabled={busy}
-                                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                              >
-                                Confirm pick
-                              </button>
-                            </div>
-                            <button onClick={() => deallocate(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
-                              Release allocation
+                      {status === "allocated" && (
+                        <>
+                          <div className="flex items-end gap-1.5">
+                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                              Multi
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0"
+                                value={pickMulti[l.id] ?? ""}
+                                onChange={(e) => setPickMulti((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                              />
+                            </label>
+                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                              Pks
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0"
+                                value={pickPks[l.id] ?? ""}
+                                onChange={(e) => setPickPks((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                              />
+                            </label>
+                            <button
+                              onClick={() => pick(l)}
+                              disabled={busy}
+                              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                            >
+                              Confirm pick
                             </button>
-                          </>
-                        );
-                      })()}
+                          </div>
+                          <button onClick={() => deallocate(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
+                            Release allocation
+                          </button>
+                        </>
+                      )}
                       {status === "picked" && (
                         <button onClick={() => unpick(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
                           Undo pick
