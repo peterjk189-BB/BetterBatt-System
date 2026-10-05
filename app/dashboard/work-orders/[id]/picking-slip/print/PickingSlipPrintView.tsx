@@ -11,7 +11,7 @@ type Line = {
   picked: boolean;
   multi_picked: number | null;
   packs_picked: number | null;
-  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number };
+  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number; multi: number; pks: number };
 };
 
 type WorkOrder = {
@@ -104,7 +104,12 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             {lines.map((l) => {
               const split = l.picked
                 ? { multi: Number(l.multi_picked) || 0, pks: Number(l.packs_picked) || 0 }
-                : suggestedSplit(packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0), Number(l.parts.pack_per_multi) || 0);
+                : suggestedSplit(
+                    packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0),
+                    Number(l.parts.pack_per_multi) || 0,
+                    Number(l.parts.multi) || 0,
+                    Number(l.parts.pks) || 0
+                  );
               return (
                 <tr key={l.id} className="border-b border-gray-100">
                   <td className="px-2 py-2 text-gray-500">{l.parts.code || "—"}</td>

@@ -16,6 +16,8 @@ type Part = {
   supplier_id: string | null;
   stock_on_hand: number;
   pack_per_multi: number;
+  multi: number;
+  pks: number;
 };
 
 type Line = {
@@ -79,7 +81,7 @@ export default function PickingSlip({
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
-    const suggested = suggestedSplit(suggestedPick(l.qty, l.parts.coverage_m2), l.parts.pack_per_multi);
+    const suggested = suggestedSplit(suggestedPick(l.qty, l.parts.coverage_m2), l.parts.pack_per_multi, l.parts.multi, l.parts.pks);
     const multi = Math.round(Number(pickMulti[l.id] ?? suggested.multi)) || 0;
     const pks = Math.round(Number(pickPks[l.id] ?? suggested.pks)) || 0;
     if (multi <= 0 && pks <= 0) {
@@ -179,7 +181,7 @@ export default function PickingSlip({
                         </button>
                       )}
                       {status === "allocated" && (() => {
-                        const suggested = suggestedSplit(needed, l.parts.pack_per_multi);
+                        const suggested = suggestedSplit(needed, l.parts.pack_per_multi, l.parts.multi, l.parts.pks);
                         return (
                           <>
                             <div className="flex items-end gap-1.5">

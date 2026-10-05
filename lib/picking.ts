@@ -46,13 +46,22 @@ export function fmtPacks(n: number): string {
 /**
  * Suggested split of a whole-pack quantity into full multi-packs (cartons/bales — the
  * "Multi" count in Inventory) plus loose packs ("Pks"), so picking off the shelf can be
- * recorded the same way receiving stock already is. When a product has no multi-pack
- * size set (packPerMulti is 0 or 1), everything is just loose packs.
+ * recorded the same way receiving stock already is. Stock usually sits as a mix of both
+ * — e.g. 8 multis + 5 loose packs, not one big block of multis — so this caps the
+ * suggestion at what's actually on hand of each rather than just dividing the quantity
+ * by the multi size, and makes up any gap from loose packs. When a product has no
+ * multi-pack size set (packPerMulti is 0 or 1), everything is just loose packs.
  */
-export function suggestedSplit(packs: number, packPerMulti: number): { multi: number; pks: number } {
+export function suggestedSplit(
+  packs: number,
+  packPerMulti: number,
+  onHandMulti: number,
+  onHandPks: number
+): { multi: number; pks: number } {
   if (!packPerMulti || packPerMulti <= 1) return { multi: 0, pks: packs };
-  const multi = Math.floor(packs / packPerMulti);
-  const pks = packs - multi * packPerMulti;
+  const idealMulti = Math.floor(packs / packPerMulti);
+  const multi = Math.min(idealMulti, Math.max(0, onHandMulti));
+  const pks = Math.max(0, packs - multi * packPerMulti);
   return { multi, pks };
 }
 
