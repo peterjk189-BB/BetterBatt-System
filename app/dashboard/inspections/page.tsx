@@ -1,9 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { jobProgress } from "@/lib/jobProgress";
 import InspectionsList, { type DueJob } from "./InspectionsList";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { bookDueInspections } from "@/lib/inspectionPrefill";
 
 export default async function InspectionsPage() {
   const supabase = await createClient();
+  // Book any inspection that's due but not booked yet, so it lands on the Calendar.
+  try {
+    await bookDueInspections(createAdminClient());
+  } catch {
+    // Still show the page; the Calendar reports booking problems.
+  }
   const [{ data: records }, { data: workOrders }, { data: swms }] = await Promise.all([
     supabase
       .from("inspections")

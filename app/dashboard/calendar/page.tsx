@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
 import CalendarView from "./CalendarView";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { bookDueInspections } from "@/lib/inspectionPrefill";
 
 const WO_LINE_SELECT =
   "id, task_date, note, qty, work_order_id, subcontractor_id, work_orders(wo_number, archived, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description)";
@@ -51,6 +53,14 @@ export default async function CalendarPage() {
     );
   }
 
+  // Book any inspection that's due but not on the calendar yet (SWMS completed, no inspection).
+  let bookingErrors: string[] = [];
+  try {
+    bookingErrors = (await bookDueInspections(createAdminClient())).errors;
+  } catch (e: any) {
+    bookingErrors = [e?.message || "Couldn't check for inspections to book"];
+  }
+
   const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
@@ -75,6 +85,7 @@ export default async function CalendarPage() {
       pos={(pos ?? []) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
+      bookingErrors={bookingErrors}
       installerNote={null}
     />
   );

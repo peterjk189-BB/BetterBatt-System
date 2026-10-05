@@ -82,3 +82,57 @@ export function nextInspectionDate(now = new Date()) {
   else if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * Catch-up booking: any work order whose SWMS is Completed but has no
+ * inspection yet gets a 'Scheduled' inspection for the next weekday. Covers
+ * SWMS completed before auto-booking existed, or when a booking failed at
+ * the time. Run with the service-role client from staff-only pages.
+ * Returns the work orders booked, and any that couldn't be (with the reason).
+ */
+export async function bookDueInspections(admin: any): Promise<{ booked: string[]; errors: string[] }> {
+  const booked: string[] = [];
+  const errors: string[] = [];
+
+  const [{ data: swms }, { data: existing }] = await Promise.all([
+    admin.from("swms").select("id, work_order_id").eq("status", "Completed").eq("archived", false).not("work_order_id", "is", null),
+    admin.from("inspections").select("work_order_id").eq("archived", false).not("work_order_id", "is", null),
+  ]);
+  const have = new Set(((existing ?? []) as any[]).map((i) => i.work_order_id));
+  const woIds = Array.from(new Set(((swms ?? []) as any[]).map((s) => s.work_order_id as string))).filter((id) => !have.has(id));
+  if (woIds.length === 0) return { booked, errors };
+
+  const { data: wos } = await admin.from("work_orders").select("id, wo_number, archived").in("id", woIds);
+  const date = nextInspectionDate();
+
+  for (const wo of ((wos ?? []) as any[]).filter((w) => !w.archived)) {
+    const prefill = await prefillFromWorkOrder(admin, wo.id);
+    if (!prefill) continue;
+    const { data: inserted, error } = await admin
+      .from("inspections")
+      .insert({ ...prefillToRow(prefill), status: "Scheduled", inspection_date: date })
+      .select("id, inspection_number")
+      .single();
+    if (error || !inserted) {
+      errors.push(`${wo.wo_number}: ${error?.message || "could not book"}`);
+      continue;
+    }
+    booked.push(wo.wo_number);
+    await admin
+      .from("swms")
+      .update({ inspection_notified_at: new Date().toISOString() })
+      .eq("work_order_id", wo.id)
+      .eq("status", "Completed")
+      .is("inspection_notified_at", null);
+    await admin.from("audit_log").insert({
+      user_id: null,
+      user_name: "Auto-booked (SWMS completed)",
+      event_type: "create",
+      entity_type: "Inspection",
+      entity_id: inserted.id,
+      entity_label: `INS${inserted.inspection_number}${prefill.site_address ? " — " + prefill.site_address : ""}`,
+      details: `Booked for ${date} — work order ${wo.wo_number} had a completed SWMS but no inspection`,
+    });
+  }
+  return { booked, errors };
+}

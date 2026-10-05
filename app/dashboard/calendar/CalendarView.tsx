@@ -157,6 +157,7 @@ export default function CalendarView({
   pos,
   visits,
   inspections = [],
+  bookingErrors = [],
   installerNote,
 }: {
   woLines: WoLine[];
@@ -164,6 +165,8 @@ export default function CalendarView({
   visits: Visit[];
   /** Site inspections (office only). Booked/in-progress ones show in bold red and can be moved to another day. */
   inspections?: Inspection[];
+  /** Work orders whose due inspection couldn't be booked automatically, with the reason. */
+  bookingErrors?: string[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
   installerNote?: string | null;
 }) {
@@ -381,6 +384,19 @@ export default function CalendarView({
           <span className="flex items-center gap-1.5 font-bold text-[#b91c1c]">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#b91c1c]" /> Inspection — drag to another day, or tap Move
           </span>
+        </div>
+      )}
+      {bookingErrors.length > 0 && (
+        <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <strong>Couldn&apos;t book these inspections onto the calendar:</strong>
+          <ul className="mt-1 list-disc pl-5">
+            {bookingErrors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+          {bookingErrors.some((e) => /status_check|Scheduled/i.test(e)) && (
+            <p className="mt-1">The database still needs the &ldquo;Scheduled&rdquo; update — run migration 0023 in Supabase.</p>
+          )}
         </div>
       )}
       {moveError && <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">{moveError}</div>}
