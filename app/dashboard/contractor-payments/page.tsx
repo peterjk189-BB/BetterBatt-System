@@ -12,7 +12,7 @@ export default async function ContractorPaymentsPage() {
     supabase
       .from("work_order_lines")
       .select(
-        "id, work_order_id, qty, paid, task_date, note, subcontractor_id, work_orders(wo_number, contractor_id, archived, projects(quote_number, customers(name))), labour_items(code, description, contractor_rate)"
+        "id, work_order_id, qty, paid, task_date, note, subcontractor_id, work_orders(wo_number, contractor_id, archived, projects(quote_number, address, suburb, customers(name))), labour_items(code, description, contractor_rate)"
       )
       .order("task_date", { ascending: false }),
   ]);

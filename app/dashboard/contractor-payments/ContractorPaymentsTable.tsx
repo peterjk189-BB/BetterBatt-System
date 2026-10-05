@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
 
 type Sub = { id: string; name: string; phone: string | null; email: string | null; gst_registered: boolean };
 
@@ -19,7 +20,12 @@ type Line = {
     wo_number: string;
     contractor_id: string | null;
     archived: boolean;
-    projects: { quote_number: number; customers: { name: string } | null } | null;
+    projects: {
+      quote_number: number;
+      address: string | null;
+      suburb: string | null;
+      customers: { name: string } | null;
+    } | null;
   } | null;
   labour_items: { code: string; description: string; contractor_rate: number } | null;
 };
@@ -131,6 +137,36 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const grandGst = summaryRows.reduce((s, r) => s + r.gst, 0);
   const grandPaid = summaryRows.reduce((s, r) => s + r.paidTotal, 0);
   const grandLines = summaryRows.reduce((s, r) => s + r.lines.length, 0);
+
+  // One PDF per contractor: lines shown on their card, rolled up to one row per work order.
+  async function exportPdf(row: (typeof summaryRows)[number]) {
+    const byWo = new Map<string, ContractorPdfRow>();
+    for (const l of row.lines) {
+      const key = l.work_order_id;
+      const p = l.work_orders?.projects;
+      const existing = byWo.get(key);
+      if (existing) {
+        existing.exGst += l.cost;
+        if (l.task_date && (!existing.date || l.task_date > existing.date)) existing.date = l.task_date;
+      } else {
+        byWo.set(key, {
+          woNumber: l.work_orders?.wo_number || "—",
+          date: l.task_date,
+          address: p ? [p.address, p.suburb].filter(Boolean).join(", ") : "",
+          exGst: l.cost,
+        });
+      }
+    }
+    try {
+      await downloadContractorPdf({
+        contractorName: row.sub.name,
+        gstRegistered: row.sub.gst_registered,
+        rows: Array.from(byWo.values()),
+      });
+    } catch (e: any) {
+      alert(`Couldn't create the PDF: ${e?.message || e}`);
+    }
+  }
 
   function exportCsv() {
     const header = [
@@ -325,7 +361,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       )}
 
       <div className="mt-6 flex flex-col gap-5">
-        {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, gst, owedWithGst }) => {
+        {contractorRows.map((cRow) => {
+          const { sub, lines: subLines, owed, paidTotal, gst, owedWithGst } = cRow;
           const visibleLines = [...subLines].sort((a, b) => (b.task_date || "").localeCompare(a.task_date || ""));
           return (
             <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
@@ -364,6 +401,12 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     <span className="text-[var(--muted)]">Paid </span>
                     <span className="font-semibold">{fmtCurrency(paidTotal)}</span>
                   </div>
+                  <button
+                    onClick={() => exportPdf(cRow)}
+                    className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent"
+                  >
+                    Download PDF
+                  </button>
                 </div>
               </div>
 
