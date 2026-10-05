@@ -831,8 +831,8 @@ export default function PartsTable({
 
       {/* KPI cards: total value + per-supplier value */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="rounded-xl border border-[var(--border)] p-3">
-          <div className="text-xs uppercase text-[var(--muted)]">Total inventory value</div>
+        <div className="rounded-xl border border-[#1c1e21] bg-[#2b2d31] p-3 text-white">
+          <div className="text-xs uppercase text-gray-300">Total inventory value</div>
           <div className="mt-1 text-lg font-bold">{fmtCurrency(grandTotal)}</div>
         </div>
         {supplierTotals.map(([supplier, totals]) => {
