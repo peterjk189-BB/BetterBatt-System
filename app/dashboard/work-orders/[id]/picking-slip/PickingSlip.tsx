@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
-import { fmtPacks, lineStatus, packsNeeded, suggestedPick, STATUS_LABELS, STATUS_STYLES } from "@/lib/picking";
+import { fmtPacks, fmtSplit, lineStatus, packsNeeded, suggestedPick, suggestedSplit, STATUS_LABELS, STATUS_STYLES } from "@/lib/picking";
 
 type Part = {
   id: string;
@@ -15,6 +15,7 @@ type Part = {
   pack_cost_ex_gst: number;
   supplier_id: string | null;
   stock_on_hand: number;
+  pack_per_multi: number;
 };
 
 type Line = {
@@ -26,6 +27,7 @@ type Line = {
   allocated_at: string | null;
   picked: boolean;
   picked_at: string | null;
+  multi_picked: number | null;
   packs_picked: number | null;
   parts: Part;
 };
@@ -47,7 +49,8 @@ export default function PickingSlip({
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [pickQty, setPickQty] = useState<Record<string, string>>({});
+  const [pickMulti, setPickMulti] = useState<Record<string, string>>({});
+  const [pickPks, setPickPks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   async function run(lineId: string, label: string, action: () => Promise<{ error: any }>) {
@@ -76,12 +79,16 @@ export default function PickingSlip({
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
-    const packs = Math.round(Number(pickQty[l.id] ?? suggestedPick(l.qty, l.parts.coverage_m2)));
-    if (!packs || packs <= 0) {
-      setError("Enter how many packs you're picking.");
+    const suggested = suggestedSplit(suggestedPick(l.qty, l.parts.coverage_m2), l.parts.pack_per_multi);
+    const multi = Math.round(Number(pickMulti[l.id] ?? suggested.multi)) || 0;
+    const pks = Math.round(Number(pickPks[l.id] ?? suggested.pks)) || 0;
+    if (multi <= 0 && pks <= 0) {
+      setError("Enter how many multis and/or packs you're picking.");
       return;
     }
-    return run(l.id, `Picked ${fmtPacks(packs)}`, async () => await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_packs: packs }));
+    return run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () =>
+      await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks })
+    );
   };
 
   return (
@@ -156,7 +163,7 @@ export default function PickingSlip({
                     </span>
                     {status === "picked" && l.picked_at && (
                       <div className="mt-1 text-xs text-[var(--muted)]">
-                        {fmtPacks(l.packs_picked || 0)} · {fmtDateTime(l.picked_at)}
+                        {fmtSplit(l.multi_picked || 0, l.packs_picked || 0)} · {fmtDateTime(l.picked_at)}
                       </div>
                     )}
                   </td>
@@ -171,31 +178,49 @@ export default function PickingSlip({
                           Allocate
                         </button>
                       )}
-                      {status === "allocated" && (
-                        <>
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="number"
-                              step="1"
-                              min="0"
-                              placeholder={String(suggestedPick(l.qty, l.parts.coverage_m2))}
-                              value={pickQty[l.id] ?? ""}
-                              onChange={(e) => setPickQty((prev) => ({ ...prev, [l.id]: e.target.value }))}
-                              className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
-                            />
-                            <button
-                              onClick={() => pick(l)}
-                              disabled={busy}
-                              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                            >
-                              Confirm pick
+                      {status === "allocated" && (() => {
+                        const suggested = suggestedSplit(needed, l.parts.pack_per_multi);
+                        return (
+                          <>
+                            <div className="flex items-end gap-1.5">
+                              <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                                Multi
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  placeholder={String(suggested.multi)}
+                                  value={pickMulti[l.id] ?? ""}
+                                  onChange={(e) => setPickMulti((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                  className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                                />
+                              </label>
+                              <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                                Pks
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="0"
+                                  placeholder={String(suggested.pks)}
+                                  value={pickPks[l.id] ?? ""}
+                                  onChange={(e) => setPickPks((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                  className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                                />
+                              </label>
+                              <button
+                                onClick={() => pick(l)}
+                                disabled={busy}
+                                className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+                              >
+                                Confirm pick
+                              </button>
+                            </div>
+                            <button onClick={() => deallocate(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
+                              Release allocation
                             </button>
-                          </div>
-                          <button onClick={() => deallocate(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
-                            Release allocation
-                          </button>
-                        </>
-                      )}
+                          </>
+                        );
+                      })()}
                       {status === "picked" && (
                         <button onClick={() => unpick(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
                           Undo pick

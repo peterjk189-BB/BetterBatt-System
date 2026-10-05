@@ -13,7 +13,9 @@ export default async function PickingSlipPrintPage({ params }: { params: { id: s
       .single(),
     supabase
       .from("work_order_lines")
-      .select("id, qty, note, part_id, picked, packs_picked, parts(name, code, coverage_m2, is_stock_item)")
+      .select(
+        "id, qty, note, part_id, picked, multi_picked, packs_picked, parts(name, code, coverage_m2, pack_per_multi, is_stock_item)"
+      )
       .eq("work_order_id", params.id)
       .order("sort_order"),
   ]);

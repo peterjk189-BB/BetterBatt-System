@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { packsNeeded } from "@/lib/picking";
+import { fmtSplit, packsNeeded, suggestedSplit } from "@/lib/picking";
 
 type Line = {
   id: string;
@@ -9,8 +9,9 @@ type Line = {
   note: string | null;
   part_id: string;
   picked: boolean;
+  multi_picked: number | null;
   packs_picked: number | null;
-  parts: { name: string; code: string | null; coverage_m2: number };
+  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number };
 };
 
 type WorkOrder = {
@@ -101,13 +102,15 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
           </thead>
           <tbody>
             {lines.map((l) => {
-              const needed = l.picked ? Number(l.packs_picked) || 0 : packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+              const split = l.picked
+                ? { multi: Number(l.multi_picked) || 0, pks: Number(l.packs_picked) || 0 }
+                : suggestedSplit(packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0), Number(l.parts.pack_per_multi) || 0);
               return (
                 <tr key={l.id} className="border-b border-gray-100">
                   <td className="px-2 py-2 text-gray-500">{l.parts.code || "—"}</td>
                   <td className="px-2 py-2 font-medium">{l.parts.name}</td>
                   <td className="px-2 py-2 text-gray-600">{l.note || "—"}</td>
-                  <td className="px-2 py-2 text-right font-semibold">{needed} pack{needed === 1 ? "" : "s"}</td>
+                  <td className="px-2 py-2 text-right font-semibold">{fmtSplit(split.multi, split.pks)}</td>
                   <td className="px-2 py-2 text-center">
                     <span className="inline-block h-4 w-4 rounded border border-gray-400">{l.picked ? "✓" : ""}</span>
                   </td>

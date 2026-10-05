@@ -12,6 +12,7 @@ export type PickingPart = {
   pack_cost_ex_gst: number;
   supplier_id: string | null;
   stock_on_hand: number;
+  pack_per_multi: number;
 };
 
 export type PickingLine = {
@@ -22,6 +23,7 @@ export type PickingLine = {
   allocated_at: string | null;
   picked: boolean;
   picked_at: string | null;
+  multi_picked: number | null;
   packs_picked: number | null;
   note: string | null;
 };
@@ -39,6 +41,27 @@ export function suggestedPick(qtyM2: number, coverageM2: number): number {
 
 export function fmtPacks(n: number): string {
   return `${n} pack${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Suggested split of a whole-pack quantity into full multi-packs (cartons/bales — the
+ * "Multi" count in Inventory) plus loose packs ("Pks"), so picking off the shelf can be
+ * recorded the same way receiving stock already is. When a product has no multi-pack
+ * size set (packPerMulti is 0 or 1), everything is just loose packs.
+ */
+export function suggestedSplit(packs: number, packPerMulti: number): { multi: number; pks: number } {
+  if (!packPerMulti || packPerMulti <= 1) return { multi: 0, pks: packs };
+  const multi = Math.floor(packs / packPerMulti);
+  const pks = packs - multi * packPerMulti;
+  return { multi, pks };
+}
+
+/** Formats a picked (or to-pick) quantity as "N multis + M packs", dropping whichever part is zero. */
+export function fmtSplit(multi: number, pks: number): string {
+  const parts: string[] = [];
+  if (multi) parts.push(`${multi} multi${multi === 1 ? "" : "s"}`);
+  if (pks || parts.length === 0) parts.push(`${pks} pack${pks === 1 ? "" : "s"}`);
+  return parts.join(" + ");
 }
 
 export type PickStatus = "not-allocated" | "allocated" | "picked";
