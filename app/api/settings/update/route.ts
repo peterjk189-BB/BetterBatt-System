@@ -20,15 +20,19 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const termsAndConditions = typeof body.terms_and_conditions === "string" ? body.terms_and_conditions : undefined;
-  if (termsAndConditions === undefined) {
-    return NextResponse.json({ error: "terms_and_conditions is required" }, { status: 400 });
+  const update: Record<string, string | null> = {};
+  if (typeof body.terms_and_conditions === "string") update.terms_and_conditions = body.terms_and_conditions;
+  if (typeof body.inspection_notify_emails === "string") {
+    update.inspection_notify_emails = body.inspection_notify_emails.trim() || null;
+  }
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("company_settings")
-    .update({ terms_and_conditions: termsAndConditions, updated_at: new Date().toISOString() })
+    .update({ ...update, updated_at: new Date().toISOString() })
     .eq("id", true);
 
   if (error) {

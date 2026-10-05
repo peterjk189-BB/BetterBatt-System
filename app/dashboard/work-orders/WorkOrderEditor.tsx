@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import type { ProgressInspection, ProgressSwms } from "@/lib/jobProgress";
+import JobProgressStrip from "./JobProgressStrip";
 
 type Project = {
   id: string;
@@ -60,6 +62,7 @@ export default function WorkOrderEditor({
   labourItems,
   parts,
   isAdmin,
+  progress,
 }: {
   workOrder: WorkOrder | null;
   lines: Line[];
@@ -69,6 +72,8 @@ export default function WorkOrderEditor({
   labourItems: LabourItem[];
   parts: Part[];
   isAdmin: boolean;
+  /** This work order's SWMS and inspections, for the job progress strip (saved work orders only). */
+  progress?: { swms: ProgressSwms[]; inspections: ProgressInspection[] };
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -304,6 +309,8 @@ export default function WorkOrderEditor({
           </button>
         </div>
       </div>
+
+      {!isNew && progress && <JobProgressStrip workOrderId={workOrder!.id} swms={progress.swms} inspections={progress.inspections} />}
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">

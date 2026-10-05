@@ -15,6 +15,7 @@ import {
   normaliseSection,
   type Answer,
   type InspectionPhoto,
+  type InspectionPrefill,
   type InspectionRecord,
   type InspectionResult,
   type InspectionStatus,
@@ -46,11 +47,14 @@ export default function InspectionEditor({
   photos,
   prefill,
   isAdmin,
+  related,
 }: {
   record: (InspectionRecord & { work_orders?: { wo_number: string } | null; projects?: { quote_number: number } | null }) | null;
   photos: InspectionPhoto[];
-  prefill: { work_order_id?: string; project_id?: string; site_address?: string; suburb?: string; builder_name?: string } | null;
+  prefill: InspectionPrefill | null;
   isAdmin: boolean;
+  /** For a saved inspection: the FAILed one it re-inspects, and any re-inspections of it. */
+  related?: { parent: { id: string; inspection_number: number } | null; children: { id: string; inspection_number: number; result: string | null }[] };
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -64,26 +68,27 @@ export default function InspectionEditor({
     builder_name: record?.builder_name || prefill?.builder_name || "",
     site_address: record?.site_address || prefill?.site_address || "",
     suburb: record?.suburb || prefill?.suburb || "",
-    contractor: record?.contractor ?? "Better Batt Insulation",
-    sales_order: record?.sales_order || "",
-    audit_region: record?.audit_region || "",
-    include_foil: record?.include_foil ?? false,
-    include_wall: record?.include_wall ?? false,
-    include_ceiling: record?.include_ceiling ?? false,
+    contractor: record ? record.contractor || "" : prefill?.contractor || "Better Batt Insulation",
+    sales_order: record?.sales_order || prefill?.sales_order || "",
+    audit_region: record?.audit_region || prefill?.audit_region || "",
+    include_foil: record?.include_foil ?? prefill?.include_foil ?? false,
+    include_wall: record?.include_wall ?? prefill?.include_wall ?? false,
+    include_ceiling: record?.include_ceiling ?? prefill?.include_ceiling ?? false,
     result: (record?.result || "") as InspectionResult | "",
     maintenance: (record?.maintenance || "") as "Yes" | "No" | "",
     rectifications: record?.rectifications || "",
     inspector_name: record?.inspector_name || "",
-    installer_name: record?.installer_name || "",
+    installer_name: record?.installer_name || prefill?.installer_name || "",
     inspector_signature: record?.inspector_signature || null as string | null,
     signed_at: record?.signed_at || null as string | null,
     work_order_id: record?.work_order_id || prefill?.work_order_id || "",
     project_id: record?.project_id || prefill?.project_id || "",
+    parent_inspection_id: record?.parent_inspection_id || prefill?.parent_inspection_id || "",
   });
   const [sections, setSections] = useState<Record<SectionKey, SectionData>>({
-    foil: normaliseSection(record?.foil),
-    wall: normaliseSection(record?.wall),
-    ceiling: normaliseSection(record?.ceiling),
+    foil: normaliseSection(record ? record.foil : prefill?.sections?.foil),
+    wall: normaliseSection(record ? record.wall : prefill?.sections?.wall),
+    ceiling: normaliseSection(record ? record.ceiling : prefill?.sections?.ceiling),
   });
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -115,6 +120,7 @@ export default function InspectionEditor({
       signed_at: form.signed_at,
       work_order_id: form.work_order_id || null,
       project_id: form.project_id || null,
+      parent_inspection_id: form.parent_inspection_id || null,
       foil: sections.foil,
       wall: sections.wall,
       ceiling: sections.ceiling,
@@ -125,6 +131,10 @@ export default function InspectionEditor({
   const ensureId = useCallback(async (): Promise<string | null> => {
     if (id) return id;
     if (creating.current) return creating.current;
+    if (!form.work_order_id) {
+      setError("An inspection must be linked to a work order. Go back and pick the work order first.");
+      return null;
+    }
     if (!form.site_address.trim() && !form.builder_name.trim()) {
       setError("Enter the site address or builder first.");
       return null;
@@ -155,7 +165,7 @@ export default function InspectionEditor({
       return data.id as string;
     })();
     return creating.current;
-  }, [id, form.site_address, form.builder_name, payload, supabase]);
+  }, [id, form.work_order_id, form.site_address, form.builder_name, payload, supabase]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {
@@ -261,6 +271,14 @@ export default function InspectionEditor({
                 {record?.archived ? "Restore" : "Archive"}
               </button>
             )}
+            {form.result === "FAIL" && (related?.children.length ?? 0) === 0 && (
+              <Link
+                href={`/dashboard/inspections/new?reinspect=${id}`}
+                className="rounded-lg bg-[#9b1c1c] px-4 py-2 text-sm font-semibold text-white"
+              >
+                Re-inspect
+              </Link>
+            )}
             <Link
               href={`/dashboard/inspections/${id}/print`}
               target="_blank"
@@ -283,6 +301,32 @@ export default function InspectionEditor({
       </div>
 
       {error && <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>}
+
+      {!record && prefill?.source && (
+        <div className="mt-4 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-4 py-2.5 text-sm text-[#5c440b]">{prefill.source}</div>
+      )}
+      {related?.parent && (
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          Re-inspection of{" "}
+          <Link href={`/dashboard/inspections/${related.parent.id}`} className="font-medium text-accent hover:underline">
+            INS{related.parent.inspection_number}
+          </Link>
+        </p>
+      )}
+      {related && related.children.length > 0 && (
+        <p className="mt-3 text-sm text-[var(--muted)]">
+          Re-inspected in{" "}
+          {related.children.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && ", "}
+              <Link href={`/dashboard/inspections/${c.id}`} className="font-medium text-accent hover:underline">
+                INS{c.inspection_number}
+              </Link>
+              {c.result ? ` (${c.result})` : ""}
+            </span>
+          ))}
+        </p>
+      )}
 
       <div className="mt-5 flex flex-wrap gap-2">
         {INSPECTION_STATUSES.map((s) => (
@@ -463,7 +507,8 @@ function ChecklistSection({
   function setAllYes() {
     onChange((s) => {
       const checks = { ...s.checks };
-      for (const item of def.checks) if (!checks[item]) checks[item] = "Yes";
+      // Never auto-pass a line that failed last time — those need a deliberate answer.
+      for (const item of def.checks) if (!checks[item] && !s.flagged.includes(item)) checks[item] = "Yes";
       return { ...s, checks };
     });
   }
@@ -501,9 +546,14 @@ function ChecklistSection({
       </div>
 
       <div className="mt-1 divide-y divide-[var(--border)]">
-        {def.checks.map((item) => (
-          <div key={item} className="flex flex-wrap items-center justify-between gap-2 py-2">
-            <span className="min-w-0 flex-1 text-sm">{item}</span>
+        {def.checks.map((item) => {
+          const flagged = data.flagged.includes(item);
+          return (
+          <div key={item} className={`flex flex-wrap items-center justify-between gap-2 py-2 ${flagged ? "-mx-2 rounded-lg bg-[#fdf1f1] px-2" : ""}`}>
+            <span className="min-w-0 flex-1 text-sm">
+              {item}
+              {flagged && <span className="ml-2 rounded-full bg-[#9b1c1c] px-2 py-0.5 text-[11px] font-semibold text-white">Failed last time</span>}
+            </span>
             <div className="flex items-center gap-1.5">
               {def.checkNotes.includes(item) && (
                 <input
@@ -527,7 +577,8 @@ function ChecklistSection({
               ))}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {def.extras.length > 0 && (

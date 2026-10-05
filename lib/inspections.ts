@@ -31,6 +31,8 @@ export type SectionData = {
   /** Extra tick-boxes under the checklist (ceiling only). */
   extras: Record<string, boolean>;
   comments: string;
+  /** On a re-inspection: the lines that were answered "No" on the inspection it follows up. */
+  flagged: string[];
 };
 
 export type SectionDef = {
@@ -136,7 +138,7 @@ export const SECTIONS: SectionDef[] = [
 ];
 
 export function emptySection(): SectionData {
-  return { options: {}, checks: {}, notes: {}, extras: {}, comments: "" };
+  return { options: {}, checks: {}, notes: {}, extras: {}, comments: "", flagged: [] };
 }
 
 export function normaliseSection(raw: unknown): SectionData {
@@ -151,7 +153,77 @@ export function normaliseSection(raw: unknown): SectionData {
     notes: { ...(r.notes ?? {}) },
     extras: { ...(r.extras ?? {}) },
     comments: typeof r.comments === "string" ? r.comments : "",
+    flagged: Array.isArray(r.flagged) ? r.flagged.filter((x): x is string => typeof x === "string") : [],
   };
+}
+
+/**
+ * Starting point for a re-inspection's section, from the FAILed inspection
+ * it follows up: header ticks and notes carry over, lines that passed keep
+ * their answer, and lines that were "No" are cleared and flagged so the
+ * inspector re-checks exactly those.
+ */
+export function reinspectionSection(raw: unknown): SectionData {
+  const prev = normaliseSection(raw);
+  const checks: Record<string, Answer> = {};
+  const flagged: string[] = [];
+  for (const [item, a] of Object.entries(prev.checks)) {
+    if (a === "No") flagged.push(item);
+    else if (a) checks[item] = a;
+  }
+  return { options: prev.options, checks, notes: prev.notes, extras: prev.extras, comments: "", flagged };
+}
+
+/**
+ * Which inspections to tick (and which header options) from the installer's
+ * SWMS for the job — its job type plus its scope-of-work ticks.
+ */
+export function sectionsFromSwms(jobType: string | null | undefined, scopeRaw: unknown) {
+  const include = { include_foil: false, include_wall: false, include_ceiling: false };
+  const options: Record<SectionKey, Record<string, boolean>> = { foil: {}, wall: {}, ceiling: {} };
+
+  if (jobType === "Wall wrap (retrofit)") include.include_foil = true;
+  if (jobType === "Ceiling") include.include_ceiling = true;
+  if (jobType === "Walls and ceiling") {
+    include.include_wall = true;
+    include.include_ceiling = true;
+  }
+  if (jobType === "Underfloor") {
+    include.include_ceiling = true;
+    options.ceiling["Sub Floor"] = true;
+  }
+
+  const scope = (scopeRaw && typeof scopeRaw === "object" ? (scopeRaw as { items?: Record<string, boolean> }).items : null) || {};
+  const ticked = (k: string) => !!scope[k];
+  if (ticked("Dampcourse")) {
+    include.include_foil = true;
+    options.foil["Dampcourse"] = true;
+  }
+  if (ticked("Wrap - GF")) {
+    include.include_foil = true;
+    options.foil["Ground Floor"] = true;
+  }
+  if (ticked("Wrap - FF")) {
+    include.include_foil = true;
+    options.foil["First Floor"] = true;
+  }
+  if (ticked("Wall Insulation")) include.include_wall = true;
+  if (ticked("Polyester Infill")) {
+    include.include_wall = true;
+    options.wall["Poly Infills"] = true;
+  }
+  if (ticked("5 Star Inspection")) {
+    include.include_wall = true;
+    options.wall["5 Star Inspection"] = true;
+  }
+  if (ticked("Fireseal")) {
+    include.include_wall = true;
+    options.wall["Fireseal"] = true;
+  }
+  if (ticked("Ceiling Load") || ticked("Ceiling Spread")) include.include_ceiling = true;
+  if (ticked("Sub/Mid Floor")) include.include_ceiling = true;
+
+  return { include, options };
 }
 
 export type InspectionRecord = {
@@ -182,6 +254,7 @@ export type InspectionRecord = {
   customer_id: string | null;
   project_id: string | null;
   work_order_id: string | null;
+  parent_inspection_id: string | null;
   archived: boolean;
   created_at: string;
   updated_at: string;
@@ -206,3 +279,24 @@ export function sectionsSummary(r: { include_foil: boolean; include_wall: boolea
   const parts = [r.include_foil && "Foil", r.include_wall && "Wall", r.include_ceiling && "Ceiling"].filter(Boolean);
   return parts.length ? parts.join(" · ") : "—";
 }
+
+/** What a brand-new inspection starts with — from its work order + SWMS, or from the FAILed inspection it re-inspects. */
+export type InspectionPrefill = {
+  work_order_id?: string;
+  project_id?: string;
+  site_address?: string;
+  suburb?: string;
+  builder_name?: string;
+  contractor?: string;
+  installer_name?: string;
+  sales_order?: string;
+  audit_region?: string;
+  include_foil?: boolean;
+  include_wall?: boolean;
+  include_ceiling?: boolean;
+  sections?: Partial<Record<SectionKey, SectionData>>;
+  parent_inspection_id?: string;
+  parent_number?: number;
+  /** Plain-English note of where the prefill came from, shown at the top of the form. */
+  source?: string;
+};

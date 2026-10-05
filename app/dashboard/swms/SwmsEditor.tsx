@@ -87,6 +87,26 @@ export default function SwmsEditor({
 
   const creating = useRef<Promise<string | null> | null>(null);
   const firstRender = useRef(true);
+  const notified = useRef(false);
+
+  // Once a Completed SWMS is saved, tell the office an inspection is due.
+  // The server only ever emails once per SWMS, so a repeat call is harmless.
+  function notifyIfCompleted(swmsId: string, status: string) {
+    if (status !== "Completed" || notified.current) return;
+    notified.current = true;
+    fetch("/api/swms-completed", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ swms_id: swmsId }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && d.ok === false) notified.current = false;
+      })
+      .catch(() => {
+        notified.current = false;
+      });
+  }
 
   function switchJobType(jt: JobType) {
     setForm((f) => ({ ...f, job_type: jt }));
@@ -143,6 +163,7 @@ export default function SwmsEditor({
       setSavedAt(new Date());
       setError(null);
       window.history.replaceState(null, "", `/dashboard/swms/${data.id}`);
+      notifyIfCompleted(data.id, form.status);
       logAudit(supabase, { eventType: "create", entityType: "SWMS/JSA", entityId: data.id, entityLabel: swmsLabel(data) });
       return data.id as string;
     })();
@@ -165,6 +186,7 @@ export default function SwmsEditor({
       setSaveState("saved");
       setSavedAt(new Date());
       setError(null);
+      notifyIfCompleted(id, form.status);
       if (opts?.audit && number) {
         logAudit(supabase, { eventType: "update", entityType: "SWMS/JSA", entityId: id, entityLabel: `SWMS${number}` });
       }

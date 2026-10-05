@@ -3,6 +3,20 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { STATUS_STYLES, sectionsSummary, type InspectionResult, type InspectionStatus } from "@/lib/inspections";
+import type { JobStage } from "@/lib/jobProgress";
+
+export type DueJob = {
+  work_order_id: string;
+  wo_number: string;
+  address: string | null;
+  suburb: string | null;
+  builder: string | null;
+  installer: string | null;
+  stage: JobStage;
+  /** When the installer's SWMS was completed (first inspections only). */
+  since: string | null;
+  failed_inspection: { id: string; inspection_number: number } | null;
+};
 
 type Row = {
   id: string;
@@ -32,7 +46,7 @@ function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function InspectionsList({ initial }: { initial: Row[] }) {
+export default function InspectionsList({ initial, due }: { initial: Row[]; due: DueJob[] }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [showArchived, setShowArchived] = useState(false);
@@ -74,6 +88,49 @@ export default function InspectionsList({ initial }: { initial: Row[] }) {
           New inspection
         </Link>
       </div>
+
+      {due.length > 0 && (
+        <div className="mt-5 rounded-xl border border-[#f3d48a] bg-[#fff8e6] p-4">
+          <h2 className="text-sm font-bold text-[#5c440b]">
+            Inspections due <span className="ml-1 rounded-full bg-[#7a5a0f] px-2 py-0.5 text-xs text-white">{due.length}</span>
+          </h2>
+          <div className="mt-2 flex flex-col divide-y divide-[#f3d48a]">
+            {due.map((d) => (
+              <div key={d.work_order_id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="font-medium">
+                    {d.address || "—"}
+                    {d.suburb && <span className="font-normal text-[#7a6a45]">, {d.suburb}</span>}
+                  </div>
+                  <div className="text-xs text-[#7a6a45]">
+                    <Link href={`/dashboard/work-orders/${d.work_order_id}`} className="font-mono hover:underline">
+                      WO {d.wo_number}
+                    </Link>
+                    {[d.builder, d.installer].filter(Boolean).map((x) => ` · ${x}`)}
+                    {d.stage === "reinspection-due" && d.failed_inspection
+                      ? ` · INS${d.failed_inspection.inspection_number} FAILED`
+                      : d.since
+                      ? ` · SWMS in ${new Date(d.since).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`
+                      : ""}
+                  </div>
+                </div>
+                <Link
+                  href={
+                    d.failed_inspection
+                      ? `/dashboard/inspections/new?reinspect=${d.failed_inspection.id}`
+                      : `/dashboard/inspections/new?work_order_id=${d.work_order_id}`
+                  }
+                  className={`shrink-0 rounded-lg px-4 py-2 text-sm font-semibold ${
+                    d.failed_inspection ? "bg-[#9b1c1c] text-white" : "bg-[#201f1c] text-white"
+                  }`}
+                >
+                  {d.failed_inspection ? "Re-inspect" : "Start inspection"}
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => {

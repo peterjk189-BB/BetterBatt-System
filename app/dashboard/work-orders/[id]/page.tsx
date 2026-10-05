@@ -12,6 +12,8 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     { data: subs },
     { data: labourItems },
     { data: parts },
+    { data: swms },
+    { data: inspections },
     role,
   ] = await Promise.all([
     supabase.from("work_orders").select("*").eq("id", params.id).single(),
@@ -24,6 +26,11 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
+    supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
+    supabase
+      .from("inspections")
+      .select("id, inspection_number, status, result, parent_inspection_id, archived")
+      .eq("work_order_id", params.id),
     getEffectiveRole(),
   ]);
 
@@ -39,6 +46,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       labourItems={labourItems ?? []}
       parts={parts ?? []}
       isAdmin={role === "admin"}
+      progress={{ swms: (swms ?? []) as any, inspections: (inspections ?? []) as any }}
     />
   );
 }

@@ -149,6 +149,7 @@ export default function InspectionPrintView({
           INS{record.inspection_number}
           {record.work_orders?.wo_number ? ` · WO ${record.work_orders.wo_number}` : ""}
           {record.projects?.quote_number ? ` · Quote Q${record.projects.quote_number}` : ""}
+          {record.parent_inspection_id ? " · Re-inspection" : ""}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">

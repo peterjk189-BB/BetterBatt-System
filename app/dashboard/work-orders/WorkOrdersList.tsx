@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { STAGE_LABEL, STAGE_STYLE, jobProgress, type ProgressInspection, type ProgressSwms } from "@/lib/jobProgress";
 
 type WorkOrder = {
   id: string;
@@ -27,10 +28,14 @@ export default function WorkOrdersList({
   initial,
   lines,
   labourItems,
+  swms,
+  inspections,
 }: {
   initial: WorkOrder[];
   lines: Line[];
   labourItems: LabourItem[];
+  swms: (ProgressSwms & { work_order_id: string })[];
+  inspections: (ProgressInspection & { work_order_id: string })[];
 }) {
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -103,11 +108,16 @@ export default function WorkOrdersList({
               <th className="px-4 py-2 text-right">Tasks</th>
               <th className="px-4 py-2 text-right">Contractor cost</th>
               <th className="px-4 py-2">JSA</th>
+              <th className="px-4 py-2">Job status</th>
             </tr>
           </thead>
           <tbody>
             {visible.map((w) => {
               const s = stats[w.id] || { count: 0, cost: 0 };
+              const stage = jobProgress(
+                swms.filter((x) => x.work_order_id === w.id),
+                inspections.filter((x) => x.work_order_id === w.id)
+              ).stage;
               return (
                 <tr key={w.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-2 font-mono font-medium">
@@ -131,12 +141,17 @@ export default function WorkOrdersList({
                       <span className="text-[var(--muted)]">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-2">
+                    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STAGE_STYLE[stage]}`}>
+                      {STAGE_LABEL[stage]}
+                    </span>
+                  </td>
                 </tr>
               );
             })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} work orders found — open an accepted quote and start
                   one, or add manually.
                 </td>
