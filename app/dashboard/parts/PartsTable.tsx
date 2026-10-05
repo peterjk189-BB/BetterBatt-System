@@ -841,6 +841,8 @@ export default function PartsTable({
             ? "border-green-400 bg-green-100 text-green-900"
             : name.includes("csr")
             ? "border-red-400 bg-red-100 text-red-900"
+            : name.includes("batt")
+            ? "border-yellow-400 bg-yellow-100 text-yellow-900"
             : "border-[var(--border)]";
           return (
             <div key={supplier} className={`rounded-xl border p-3 ${tone}`}>
