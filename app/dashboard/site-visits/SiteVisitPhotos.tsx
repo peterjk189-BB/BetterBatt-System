@@ -349,13 +349,13 @@ function PhotoCard({
           <span className="text-xs text-[var(--muted)]">Loading…</span>
         )}
       </button>
-      <input
+      <textarea
         value={caption}
-        list="photo-captions"
+        rows={2}
         onChange={(e) => setCaption(e.target.value)}
         onBlur={() => onCaption(caption.trim())}
-        placeholder="Caption, e.g. Living"
-        className="w-full border-t border-[var(--border)] px-2.5 py-2 text-sm outline-none focus:bg-[#fffaf0]"
+        placeholder="What is this photo of? e.g. Tight access to dining, not installing bedroom"
+        className="w-full resize-y border-t border-[var(--border)] px-2.5 py-2 text-sm outline-none focus:bg-[#fffaf0]"
         aria-label="Photo caption"
       />
     </div>
