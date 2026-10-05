@@ -30,6 +30,14 @@ export const ALL_TABS = [
     group: "Operations",
   },
   {
+    key: "inspections",
+    href: "/dashboard/inspections",
+    label: "Inspections",
+    desc: "Foil, wall and ceiling inspection reports with photos",
+    adminOnly: false,
+    group: "Operations",
+  },
+  {
     key: "work-orders",
     href: "/dashboard/work-orders",
     label: "Work Orders",

@@ -409,12 +409,18 @@ export default function WorkOrderEditor({
         </label>
 
         {!isNew && workOrder && (
-          <div className="sm:col-span-2">
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
             <Link
               href={`/dashboard/swms/new?work_order_id=${workOrder.id}`}
               className="inline-block rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
             >
               + Start a digital SWMS / JSA for this work order
+            </Link>
+            <Link
+              href={`/dashboard/inspections/new?work_order_id=${workOrder.id}`}
+              className="inline-block rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
+            >
+              + New inspection report
             </Link>
           </div>
         )}
