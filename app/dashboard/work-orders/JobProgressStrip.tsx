@@ -74,6 +74,12 @@ export default function JobProgressStrip({
         </>
       )}
 
+      {p.stage === "passed" && p.latest && (
+        <Link href={`/dashboard/inspections/${p.latest.id}/certificate`} className={`${chip} border-[#201f1c] bg-[var(--brand-gold)] text-[#201f1c]`}>
+          Insulation certificate
+        </Link>
+      )}
+
       <span className={`ml-auto ${chip} ${STAGE_STYLE[p.stage]}`}>{STAGE_LABEL[p.stage]}</span>
     </div>
   );

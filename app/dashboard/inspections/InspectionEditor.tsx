@@ -285,6 +285,14 @@ export default function InspectionEditor({
                 Re-inspect
               </Link>
             )}
+            {form.result === "PASS" && (
+              <Link
+                href={`/dashboard/inspections/${id}/certificate`}
+                className="rounded-lg bg-[var(--brand-gold)] px-4 py-2 text-sm font-semibold text-[#201f1c]"
+              >
+                Insulation certificate
+              </Link>
+            )}
             <Link
               href={`/dashboard/inspections/${id}/print`}
               target="_blank"

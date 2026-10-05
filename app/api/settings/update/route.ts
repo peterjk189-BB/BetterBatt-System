@@ -22,6 +22,9 @@ export async function POST(req: Request) {
   const body = await req.json();
   const update: Record<string, string | null> = {};
   if (typeof body.terms_and_conditions === "string") update.terms_and_conditions = body.terms_and_conditions;
+  for (const key of ["abn", "company_phone"]) {
+    if (typeof body[key] === "string") update[key] = body[key].trim() || null;
+  }
   if (typeof body.inspection_notify_emails === "string") {
     update.inspection_notify_emails = body.inspection_notify_emails.trim() || null;
   }
