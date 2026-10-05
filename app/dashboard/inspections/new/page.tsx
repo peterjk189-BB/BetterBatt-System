@@ -12,10 +12,18 @@ import WorkOrderPicker from "./WorkOrderPicker";
 export default async function NewInspectionPage({
   searchParams,
 }: {
-  searchParams: { work_order_id?: string; reinspect?: string };
+  searchParams: { work_order_id?: string; reinspect?: string; manual?: string };
 }) {
   const supabase = await createClient();
   const role = await getEffectiveRole();
+
+  if (searchParams.manual) {
+    const prefill: InspectionPrefill = {
+      manual: true,
+      source: "Manual inspection — not linked to a work order. Fill in the job details, tick the inspections it covers, and it saves as soon as there's an address or builder.",
+    };
+    return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
+  }
 
   if (searchParams.reinspect) {
     const { data: parent } = await supabase.from("inspections").select("*").eq("id", searchParams.reinspect).single();
@@ -40,6 +48,7 @@ export default async function NewInspectionPage({
         include_ceiling: parent.include_ceiling,
         sections,
         parent_inspection_id: parent.id,
+        manual: !parent.work_order_id,
         parent_number: parent.inspection_number,
         source: `Re-inspection of INS${parent.inspection_number}. Lines that failed are flagged — re-check those.`,
       };

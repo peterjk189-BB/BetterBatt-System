@@ -131,7 +131,7 @@ export default function InspectionEditor({
   const ensureId = useCallback(async (): Promise<string | null> => {
     if (id) return id;
     if (creating.current) return creating.current;
-    if (!form.work_order_id) {
+    if (!form.work_order_id && !prefill?.manual) {
       setError("An inspection must be linked to a work order. Go back and pick the work order first.");
       return null;
     }
@@ -165,7 +165,7 @@ export default function InspectionEditor({
       return data.id as string;
     })();
     return creating.current;
-  }, [id, form.work_order_id, form.site_address, form.builder_name, payload, supabase]);
+  }, [id, form.work_order_id, form.site_address, form.builder_name, payload, supabase, prefill?.manual]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {

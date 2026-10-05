@@ -62,6 +62,12 @@ export default function WorkOrderPicker({
       <p className="mt-1 text-sm text-[var(--muted)]">
         Pick the work order this inspection is for. The address, builder, installer and inspections are filled in from it and the installer&apos;s SWMS.
       </p>
+      <p className="mt-2 text-sm">
+        Not linked to a job (testing or a one-off)?{" "}
+        <Link href="/dashboard/inspections/new?manual=1" className="font-medium text-accent hover:underline">
+          Start a manual inspection instead
+        </Link>
+      </p>
 
       <input
         value={search}

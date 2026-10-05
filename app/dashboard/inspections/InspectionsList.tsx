@@ -83,12 +83,20 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
           <h1 className="text-2xl font-bold">Inspections</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">Foil, wall and ceiling inspection reports, with photos of anything rectified.</p>
         </div>
-        <Link
-          href="/dashboard/inspections/new"
-          className="rounded-lg bg-[var(--brand-gold)] px-4 py-2.5 text-sm font-semibold text-[#201f1c] hover:brightness-95"
-        >
-          New inspection
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/inspections/new?manual=1"
+            className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold hover:border-[var(--brand-gold-dark)]"
+          >
+            Manual inspection
+          </Link>
+          <Link
+            href="/dashboard/inspections/new"
+            className="rounded-lg bg-[var(--brand-gold)] px-4 py-2.5 text-sm font-semibold text-[#201f1c] hover:brightness-95"
+          >
+            New inspection
+          </Link>
+        </div>
       </div>
 
       {due.length > 0 && (

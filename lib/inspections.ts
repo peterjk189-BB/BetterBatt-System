@@ -300,4 +300,6 @@ export type InspectionPrefill = {
   parent_number?: number;
   /** Plain-English note of where the prefill came from, shown at the top of the form. */
   source?: string;
+  /** A manual inspection not linked to a work order (testing, one-off jobs). */
+  manual?: boolean;
 };
