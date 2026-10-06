@@ -22,6 +22,10 @@ type Subcontractor = {
   active: boolean;
   archived: boolean;
   gst_registered: boolean;
+  insurance_insurer?: string | null;
+  insurance_policy?: string | null;
+  insurance_cover?: number | null;
+  insurance_expiry?: string | null;
 };
 
 type ProfilePhoto = { subcontractor_id: string; storage_path: string; created_at: string };
