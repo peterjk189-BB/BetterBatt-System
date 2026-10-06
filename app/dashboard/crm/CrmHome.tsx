@@ -23,6 +23,7 @@ import {
   type Task,
 } from "@/lib/crm";
 import { moveStage } from "@/lib/crmActions";
+import CrmCalendar from "./CrmCalendar";
 
 type Customer = {
   id: string;
@@ -34,7 +35,7 @@ type Customer = {
   crm_owner_id: string | null;
 };
 
-type Tab = "pipeline" | "tasks" | "accounts";
+type Tab = "pipeline" | "tasks" | "calendar" | "accounts";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm focus:border-[var(--brand-gold-dark)] focus:outline-none";
@@ -91,6 +92,7 @@ export default function CrmHome({
           [
             ["pipeline", "Pipeline", leads.filter((l) => !["Won", "Lost"].includes(effectiveStage(l))).length],
             ["tasks", "Tasks", myOpenDue],
+            ["calendar", "Calendar", 0],
             ["accounts", "Repeat work", accountsDue],
           ] as [Tab, string, number][]
         ).map(([k, label, n]) => (
@@ -129,6 +131,9 @@ export default function CrmHome({
       )}
       {tab === "tasks" && (
         <Tasks tasks={tasks} setTasks={setTasks} staff={staff} userId={userId} supabase={supabase} setError={setError} leads={leads} customers={customers} />
+      )}
+      {tab === "calendar" && (
+        <CrmCalendar tasks={tasks} setTasks={setTasks} leads={leads} staff={staff} userId={userId} supabase={supabase} setError={setError} />
       )}
       {tab === "accounts" && <Accounts customers={customers} staff={staff} today={today} />}
     </div>

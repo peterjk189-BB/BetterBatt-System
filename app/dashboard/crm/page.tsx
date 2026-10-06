@@ -27,7 +27,7 @@ export default async function CrmPage({ searchParams }: { searchParams: { tab?: 
       .order("name"),
   ]);
 
-  const tab = searchParams.tab === "tasks" || searchParams.tab === "accounts" ? searchParams.tab : "pipeline";
+  const tab = searchParams.tab === "tasks" || searchParams.tab === "accounts" || searchParams.tab === "calendar" ? searchParams.tab : "pipeline";
 
   return (
     <CrmHome
