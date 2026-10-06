@@ -1,5 +1,6 @@
 "use client";
 
+import { insuranceStatus, TONE_STYLES } from "@/lib/subInsurance";
 import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
@@ -206,6 +207,7 @@ export default function SubcontractorsTable({
               <th className="px-3 py-2">Mobile</th>
               <th className="px-3 py-2">Email</th>
               <th className="px-3 py-2">ABN</th>
+              <th className="px-3 py-2">Insurance</th>
               <th className="px-3 py-2">Active</th>
               <th className="px-3 py-2">GST</th>
               <th className="px-3 py-2"></th>
@@ -240,6 +242,16 @@ export default function SubcontractorsTable({
                 <td className="px-3 py-2">{s.email || "—"}</td>
                 <td className="px-3 py-2 text-[var(--muted)]">{s.abn || "—"}</td>
                 <td className="px-3 py-2">
+                  {(() => {
+                    const st = insuranceStatus(s.insurance_expiry);
+                    return (
+                      <button onClick={() => toggleExpand(s.id)} className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE_STYLES[st.tone]}`}>
+                        {st.tone === "ok" && s.insurance_expiry ? `Insured · ${new Date(s.insurance_expiry + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}` : st.label}
+                      </button>
+                    );
+                  })()}
+                </td>
+                <td className="px-3 py-2">
                   {s.active ? (
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">Active</span>
                   ) : (
@@ -263,7 +275,7 @@ export default function SubcontractorsTable({
               </tr>
               {expandedId === s.id && (
                 <tr className="border-t border-[var(--border)] bg-[#faf9f7]">
-                  <td colSpan={8} className="px-4 py-5">
+                  <td colSpan={9} className="px-4 py-5">
                     <SubcontractorPanel
                       subcontractor={s}
                       attachments={attachmentsBySub[s.id] ?? []}
@@ -280,7 +292,7 @@ export default function SubcontractorsTable({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
                   No subcontractors found.
                 </td>
               </tr>

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import SubInsurance from "./SubInsurance";
+import SubWorkers from "./SubWorkers";
 
 export type Subcontractor = {
   id: string;
@@ -20,6 +22,10 @@ export type Subcontractor = {
   active: boolean;
   archived: boolean;
   gst_registered: boolean;
+  insurance_insurer?: string | null;
+  insurance_policy?: string | null;
+  insurance_cover?: number | null;
+  insurance_expiry?: string | null;
 };
 
 export type Attachment = {
@@ -432,8 +438,17 @@ export default function SubcontractorPanel({
         </div>
       </div>
 
+      <SubInsurance
+        subcontractor={subcontractor}
+        files={files}
+        onFiles={updateFiles}
+        onSubcontractorChange={onSubcontractorChange}
+      />
+
+      <SubWorkers subcontractorId={subcontractor.id} />
+
       <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Documents</h3>
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Contractor&rsquo;s own documents</h3>
         <p className="mt-1 text-xs text-[var(--muted)]">
           Upload White Card, photo ID and driver&rsquo;s licence — stored privately, only viewable from here.
         </p>
