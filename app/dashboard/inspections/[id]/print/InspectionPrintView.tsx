@@ -2,17 +2,28 @@
 
 import Link from "next/link";
 import {
+  ANSWERS,
+  INSPECTION_STATUSES,
+  RESULTS,
   SECTIONS,
+  STATUS_STYLES,
   normaliseSection,
   type InspectionPhoto,
   type InspectionRecord,
   type SectionDef,
 } from "@/lib/inspections";
 
-// Printed layout follows the Bradford Inspection Report it replaces: a
-// cover page with the job details, result and sign-off, then one page per
-// ticked inspection (Foil / Wall batt / Ceiling), then the captioned
-// photos two to a row. Sections that weren't ticked are left out entirely.
+// The printed report mirrors the on-screen inspection form: the same
+// cards in the same order (job details, what's inspected, one card per
+// ticked checklist, result, photos, sign-off), with ticked options filled
+// in and the rest shown as plain outlines. Sections that weren't ticked
+// are left out.
+
+const ANSWER_ON: Record<string, string> = {
+  Yes: "border-[#1f6b35] bg-[#1f6b35] text-white",
+  No: "border-[#9b1c1c] bg-[#9b1c1c] text-white",
+  NA: "border-[#5f6062] bg-[#5f6062] text-white",
+};
 
 function fmtDate(d: string) {
   return new Date(d + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "long", year: "numeric" });
@@ -26,22 +37,37 @@ function fmtTime(t: string | null) {
   return d.toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit" });
 }
 
-const page = "mx-auto mb-6 max-w-[800px] bg-white p-10 text-[13px] leading-relaxed text-[#201f1c] shadow-sm print:mb-0 print:max-w-none print:p-0 print:shadow-none";
-
-function Header({ title }: { title: string }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-6 border-b-2 border-[#201f1c] pb-3">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo.png" alt="Better Batt Insulation" className="h-16 w-auto" />
-      <div className="text-right text-2xl font-light uppercase tracking-wide">{title}</div>
+    <section className="mt-4 rounded-xl border border-[#e4e1da] bg-white p-4">
+      <h2 className="text-[11px] font-bold uppercase tracking-wider text-[#5f6062]">{title}</h2>
+      <div className="mt-2.5">{children}</div>
+    </section>
+  );
+}
+
+function Field({ label, value, className = "" }: { label: string; value: string | null | undefined; className?: string }) {
+  return (
+    <div className={`flex min-w-0 flex-col gap-1 ${className}`}>
+      <span className="text-[#6b6862]">{label}</span>
+      <span className="min-h-[34px] whitespace-pre-wrap rounded-lg border border-[#e4e1da] px-3 py-1.5 font-medium">{value || " "}</span>
     </div>
   );
 }
 
-function Box({ on, children }: { on: boolean; children: React.ReactNode }) {
+// A ticked option is filled dark, an unticked one is a plain outline — the on-screen Toggle.
+function Chip({ on, children }: { on: boolean; children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center border border-[#201f1c] text-[10px] leading-none">
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium ${
+        on ? "border-[#201f1c] bg-[#201f1c] text-white" : "border-[#e4e1da] bg-white text-[#8a877f]"
+      }`}
+    >
+      <span
+        className={`flex h-3.5 w-3.5 items-center justify-center rounded-[3px] border text-[10px] leading-none ${
+          on ? "border-white/70 bg-white/20" : "border-[#b9b5ac]"
+        }`}
+      >
         {on ? "✓" : ""}
       </span>
       {children}
@@ -49,71 +75,69 @@ function Box({ on, children }: { on: boolean; children: React.ReactNode }) {
   );
 }
 
-function FieldRow({ label, value, wide }: { label: string; value: string | null | undefined; wide?: boolean }) {
-  return (
-    <div className={`flex items-center gap-3 ${wide ? "col-span-2" : ""}`}>
-      <span className="w-28 shrink-0 text-right text-[#3a3834]">{label}:</span>
-      <span className="min-h-[28px] flex-1 border border-[#201f1c] px-2 py-1">{value || "-"}</span>
-    </div>
-  );
-}
-
-function SectionPage({ def, raw }: { def: SectionDef; raw: unknown }) {
+function ChecklistCard({ def, raw }: { def: SectionDef; raw: unknown }) {
   const data = normaliseSection(raw);
   return (
-    <div className={page} style={{ breakBefore: "page" }}>
-      <Header title={def.title} />
-
-      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+    <Section title={def.title}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {def.options.map((opt) => (
           <span key={opt} className="inline-flex items-center gap-2">
-            <Box on={!!data.options[opt]}>{opt}</Box>
+            <Chip on={!!data.options[opt]}>{opt}</Chip>
             {def.optionNotes.includes(opt) && (
-              <span className="inline-block min-h-[24px] min-w-[9rem] border border-[#201f1c] px-2 py-0.5">{data.notes[opt] || ""}</span>
+              <span className="inline-block min-h-[26px] min-w-[8rem] rounded-lg border border-[#e4e1da] px-2 py-0.5">{data.notes[opt] || ""}</span>
             )}
           </span>
         ))}
       </div>
 
-      <table className="mt-5 w-full border-collapse">
-        <tbody>
-          {def.checks.map((item) => (
-            <tr key={item}>
-              <td className="py-[3px] pr-3">{item}</td>
-              <td className="w-24 py-[3px]">
-                <span
-                  className={`block border border-[#201f1c] px-2 py-0.5 ${
-                    data.checks[item] === "No" ? "font-semibold text-[#9b1c1c]" : ""
-                  }`}
-                >
-                  {data.checks[item] || "-"}
-                </span>
-              </td>
-              {def.checkNotes.length > 0 && (
-                <td className="w-24 py-[3px] pl-2">
-                  {def.checkNotes.includes(item) && <span className="block min-h-[24px] border border-[#201f1c] px-2 py-0.5">{data.notes[item] || ""}</span>}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="mt-3 divide-y divide-[#e4e1da]">
+        {def.checks.map((item) => {
+          const flagged = data.flagged.includes(item);
+          const answer = data.checks[item];
+          return (
+            <div
+              key={item}
+              className={`flex items-center justify-between gap-2 py-1.5 ${flagged ? "-mx-2 rounded-lg bg-[#fdf1f1] px-2" : ""}`}
+              style={{ breakInside: "avoid" }}
+            >
+              <span className="min-w-0 flex-1">
+                {item}
+                {flagged && <span className="ml-2 rounded-full bg-[#9b1c1c] px-2 py-0.5 text-[10px] font-semibold text-white">Failed last time</span>}
+              </span>
+              <div className="flex items-center gap-1.5">
+                {def.checkNotes.includes(item) && (
+                  <span className="inline-block min-h-[26px] w-24 rounded-lg border border-[#e4e1da] px-2 py-0.5">{data.notes[item] || ""}</span>
+                )}
+                {ANSWERS.map((a) => (
+                  <span
+                    key={a}
+                    className={`inline-flex min-w-[2.6rem] items-center justify-center rounded-lg border px-2 py-0.5 text-[12px] font-medium ${
+                      answer === a ? ANSWER_ON[a] : "border-[#e4e1da] bg-white text-[#8a877f]"
+                    }`}
+                  >
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {def.extras.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 gap-y-2">
-          {def.extras.map((x, i) => (
-            <span key={x} className={i === 0 ? "col-span-2" : ""}>
-              <Box on={!!data.extras[x]}>{x}</Box>
-            </span>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {def.extras.map((x) => (
+            <Chip key={x} on={!!data.extras[x]}>
+              {x}
+            </Chip>
           ))}
         </div>
       )}
 
-      <div className="mt-5 flex gap-3">
-        <span className="w-24 shrink-0">Comments:</span>
-        <div className="min-h-[90px] flex-1 whitespace-pre-wrap border border-[#201f1c] px-2 py-1">{data.comments}</div>
+      <div className="mt-3">
+        <Field label="Comments" value={data.comments} />
       </div>
-    </div>
+    </Section>
   );
 }
 
@@ -127,12 +151,14 @@ export default function InspectionPrintView({
   urls: Record<string, string>;
 }) {
   const included = SECTIONS.filter((s) => record[s.includeField]);
-  const photoPages: InspectionPhoto[][] = [];
-  for (let i = 0; i < photos.length; i += 6) photoPages.push(photos.slice(i, i + 6));
+  const status = INSPECTION_STATUSES.find((s) => s === record.status) || "Draft";
 
   return (
     <div>
-      <style>{`@page { size: A4; margin: 14mm; }`}</style>
+      <style>{`
+        @page { size: A4; margin: 14mm; }
+        @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+      `}</style>
       <div className="mb-6 flex items-center gap-3 print:hidden">
         <Link href={`/dashboard/inspections/${record.id}`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
           &larr; Back to inspection
@@ -142,108 +168,131 @@ export default function InspectionPrintView({
         </button>
       </div>
 
-      {/* Cover page */}
-      <div className={page}>
-        <Header title="Inspection Report" />
-        <div className="mt-1 text-right font-mono text-xs text-[#6b6862]">
-          INS{record.inspection_number}
-          {record.work_orders?.wo_number ? ` · WO ${record.work_orders.wo_number}` : ""}
-          {record.projects?.quote_number ? ` · Quote Q${record.projects.quote_number}` : ""}
-          {record.parent_inspection_id ? " · Re-inspection" : ""}
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">
-          <FieldRow label="Builder" value={record.builder_name} />
-          <FieldRow label="Date" value={fmtDate(record.inspection_date)} />
-          <FieldRow label="Site address" value={record.site_address} />
-          <FieldRow label="Time" value={fmtTime(record.inspection_time)} />
-          <FieldRow label="Suburb" value={record.suburb} />
-          <FieldRow label="Sales order" value={record.sales_order} />
-          <FieldRow label="Contractor" value={record.contractor} />
-          <FieldRow label="Audit region" value={record.audit_region} />
-        </div>
-
-        <div className="mt-6 flex gap-3">
-          <span className="w-28 shrink-0 text-right text-[#3a3834]">Inspections:</span>
-          <div className="flex flex-col gap-2">
-            {included.length === 0 ? (
-              <span className="text-[#8a877f]">None selected</span>
-            ) : (
-              included.map((s) => (
-                <Box key={s.key} on>
-                  {s.label}
-                </Box>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-2.5">
-          <div className="flex items-center gap-3">
-            <span className="w-28 shrink-0 text-right text-[#3a3834]">Result:</span>
-            <span
-              className={`min-h-[28px] w-36 border border-[#201f1c] px-2 py-1 font-bold ${
-                record.result === "FAIL" ? "text-[#9b1c1c]" : record.result === "PASS" ? "text-[#1f6b35]" : ""
-              }`}
-            >
-              {record.result || "-"}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="w-28 shrink-0 text-right text-[#3a3834]">Maintenance:</span>
-            <span className="min-h-[28px] w-24 border border-[#201f1c] px-2 py-1">{record.maintenance || "-"}</span>
-          </div>
-        </div>
-
-        <div className="mt-4 flex gap-3">
-          <span className="w-28 shrink-0 text-right text-[#3a3834]">Rectifications:</span>
-          <div className="min-h-[130px] flex-1 whitespace-pre-wrap border border-[#201f1c] px-2 py-1">{record.rectifications}</div>
-        </div>
-
-        <div className="mt-6 flex gap-3">
-          <span className="w-28 shrink-0 text-right text-[#3a3834]">Inspector:</span>
-          <div className="flex-1">
-            <div className="flex h-20 w-72 items-end border-b border-[#201f1c]">
-              {record.inspector_signature && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={record.inspector_signature} alt="Inspector signature" className="max-h-20 w-auto" />
-              )}
+      <div className="mx-auto max-w-[800px] bg-white p-8 text-[13px] leading-relaxed text-[#201f1c] shadow-sm print:max-w-none print:p-0 print:shadow-none">
+        <div className="flex items-start justify-between gap-6 border-b-2 border-[#201f1c] pb-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="Better Batt Insulation" className="h-14 w-auto" />
+          <div className="text-right">
+            <div className="text-lg font-bold">Inspection Report</div>
+            <div className="font-mono text-xs text-[#6b6862]">
+              INS{record.inspection_number}
+              {record.work_orders?.wo_number ? ` · WO ${record.work_orders.wo_number}` : ""}
+              {record.projects?.quote_number ? ` · Quote Q${record.projects.quote_number}` : ""}
+              {record.parent_inspection_id ? " · Re-inspection" : ""}
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-4">
-              <div>
-                <div className="min-h-[28px] border border-[#201f1c] px-2 py-1">{record.inspector_name || "-"}</div>
-                <div className="mt-0.5 text-[11px] text-[#6b6862]">Inspector</div>
-              </div>
-              <div>
-                <div className="min-h-[28px] border border-[#201f1c] px-2 py-1">{record.installer_name || "-"}</div>
-                <div className="mt-0.5 text-[11px] text-[#6b6862]">Installer / rectified by</div>
-              </div>
-            </div>
-            {record.signed_at && <div className="mt-2 text-[11px] text-[#6b6862]">Signed {new Date(record.signed_at).toLocaleString("en-AU")}</div>}
           </div>
         </div>
-      </div>
 
-      {included.map((def) => (
-        <SectionPage key={def.key} def={def} raw={record[def.key]} />
-      ))}
+        <div className="mt-4">
+          <span
+            className={`inline-block rounded-full border px-3.5 py-1 text-[12px] font-medium ring-2 ring-[#201f1c]/20 ${STATUS_STYLES[status]}`}
+          >
+            {status}
+          </span>
+        </div>
 
-      {photoPages.map((group, gi) => (
-        <div key={gi} className={page} style={{ breakBefore: "page" }}>
-          {gi === 0 && <Header title="Photos" />}
-          <div className="mt-4 grid grid-cols-2 gap-x-8 gap-y-5">
-            {group.map((p) => (
-              <div key={p.id} className="flex flex-col items-center" style={{ breakInside: "avoid" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={urls[p.storage_path]} alt={p.caption || "Site photo"} className="h-56 w-full object-contain" />
-                <div className="mt-1 min-h-[44px] w-full border border-[#201f1c] px-2 py-1">{p.caption || ""}</div>
-              </div>
+        <Section title="Job details">
+          <div className="grid grid-cols-4 gap-3">
+            <Field label={status === "Scheduled" ? "Booked for" : "Date"} value={fmtDate(record.inspection_date)} />
+            <Field label="Time" value={fmtTime(record.inspection_time)} />
+            <Field label="Builder" value={record.builder_name} className="col-span-2" />
+            <Field label="Site address" value={record.site_address} className="col-span-2" />
+            <Field label="Suburb" value={record.suburb} className="col-span-2" />
+            <Field label="Contractor" value={record.contractor} className="col-span-2" />
+            <Field label="Sales order" value={record.sales_order} />
+            <Field label="Audit region" value={record.audit_region} />
+          </div>
+        </Section>
+
+        <Section title="What's being inspected">
+          <div className="flex flex-wrap gap-2">
+            {SECTIONS.map((s) => (
+              <Chip key={s.key} on={!!record[s.includeField]}>
+                {s.label}
+              </Chip>
             ))}
           </div>
-        </div>
-      ))}
+        </Section>
 
-      <p className="mt-2 text-center text-[11px] text-[#8a877f] print:hidden">Better Batt Insulation — INS{record.inspection_number}</p>
+        {included.map((def) => (
+          <ChecklistCard key={def.key} def={def} raw={record[def.key]} />
+        ))}
+
+        <Section title="Result">
+          <div className="flex flex-wrap items-end gap-8">
+            <div>
+              <span className="text-[#6b6862]">Result</span>
+              <div className="mt-1 flex gap-2">
+                {RESULTS.map((r) => (
+                  <span
+                    key={r}
+                    className={`rounded-lg border px-5 py-2 text-[13px] font-bold ${
+                      record.result === r
+                        ? r === "PASS"
+                          ? "border-[#1f6b35] bg-[#1f6b35] text-white"
+                          : "border-[#9b1c1c] bg-[#9b1c1c] text-white"
+                        : "border-[#e4e1da] bg-white text-[#8a877f]"
+                    }`}
+                  >
+                    {r}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="text-[#6b6862]">Maintenance</span>
+              <div className="mt-1 flex gap-2">
+                {(["Yes", "No"] as const).map((m) => (
+                  <span
+                    key={m}
+                    className={`rounded-lg border px-5 py-2 text-[13px] font-semibold ${
+                      record.maintenance === m ? "border-[#201f1c] bg-[#201f1c] text-white" : "border-[#e4e1da] bg-white text-[#8a877f]"
+                    }`}
+                  >
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <Field label="Rectifications" value={record.rectifications} />
+          </div>
+        </Section>
+
+        {photos.length > 0 && (
+          <Section title="Photos">
+            <div className="grid grid-cols-3 gap-3">
+              {photos.map((p) => (
+                <figure key={p.id} className="overflow-hidden rounded-xl border border-[#e4e1da]" style={{ breakInside: "avoid" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={urls[p.storage_path]} alt={p.caption || "Site photo"} className="aspect-[3/4] w-full bg-[#f1f0ed] object-cover" />
+                  <figcaption className="min-h-[34px] border-t border-[#e4e1da] px-2.5 py-1.5 text-[12px]">{p.caption || " "}</figcaption>
+                </figure>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        <div style={{ breakInside: "avoid" }}>
+          <Section title="Sign-off">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Inspector name" value={record.inspector_name} />
+              <Field label="Installer / rectified by" value={record.installer_name} />
+            </div>
+            <div className="mt-3">
+              <span className="text-[#6b6862]">Inspector signature</span>
+              <div className="mt-1 flex h-24 items-center rounded-lg border border-[#e4e1da] px-3">
+                {record.inspector_signature && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={record.inspector_signature} alt="Inspector signature" className="max-h-20 w-auto" />
+                )}
+              </div>
+              {record.signed_at && <p className="mt-1 text-[11px] text-[#6b6862]">Signed {new Date(record.signed_at).toLocaleString("en-AU")}</p>}
+            </div>
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }
