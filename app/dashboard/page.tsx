@@ -76,6 +76,21 @@ export default async function DashboardHome() {
     0
   );
 
+  // My follow-ups: CRM tasks assigned to me (never other people's) that are due today or overdue.
+  let myTasks: { id: string; title: string; due_date: string; lead_id: string | null; customer_id: string | null }[] = [];
+  const todayMelb = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+  if (myTabs.includes("crm")) {
+    const { data } = await supabase
+      .from("crm_tasks")
+      .select("id, title, due_date, lead_id, customer_id")
+      .eq("assigned_to", user!.id)
+      .eq("done", false)
+      .lte("due_date", todayMelb)
+      .order("due_date")
+      .limit(8);
+    myTasks = (data ?? []) as typeof myTasks;
+  }
+
   const kpis: { label: string; value: string; href: string }[] = [];
   if (showQuotesKpi) {
     kpis.push({ label: "Open quotes", value: String(openQuotesRes.count ?? 0), href: "/dashboard/quotes" });
@@ -114,6 +129,31 @@ export default async function DashboardHome() {
               <p className="mt-1 text-2xl font-bold">{k.value}</p>
             </a>
           ))}
+        </div>
+      )}
+
+      {myTabs.includes("crm") && myTasks.length > 0 && (
+        <div className="mt-6 rounded-xl border border-[var(--border)] border-t-4 border-t-[#fdb930] bg-[var(--surface)] p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">My follow-ups due</p>
+            <a href="/dashboard/crm?tab=tasks" className="text-sm text-accent hover:underline">
+              Open tasks
+            </a>
+          </div>
+          <div className="mt-2 divide-y divide-[var(--border)]">
+            {myTasks.map((t) => (
+              <a
+                key={t.id}
+                href={t.lead_id ? `/dashboard/crm/leads/${t.lead_id}` : t.customer_id ? `/dashboard/crm/accounts/${t.customer_id}` : "/dashboard/crm?tab=tasks"}
+                className="flex items-center justify-between gap-3 py-2 text-sm hover:underline"
+              >
+                <span className="min-w-0 truncate font-medium">{t.title}</span>
+                <span className={`shrink-0 text-xs font-medium ${t.due_date < todayMelb ? "text-[#b91c1c]" : "text-[var(--muted)]"}`}>
+                  {t.due_date < todayMelb ? "Overdue" : "Today"}
+                </span>
+              </a>
+            ))}
+          </div>
         </div>
       )}
 

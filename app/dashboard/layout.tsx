@@ -8,6 +8,7 @@ import NavTabs from "./NavTabs";
 import Sidebar from "./Sidebar";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
+import QuickEnquiry from "./crm/QuickEnquiry";
 
 export default async function DashboardLayout({
   children,
@@ -85,6 +86,7 @@ export default async function DashboardLayout({
         <main className="min-w-0 flex-1 px-6 py-8">
           <AccessGuard allowedHrefs={allowedHrefs} />
           {children}
+          {myTabs.includes("crm") && !previewing && <QuickEnquiry userId={user.id} />}
         </main>
       </div>
     </div>

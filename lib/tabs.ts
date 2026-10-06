@@ -13,6 +13,14 @@
 export const ALL_TABS = [
   { key: "calendar", href: "/dashboard/calendar", label: "Calendar", desc: "Work orders and PO deliveries by week", adminOnly: false, group: "Operations" },
   {
+    key: "crm",
+    href: "/dashboard/crm",
+    label: "CRM",
+    desc: "Enquiries pipeline, follow-up tasks and repeat-work check-ins",
+    adminOnly: false,
+    group: "Sales",
+  },
+  {
     key: "site-visits",
     href: "/dashboard/site-visits",
     label: "Site Visits",
