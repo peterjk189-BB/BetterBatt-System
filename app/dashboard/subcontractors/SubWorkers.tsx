@@ -32,6 +32,8 @@ export default function SubWorkers({ subcontractorId }: { subcontractorId: strin
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [nw, setNw] = useState({ name: "", phone: "", whitecard_number: "" });
+  const [newDocs, setNewDocs] = useState<{ "Photo ID": File | null; "White Card": File | null }>({ "Photo ID": null, "White Card": null });
+  const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const inputs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -82,6 +84,7 @@ export default function SubWorkers({ subcontractorId }: { subcontractorId: strin
 
   async function addWorker() {
     if (!nw.name.trim()) return;
+    setSaving(true);
     const { data, error } = await supabase
       .from("subcontractor_workers")
       .insert({
@@ -92,11 +95,20 @@ export default function SubWorkers({ subcontractorId }: { subcontractorId: strin
       })
       .select()
       .single();
-    if (error) return setErr(error.message);
-    setWorkers((p) => [...p, data as Worker].sort((a, b) => a.name.localeCompare(b.name)));
+    if (error || !data) {
+      setSaving(false);
+      return setErr(error?.message || "Couldn't add the installer.");
+    }
+    const w = data as Worker;
+    setWorkers((p) => [...p, w].sort((a, b) => a.name.localeCompare(b.name)));
+    for (const cat of CATS) {
+      const f = newDocs[cat];
+      if (f) await upload(w, cat, f);
+    }
     setNw({ name: "", phone: "", whitecard_number: "" });
+    setNewDocs({ "Photo ID": null, "White Card": null });
+    setSaving(false);
     setAdding(false);
-    setErr(null);
   }
 
   async function patch(w: Worker, p: Partial<Worker>) {
@@ -154,12 +166,34 @@ export default function SubWorkers({ subcontractorId }: { subcontractorId: strin
       {err && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900">{err}</div>}
 
       {adding && (
-        <div className="mt-3 grid grid-cols-1 gap-2 rounded-lg bg-[#f6f5f2] p-3 sm:grid-cols-4">
-          <input className={inputCls} placeholder="Full name" value={nw.name} onChange={(e) => setNw({ ...nw, name: e.target.value })} />
-          <input className={inputCls} placeholder="Mobile" value={nw.phone} onChange={(e) => setNw({ ...nw, phone: e.target.value })} />
-          <input className={inputCls} placeholder="White Card number" value={nw.whitecard_number} onChange={(e) => setNw({ ...nw, whitecard_number: e.target.value })} />
-          <button onClick={addWorker} disabled={!nw.name.trim()} className="rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
-            Add
+        <div className="mt-3 rounded-lg bg-[#f6f5f2] p-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input className={inputCls} placeholder="Full name" value={nw.name} onChange={(e) => setNw({ ...nw, name: e.target.value })} />
+            <input className={inputCls} placeholder="Mobile" value={nw.phone} onChange={(e) => setNw({ ...nw, phone: e.target.value })} />
+            <input className={inputCls} placeholder="White Card number" value={nw.whitecard_number} onChange={(e) => setNw({ ...nw, whitecard_number: e.target.value })} />
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {CATS.map((cat) => (
+              <label key={cat} className="flex cursor-pointer flex-col gap-1 rounded-lg border border-dashed border-[var(--border)] bg-white p-3 text-sm hover:border-accent">
+                <span className="font-medium">{cat}</span>
+                <span className="text-xs text-[var(--muted)]">
+                  {newDocs[cat] ? newDocs[cat]!.name : "Tap to take a photo or choose a file (image or PDF)"}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    setNewDocs((d) => ({ ...d, [cat]: f }));
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            ))}
+          </div>
+          <button onClick={addWorker} disabled={!nw.name.trim() || saving} className="mt-3 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+            {saving ? "Saving…" : "Add installer"}
           </button>
         </div>
       )}
