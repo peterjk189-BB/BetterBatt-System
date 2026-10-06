@@ -261,9 +261,9 @@ export default function SubWorkers({ subcontractorId }: { subcontractorId: strin
                             <button
                               onClick={() => urls[d.id] && window.open(urls[d.id], "_blank")}
                               title={d.file_name || ""}
-                              className="flex h-20 w-28 items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#f2f0ec] text-xs text-[var(--muted)] hover:border-accent"
+                              className={`flex items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#f2f0ec] text-xs text-[var(--muted)] hover:border-accent ${isImage(d.file_name) && urls[d.id] ? "" : "h-28 w-32"}`}
                             >
-                              {isImage(d.file_name) && urls[d.id] ? <img src={urls[d.id]} alt={cat} className="h-full w-full object-cover" /> : "PDF"}
+                              {isImage(d.file_name) && urls[d.id] ? <img src={urls[d.id]} alt={cat} className="block h-32 w-auto max-w-[20rem] object-contain" /> : "PDF"}
                             </button>
                             <button
                               onClick={() => removeDoc(d)}
