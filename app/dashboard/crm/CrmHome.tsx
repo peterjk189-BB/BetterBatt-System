@@ -128,7 +128,7 @@ export default function CrmHome({
         />
       )}
       {tab === "tasks" && (
-        <Tasks tasks={tasks} setTasks={setTasks} staff={staff} userId={userId} supabase={supabase} setError={setError} leads={leads} />
+        <Tasks tasks={tasks} setTasks={setTasks} staff={staff} userId={userId} supabase={supabase} setError={setError} leads={leads} customers={customers} />
       )}
       {tab === "accounts" && <Accounts customers={customers} staff={staff} today={today} />}
     </div>
@@ -315,6 +315,7 @@ function Tasks({
   supabase,
   setError,
   leads,
+  customers,
 }: {
   tasks: Task[];
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -323,8 +324,10 @@ function Tasks({
   supabase: ReturnType<typeof createClient>;
   setError: (e: string | null) => void;
   leads: Lead[];
+  customers: Customer[];
 }) {
   const today = todayISO();
+  const [customerText, setCustomerText] = useState("");
   const [who, setWho] = useState<string>(userId); // a user id, or "all"
   const [showDone, setShowDone] = useState(false);
   const [title, setTitle] = useState("");
@@ -370,6 +373,9 @@ function Tasks({
     if (!title.trim()) return;
     setError(null);
     const lead = leads.find((l) => l.id === leadId);
+    const typed = customerText.trim().toLowerCase();
+    const picked = typed ? customers.find((c) => c.name.toLowerCase() === typed) : undefined;
+    if (typed && !picked) return setError("Pick a customer or builder from the list, or clear that box.");
     const { data, error } = await supabase
       .from("crm_tasks")
       .insert({
@@ -378,7 +384,7 @@ function Tasks({
         due_date: due,
         assigned_to: assignee,
         lead_id: leadId || null,
-        customer_id: lead?.customer_id || null,
+        customer_id: picked?.id || lead?.customer_id || null,
         created_by: userId,
       })
       .select("*, leads:crm_leads(name), customers(name)")
@@ -387,6 +393,7 @@ function Tasks({
     setTasks((prev) => [...prev, data as Task]);
     setTitle("");
     setLeadId("");
+    setCustomerText("");
   }
 
   const Row = ({ t }: { t: Task }) => {
@@ -405,19 +412,19 @@ function Tasks({
           <div className={t.done ? "text-[var(--muted)] line-through" : "font-medium"}>{t.title}</div>
           <div className="text-xs text-[var(--muted)]">
             {t.kind}
-            {t.lead_id && t.leads?.name ? (
+            {t.customer_id && t.customers?.name ? (
               <>
                 {" · "}
-                <Link href={`/dashboard/crm/leads/${t.lead_id}`} className="text-accent hover:underline">
-                  {t.leads.name}
+                <Link href={`/dashboard/crm/accounts/${t.customer_id}`} className="font-medium text-accent hover:underline">
+                  {t.customers.name}
                 </Link>
               </>
             ) : null}
-            {!t.lead_id && t.customer_id && t.customers?.name ? (
+            {t.lead_id && t.leads?.name ? (
               <>
-                {" · "}
-                <Link href={`/dashboard/crm/accounts/${t.customer_id}`} className="text-accent hover:underline">
-                  {t.customers.name}
+                {" · Enquiry: "}
+                <Link href={`/dashboard/crm/leads/${t.lead_id}`} className="text-accent hover:underline">
+                  {t.leads.name}
                 </Link>
               </>
             ) : null}
@@ -477,22 +484,23 @@ function Tasks({
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-2 rounded-xl border border-[var(--border)] bg-[#f6f5f2] p-3 md:grid-cols-12">
-        <input className={`${inputCls} md:col-span-4`} placeholder="New task, e.g. Call back about quote" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
-        <select className={`${inputCls} md:col-span-1`} value={kind} onChange={(e) => setKind(e.target.value)}>
-          {TASK_KINDS.map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </select>
-        <input type="date" className={`${inputCls} md:col-span-2`} value={due} onChange={(e) => setDue(e.target.value)} />
-        <select className={`${inputCls} md:col-span-2`} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-          {staff.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.id === userId ? "Me" : s.full_name || "Unnamed user"}
+        <input className={`${inputCls} md:col-span-6`} placeholder="New task, e.g. Ring about new builds" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add()} />
+        <input
+          className={`${inputCls} md:col-span-4`}
+          placeholder="Customer / builder (start typing)"
+          list="crm-task-customers"
+          value={customerText}
+          onChange={(e) => setCustomerText(e.target.value)}
+        />
+        <datalist id="crm-task-customers">
+          {customers.map((c) => (
+            <option key={c.id} value={c.name}>
+              {c.category}
             </option>
           ))}
-        </select>
+        </datalist>
         <select className={`${inputCls} md:col-span-2`} value={leadId} onChange={(e) => setLeadId(e.target.value)}>
-          <option value="">No lead</option>
+          <option value="">No enquiry</option>
           {leads
             .filter((l) => !["Won", "Lost"].includes(effectiveStage(l)))
             .map((l) => (
@@ -501,8 +509,21 @@ function Tasks({
               </option>
             ))}
         </select>
-        <button onClick={add} className="rounded-lg bg-[var(--brand-gold)] px-3 py-2 text-sm font-semibold text-[#201f1c] md:col-span-1">
-          Add
+        <select className={`${inputCls} md:col-span-2`} value={kind} onChange={(e) => setKind(e.target.value)}>
+          {TASK_KINDS.map((k) => (
+            <option key={k}>{k}</option>
+          ))}
+        </select>
+        <input type="date" className={`${inputCls} md:col-span-3`} value={due} onChange={(e) => setDue(e.target.value)} />
+        <select className={`${inputCls} md:col-span-5`} value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+          {staff.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.id === userId ? "Assign to: Me" : `Assign to: ${s.full_name || "Unnamed user"}`}
+            </option>
+          ))}
+        </select>
+        <button onClick={add} className="rounded-lg bg-[var(--brand-gold)] px-3 py-2 text-sm font-semibold text-[#201f1c] md:col-span-2">
+          Add task
         </button>
       </div>
 
