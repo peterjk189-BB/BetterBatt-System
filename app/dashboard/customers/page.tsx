@@ -9,5 +9,5 @@ export default async function CustomersPage() {
     getEffectiveRole(),
   ]);
 
-  return <CustomersTable initial={data ?? []} isAdmin={role === "admin"} />;
+  return <CustomersTable initial={data ?? []} isAdmin={role === "admin"} crmEnabled={role === "admin" || role === "office"} />;
 }

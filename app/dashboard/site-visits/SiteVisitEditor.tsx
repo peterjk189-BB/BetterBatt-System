@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import CrmPanel from "@/app/dashboard/crm/CrmPanel";
+import { ensureLead } from "@/lib/crmActions";
 import {
   ACCESS_LEVELS,
   CEILING_EXISTING,
@@ -47,12 +49,14 @@ export default function SiteVisitEditor({
   customers,
   staff,
   isAdmin,
+  crmEnabled = false,
 }: {
   visit: (SiteVisit & { projects?: { quote_number: number } | null }) | null;
   photos: VisitPhoto[];
   customers: Customer[];
   staff: Staff[];
   isAdmin: boolean;
+  crmEnabled?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -77,6 +81,7 @@ export default function SiteVisitEditor({
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"details" | "crm">("details");
 
   const creating = useRef<Promise<string | null> | null>(null);
   const firstRender = useRef(true);
@@ -132,6 +137,23 @@ export default function SiteVisitEditor({
       // Swap the URL to the saved record without remounting, so uploads in progress carry on.
       window.history.replaceState(null, "", `/dashboard/site-visits/${data.id}`);
       logAudit(supabase, { eventType: "create", entityType: "site visit", entityId: data.id, entityLabel: visitLabel(data) });
+      if (crmEnabled && user?.id) {
+        // Every new site visit gets a CRM file so follow-ups aren't missed.
+        ensureLead(
+          supabase,
+          {
+            siteVisitId: data.id,
+            customerId: form.customer_id || null,
+            name: form.customer_name,
+            phone: form.phone,
+            email: form.email,
+            address: form.address,
+            suburb: form.suburb,
+            from: `site visit SV${data.visit_number}`,
+          },
+          user.id
+        );
+      }
       return data.id as string;
     })();
     return creating.current;
@@ -295,6 +317,38 @@ export default function SiteVisitEditor({
         )}
       </div>
 
+      {crmEnabled && visitId && (
+        <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
+          {([["details", "Site visit"], ["crm", "CRM"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? "border-[var(--brand-gold-dark)] text-[#201f1c]" : "border-transparent text-[var(--muted)]"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {crmEnabled && visitId && tab === "crm" && (
+        <CrmPanel
+          mode="record"
+          seed={{
+            siteVisitId: visitId,
+            projectId: visit?.project_id ?? null,
+            customerId: form.customer_id || null,
+            name: form.customer_name,
+            phone: form.phone,
+            email: form.email,
+            address: form.address,
+            suburb: form.suburb,
+            from: `site visit SV${visitNumber}`,
+          }}
+        />
+      )}
+
+      <div className={tab === "crm" ? "hidden" : ""}>
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>
       )}
@@ -579,6 +633,7 @@ export default function SiteVisitEditor({
             {visitId ? "Save" : "Save visit"}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

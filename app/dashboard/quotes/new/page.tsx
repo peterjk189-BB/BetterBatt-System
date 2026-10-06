@@ -72,6 +72,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
       parts={parts ?? []}
       isAdmin={role === "admin"}
       prefill={prefill}
+      crmEnabled={role === "admin" || role === "office"}
     />
   );
 }

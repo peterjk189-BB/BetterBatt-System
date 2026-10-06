@@ -68,3 +68,70 @@ export async function logActivity(
   }
   return null;
 }
+
+/**
+ * Makes sure a site visit / quote has a CRM file (an enquiry). Finds the one
+ * already linked (a quote made from a site visit reuses the visit's file),
+ * otherwise creates it. Returns the lead id, or null if it couldn't be made.
+ */
+export async function ensureLead(
+  supabase: Db,
+  o: {
+    siteVisitId?: string | null;
+    projectId?: string | null;
+    customerId?: string | null;
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    suburb?: string | null;
+    from: string; // e.g. "site visit SV12" / "quote Q345"
+  },
+  userId: string
+): Promise<string | null> {
+  const conds: string[] = [];
+  if (o.projectId) conds.push(`project_id.eq.${o.projectId}`);
+  if (o.siteVisitId) conds.push(`site_visit_id.eq.${o.siteVisitId}`);
+  if (conds.length) {
+    const { data: found } = await supabase
+      .from("crm_leads")
+      .select("id, project_id, site_visit_id, customer_id")
+      .or(conds.join(","))
+      .eq("archived", false)
+      .order("created_at")
+      .limit(1);
+    const lead = found?.[0];
+    if (lead) {
+      const patch: Record<string, unknown> = {};
+      if (o.projectId && !lead.project_id) patch.project_id = o.projectId;
+      if (o.siteVisitId && !lead.site_visit_id) patch.site_visit_id = o.siteVisitId;
+      if (o.customerId && !lead.customer_id) patch.customer_id = o.customerId;
+      if (Object.keys(patch).length) await supabase.from("crm_leads").update(patch).eq("id", lead.id);
+      return lead.id as string;
+    }
+  }
+  const { data, error } = await supabase
+    .from("crm_leads")
+    .insert({
+      name: (o.name || o.address || "New customer").trim(),
+      phone: o.phone || null,
+      email: o.email || null,
+      address: o.address || null,
+      suburb: o.suburb || null,
+      source: "Other",
+      stage: o.projectId ? "Quote sent" : o.siteVisitId ? "Site visit booked" : "New enquiry",
+      customer_id: o.customerId || null,
+      project_id: o.projectId || null,
+      site_visit_id: o.siteVisitId || null,
+      owner_id: userId,
+      created_by: userId,
+    })
+    .select("id")
+    .single();
+  if (error || !data) return null;
+  await logActivity(supabase, { kind: "Note", note: `CRM file created from ${o.from}.`, lead_id: data.id, customer_id: o.customerId || null }, userId);
+  if (o.projectId) {
+    await createFollowUps(supabase, { id: data.id, name: (o.name || o.address || "New customer").trim(), owner_id: userId }, userId);
+  }
+  return data.id as string;
+}

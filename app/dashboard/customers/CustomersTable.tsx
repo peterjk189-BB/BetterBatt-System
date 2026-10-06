@@ -1,5 +1,6 @@
 "use client";
 
+import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
@@ -32,7 +33,7 @@ const emptyForm = {
   contact_email: "",
 };
 
-export default function CustomersTable({ initial, isAdmin }: { initial: Customer[]; isAdmin: boolean }) {
+export default function CustomersTable({ initial, isAdmin, crmEnabled = false }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean }) {
   const supabase = createClient();
   const [customers, setCustomers] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
@@ -41,14 +42,17 @@ export default function CustomersTable({ initial, isAdmin }: { initial: Customer
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [modalTab, setModalTab] = useState<"details" | "crm">("details");
 
   function openNew() {
+    setModalTab("details");
     setEditing(null);
     setForm(emptyForm);
     setModalOpen(true);
   }
 
   function openEdit(c: Customer) {
+    setModalTab("details");
     setEditing(c);
     setForm({
       name: c.name,
@@ -200,8 +204,36 @@ export default function CustomersTable({ initial, isAdmin }: { initial: Customer
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h2 className="text-lg font-bold">{editing ? "Edit customer" : "Add customer"}</h2>
+              {crmEnabled && editing && (
+                <div className="mt-3 flex gap-1">
+                  {([["details", "Details"], ["crm", "CRM"]] as const).map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setModalTab(k)}
+                      className={`rounded-full px-4 py-1 text-sm font-medium ${modalTab === k ? "bg-[#201f1c] text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
+            {crmEnabled && editing && modalTab === "crm" && (
+              <div className="flex-1 overflow-y-auto px-6 pb-4">
+                <CrmPanel
+                  mode="customer"
+                  seed={{
+                    customerId: editing.id,
+                    name: editing.name,
+                    phone: editing.contact_phone,
+                    email: editing.contact_email,
+                    from: `customer ${editing.name}`,
+                  }}
+                />
+              </div>
+            )}
+            <div className={`flex-1 space-y-4 overflow-y-auto px-6 py-4 ${crmEnabled && editing && modalTab === "crm" ? "hidden" : ""}`}>
               <label className="flex flex-col gap-1 text-sm">
                 Name
                 <input

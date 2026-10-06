@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import CrmPanel from "@/app/dashboard/crm/CrmPanel";
+import { ensureLead } from "@/lib/crmActions";
 
 type Customer = {
   id: string;
@@ -101,6 +103,7 @@ export default function QuoteEditor({
   parts,
   isAdmin,
   prefill = null,
+  crmEnabled = false,
 }: {
   project: Project | null;
   lines: Line[];
@@ -108,11 +111,13 @@ export default function QuoteEditor({
   parts: Part[];
   isAdmin: boolean;
   prefill?: QuotePrefill | null;
+  crmEnabled?: boolean;
 }) {
   const supabase = createClient();
   const router = useRouter();
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
   const isNew = !project;
+  const [tab, setTab] = useState<"details" | "crm">("details");
 
   // Local copy so a customer created on the fly (below) shows up in the dropdown right away.
   const [customerList, setCustomerList] = useState(customers);
@@ -320,6 +325,28 @@ export default function QuoteEditor({
       if (prefill?.siteVisit) {
         await supabase.from("site_visits").update({ project_id: data.id, status: "Quoted" }).eq("id", prefill.siteVisit.id);
       }
+      if (crmEnabled) {
+        // Every new quote gets a CRM file (or joins the site visit's file) with follow-up calls.
+        const { data: au } = await supabase.auth.getUser();
+        const cust = customerList.find((c) => c.id === form.customer_id);
+        if (au.user) {
+          await ensureLead(
+            supabase,
+            {
+              projectId: data.id,
+              siteVisitId: prefill?.siteVisit?.id ?? null,
+              customerId: form.customer_id || null,
+              name: cust?.name || null,
+              phone: (cust as any)?.contact_phone || null,
+              email: (cust as any)?.contact_email || null,
+              address: form.address,
+              suburb: form.suburb,
+              from: `quote Q${data.quote_number}`,
+            },
+            au.user.id
+          );
+        }
+      }
     } else {
       const { error: updateErr } = await supabase.from("projects").update(payload).eq("id", projectId);
       if (updateErr) {
@@ -441,6 +468,37 @@ export default function QuoteEditor({
         </div>
       </div>
 
+      {crmEnabled && !isNew && (
+        <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
+          {([["details", "Quote"], ["crm", "CRM"]] as const).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k)}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? "border-[var(--brand-gold-dark)] text-[#201f1c]" : "border-transparent text-[var(--muted)]"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {crmEnabled && !isNew && tab === "crm" && (
+        <CrmPanel
+          mode="record"
+          seed={{
+            projectId: project!.id,
+            customerId: form.customer_id || null,
+            name: selectedCustomer?.name || null,
+            phone: (selectedCustomer as any)?.contact_phone || null,
+            email: (selectedCustomer as any)?.contact_email || null,
+            address: form.address,
+            suburb: form.suburb,
+            from: `quote Q${project!.quote_number}`,
+          }}
+        />
+      )}
+
+      <div className={tab === "crm" ? "hidden" : ""}>
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
           {error}
@@ -801,6 +859,7 @@ export default function QuoteEditor({
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {newCustomerOpen && (

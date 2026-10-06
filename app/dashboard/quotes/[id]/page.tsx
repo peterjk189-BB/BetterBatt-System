@@ -22,6 +22,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
       customers={customers ?? []}
       parts={parts ?? []}
       isAdmin={role === "admin"}
+      crmEnabled={role === "admin" || role === "office"}
     />
   );
 }

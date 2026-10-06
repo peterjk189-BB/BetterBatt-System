@@ -11,6 +11,6 @@ export default async function NewSiteVisitPage() {
   ]);
 
   return (
-    <SiteVisitEditor visit={null} photos={[]} customers={customers ?? []} staff={staff ?? []} isAdmin={role === "admin"} />
+    <SiteVisitEditor visit={null} photos={[]} customers={customers ?? []} staff={staff ?? []} isAdmin={role === "admin"} crmEnabled={role === "admin" || role === "office"} />
   );
 }

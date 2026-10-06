@@ -27,6 +27,7 @@ export default async function SiteVisitPage({ params }: { params: { id: string }
       customers={customers ?? []}
       staff={staff ?? []}
       isAdmin={role === "admin"}
+      crmEnabled={role === "admin" || role === "office"}
     />
   );
 }
