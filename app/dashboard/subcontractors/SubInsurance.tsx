@@ -9,6 +9,12 @@ export const INSURANCE_CATEGORY = "Insurance Certificate";
 
 const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2";
 
+function friendly(m: string) {
+  return /check constraint|column|schema cache|does not exist/i.test(m)
+    ? `${m} — the database hasn't been updated yet. Run the 0026 SQL in Supabase (SQL Editor), then try again.`
+    : m;
+}
+
 function fmt(d: string | null | undefined) {
   return d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }) : "—";
 }
@@ -68,7 +74,7 @@ export default function SubInsurance({
     const { error } = await supabase.from("subcontractors").update(payload).eq("id", subcontractor.id);
     if (error) {
       setBusy("");
-      setMsg({ ok: false, text: error.message });
+      setMsg({ ok: false, text: friendly(error.message) });
       return;
     }
     onSubcontractorChange?.({ ...subcontractor, ...payload });
@@ -85,6 +91,17 @@ export default function SubInsurance({
     setMsg({ ok: true, text: `${label}${reminder}` });
   }
 
+  // Save whatever was typed when the person clicks out of a field, so it isn't lost.
+  function autosave() {
+    const saved = {
+      insurance_insurer: subcontractor.insurance_insurer || "",
+      insurance_policy: subcontractor.insurance_policy || "",
+      insurance_cover: subcontractor.insurance_cover != null ? String(subcontractor.insurance_cover) : "",
+      insurance_expiry: subcontractor.insurance_expiry || "",
+    };
+    if (busy === "" && JSON.stringify(saved) !== JSON.stringify(form)) persist(form, "Insurance details saved.");
+  }
+
   async function upload(file: File) {
     setMsg(null);
     setBusy("uploading");
@@ -92,7 +109,7 @@ export default function SubInsurance({
     const { error: upErr } = await supabase.storage.from("attachments").upload(path, file);
     if (upErr) {
       setBusy("");
-      return setMsg({ ok: false, text: upErr.message });
+      return setMsg({ ok: false, text: friendly(upErr.message) });
     }
     const { data, error } = await supabase
       .from("attachments")
@@ -101,7 +118,7 @@ export default function SubInsurance({
       .single();
     if (error || !data) {
       setBusy("");
-      return setMsg({ ok: false, text: error?.message || "Couldn't save the file." });
+      return setMsg({ ok: false, text: friendly(error?.message || "Couldn't save the file.") });
     }
     onFiles([data as Attachment, ...files]);
 
@@ -202,19 +219,19 @@ export default function SubInsurance({
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
         <label className="flex flex-col gap-1">
           Insurer
-          <input className={inputCls} value={form.insurance_insurer} onChange={(e) => setForm({ ...form, insurance_insurer: e.target.value })} />
+          <input className={inputCls} value={form.insurance_insurer} onChange={(e) => setForm({ ...form, insurance_insurer: e.target.value })} onBlur={() => autosave()} />
         </label>
         <label className="flex flex-col gap-1">
           Policy number
-          <input className={inputCls} value={form.insurance_policy} onChange={(e) => setForm({ ...form, insurance_policy: e.target.value })} />
+          <input className={inputCls} value={form.insurance_policy} onChange={(e) => setForm({ ...form, insurance_policy: e.target.value })} onBlur={() => autosave()} />
         </label>
         <label className="flex flex-col gap-1">
           Cover ($)
-          <input className={inputCls} inputMode="numeric" value={form.insurance_cover} onChange={(e) => setForm({ ...form, insurance_cover: e.target.value.replace(/[^\d.]/g, "") })} placeholder="e.g. 20000000" />
+          <input className={inputCls} inputMode="numeric" value={form.insurance_cover} onChange={(e) => setForm({ ...form, insurance_cover: e.target.value.replace(/[^\d.]/g, "") })} onBlur={() => autosave()} placeholder="e.g. 20000000" />
         </label>
         <label className="flex flex-col gap-1">
           Expiry date
-          <input type="date" className={inputCls} value={form.insurance_expiry} onChange={(e) => setForm({ ...form, insurance_expiry: e.target.value })} />
+          <input type="date" className={inputCls} value={form.insurance_expiry} onChange={(e) => setForm({ ...form, insurance_expiry: e.target.value })} onBlur={() => autosave()} />
         </label>
       </div>
       <button
