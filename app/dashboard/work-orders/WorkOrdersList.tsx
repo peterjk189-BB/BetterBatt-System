@@ -62,7 +62,10 @@ export default function WorkOrdersList({
         w.wo_number.toLowerCase().includes(q) ||
         (w.projects?.customers?.name || "").toLowerCase().includes(q) ||
         (w.subcontractors?.name || "").toLowerCase().includes(q) ||
-        (w.po_number || "").toLowerCase().includes(q)
+        (w.po_number || "").toLowerCase().includes(q) ||
+        (w.projects?.address || "").toLowerCase().includes(q) ||
+        (w.projects?.suburb || "").toLowerCase().includes(q) ||
+        `${w.projects?.address || ""} ${w.projects?.suburb || ""}`.toLowerCase().includes(q)
       );
     });
 
@@ -85,7 +88,7 @@ export default function WorkOrdersList({
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <input
-          placeholder="Search work order #, customer, contractor, P/O..."
+          placeholder="Search work order #, customer, address, contractor, P/O..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
