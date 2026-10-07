@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -203,6 +203,24 @@ export default function CalendarView({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+
+  // Which kinds of entry are hidden, remembered on this device so the calendar stays how you left it.
+  const [hiddenKinds, setHiddenKinds] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("calendar-hidden-kinds");
+      if (raw) setHiddenKinds(JSON.parse(raw));
+    } catch {}
+  }, []);
+  function toggleKind(k: string) {
+    setHiddenKinds((prev) => {
+      const next = prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k];
+      try {
+        localStorage.setItem("calendar-hidden-kinds", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
 
   async function moveInspection(id: string, number: number, from: string, to: string) {
     if (!to || to === from) return;
@@ -411,19 +429,34 @@ export default function CalendarView({
       {installerNote ? (
         <div className="mt-3 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-3 py-2 text-sm text-[#7a5a0f]">{installerNote}</div>
       ) : (
-        <div className="mt-3 flex items-center gap-4 text-xs text-[var(--muted)]">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> Work order task
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" /> PO delivery
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" /> Site visit
-          </span>
-          <span className="flex items-center gap-1.5 font-bold text-[#b91c1c]">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-[#b91c1c]" /> Inspection — drag to another day, or tap Move
-          </span>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-[var(--muted)]">Show:</span>
+          {(
+            [
+              ["wo", "Work orders", "bg-orange-500"],
+              ["po", "PO deliveries", "bg-blue-500"],
+              ["visit", "Site visits", "bg-green-500"],
+              ["inspection", "Inspections", "bg-[#b91c1c]"],
+              ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
+            ] as string[][]
+          ).map(([k, label, dot]) => {
+            const off = hiddenKinds.includes(k);
+            return (
+              <button
+                key={k}
+                type="button"
+                aria-pressed={!off}
+                onClick={() => toggleKind(k)}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium ${
+                  off ? "border-[var(--border)] bg-transparent text-[var(--muted)] line-through" : "border-[#201f1c] bg-[var(--surface)] text-[#201f1c]"
+                }`}
+              >
+                <span className={`inline-block h-2.5 w-2.5 rounded-full ${off ? "bg-[#d4d0c7]" : dot}`} />
+                {label}
+              </button>
+            );
+          })}
+          <span className="text-[var(--muted)]">Inspections: drag to another day, or tap Move.</span>
         </div>
       )}
       {bookingErrors.length > 0 && (
@@ -470,7 +503,7 @@ export default function CalendarView({
               >
                 {days.map((d, di) => {
                   const dateStr = toDateOnly(d);
-                  const events = eventsByDate.get(dateStr) || [];
+                  const events = (eventsByDate.get(dateStr) || []).filter((e) => !hiddenKinds.includes(e.kind));
                   const isToday = dateStr === todayStr;
                   return (
                     <div
