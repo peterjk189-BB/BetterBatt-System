@@ -486,19 +486,19 @@ export default function SubcontractorPanel({
                 {docs.length === 0 ? (
                   <p className="mt-1 text-xs text-[var(--muted)]">No file uploaded.</p>
                 ) : (
-                  <div className="mt-2 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+                  <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {docs.map((a) => (
                       <div key={a.id} className="group relative">
                         <button
                           onClick={() => viewFile(a)}
                           title={a.file_name || "File"}
-                          className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#f2f0ec] hover:border-accent"
+                          className="flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-lg border border-[var(--border)] bg-[#f2f0ec] hover:border-accent"
                         >
                           {isImageFile(a.file_name) && thumbUrls[a.id] ? (
                             <img
                               src={thumbUrls[a.id]}
                               alt={a.file_name || "Photo"}
-                              className="h-full w-full object-cover"
+                              className="h-full w-full object-contain"
                             />
                           ) : (
                             <span className="flex flex-col items-center gap-1 text-[var(--muted)]">
