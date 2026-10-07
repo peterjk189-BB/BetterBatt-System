@@ -13,6 +13,14 @@ export const STOREYS = ["Single storey", "Double storey"];
 export const TRUSS_SIZES = ["450", "600", "900", "Mixed"];
 export const CEILING_EXISTING = ["Ceiling empty", "Blow-in installed", "Batts installed"];
 export const ACCESS_LEVELS = ["Excellent", "Good", "Hard", "Limited", "Can't do"];
+// Building-site (builder) visits
+export const BUILD_STAGES = ["Frame stage", "Lock-up", "Pre-plaster", "Post-plaster"];
+export const BATTEN_OPTIONS = ["Yes — battened", "No — plasterboard direct to trusses", "Not sure"];
+export const SKYLIGHT_STATUS = ["Boxed out", "Not boxed out", "Part done", "To be confirmed with builder"];
+export const SCAFFOLD_OPTIONS = ["Scaffold needed", "Scaffold supplied by builder", "Platform / trestles OK", "Ladder only"];
+export const VOID_OPTIONS = ["Void protection required", "Void already protected by builder", "Not needed — no voids"];
+export const isBuilderVisit = (t: string | null | undefined) => t === "Building site";
+
 export const CEILING_SUITABILITY = ["Mixed"];
 export const UNDERFLOOR_SUITABILITY = ["Mixed", "Cutting", "String batts"];
 export const UNDERFLOOR_PRODUCTS = ["PolyFloor R2.5 450", "R2.0 450", "430 SoundBreak", "580 SoundBreak"];
@@ -42,6 +50,30 @@ export type Checklist = {
   underfloor_products: string[];
 
   power_isolation_explained: boolean;
+
+  // Building-site visits only
+  quote_walls: boolean;
+  stage: string;
+  main_contact: string;
+  lot_number: string;
+  supervisor_name: string;
+  supervisor_phone: string;
+  supervisor_time: string;
+  access_notes: string;
+  batten: string;
+  batten_spacing: string;
+  batten_depth: string;
+  ceiling_height: string;
+  skylights: string;
+  skylight_count: string;
+  skylight_boxed_by: string;
+  skylight_status: string;
+  high_ceilings: string;
+  high_access: string[];
+  high_void: string[];
+  highest_ceiling: string;
+  area_over_3m: string;
+  access_arranged_by: string;
 
   /** Room-by-room length × width, used to work out the m² on site. */
   rooms: Room[];
@@ -78,6 +110,29 @@ export const EMPTY_CHECKLIST: Checklist = {
   underfloor_products: [],
 
   power_isolation_explained: false,
+
+  quote_walls: false,
+  stage: "",
+  main_contact: "",
+  lot_number: "",
+  supervisor_name: "",
+  supervisor_phone: "",
+  supervisor_time: "",
+  access_notes: "",
+  batten: "",
+  batten_spacing: "",
+  batten_depth: "",
+  ceiling_height: "",
+  skylights: "",
+  skylight_count: "",
+  skylight_boxed_by: "",
+  skylight_status: "",
+  high_ceilings: "",
+  high_access: [],
+  high_void: [],
+  highest_ceiling: "",
+  area_over_3m: "",
+  access_arranged_by: "",
 
   rooms: [],
 };

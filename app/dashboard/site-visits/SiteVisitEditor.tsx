@@ -8,6 +8,12 @@ import { logAudit } from "@/lib/audit";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { ensureLead } from "@/lib/crmActions";
 import {
+  BATTEN_OPTIONS,
+  BUILD_STAGES,
+  SCAFFOLD_OPTIONS,
+  SKYLIGHT_STATUS,
+  VOID_OPTIONS,
+  isBuilderVisit,
   ACCESS_LEVELS,
   CEILING_EXISTING,
   CEILING_SUITABILITY,
@@ -83,6 +89,7 @@ export default function SiteVisitEditor({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"details" | "crm">("details");
 
+  const builder = isBuilderVisit(form.visit_type);
   const creating = useRef<Promise<string | null> | null>(null);
   const firstRender = useRef(true);
 
@@ -370,7 +377,7 @@ export default function SiteVisitEditor({
       </div>
 
       {/* Customer & booking */}
-      <Section title="Customer & booking">
+      <Section title={builder ? "Builder & booking" : "Customer & booking"}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Field label="Visit date">
             <input type="date" className={inputCls} value={form.visit_date} onChange={(e) => set("visit_date", e.target.value)} />
@@ -391,7 +398,7 @@ export default function SiteVisitEditor({
               ))}
             </select>
           </Field>
-          <Field label="Customer name" className="col-span-2">
+          <Field label={builder ? "Builder / company" : "Customer name"} className="col-span-2">
             <input className={inputCls} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} autoComplete="off" />
           </Field>
           <Field label="Existing customer (builders etc.)" className="col-span-2">
@@ -410,7 +417,12 @@ export default function SiteVisitEditor({
           <Field label="Suburb" className="col-span-2">
             <input className={inputCls} value={form.suburb} onChange={(e) => set("suburb", e.target.value)} />
           </Field>
-          <Field label="Phone" className="col-span-2">
+          {builder && (
+            <Field label="Main contact (office / estimator)" className="col-span-2">
+              <input className={inputCls} value={checklist.main_contact} onChange={(e) => setC("main_contact", e.target.value)} autoComplete="off" />
+            </Field>
+          )}
+          <Field label={builder ? "Main contact phone" : "Phone"} className="col-span-2">
             <div className="flex gap-2">
               <input type="tel" inputMode="tel" className={inputCls} value={form.phone} onChange={(e) => set("phone", e.target.value)} />
               {form.phone.trim() && (
@@ -420,7 +432,7 @@ export default function SiteVisitEditor({
               )}
             </div>
           </Field>
-          <Field label="Email" className="col-span-2">
+          <Field label={builder ? "Main contact email" : "Email"} className="col-span-2">
             <input type="email" inputMode="email" className={inputCls} value={form.email} onChange={(e) => set("email", e.target.value)} />
           </Field>
         </div>
@@ -436,6 +448,182 @@ export default function SiteVisitEditor({
         )}
       </Section>
 
+      {builder ? (
+        <>
+          <Section title="Site details & people on site" hint="The supervisor on the day is often not the person who booked the visit, so they get their own contact.">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Field label="Lot / job number" className="col-span-2 sm:col-span-1">
+                <input className={inputCls} value={checklist.lot_number} onChange={(e) => setC("lot_number", e.target.value)} />
+              </Field>
+              <Field label="Site supervisor name" className="col-span-2 sm:col-span-2">
+                <input className={inputCls} value={checklist.supervisor_name} onChange={(e) => setC("supervisor_name", e.target.value)} autoComplete="off" />
+              </Field>
+              <Field label="Site supervisor phone" className="col-span-2 sm:col-span-1">
+                <div className="flex gap-2">
+                  <input type="tel" inputMode="tel" className={inputCls} value={checklist.supervisor_phone} onChange={(e) => setC("supervisor_phone", e.target.value)} />
+                  {checklist.supervisor_phone.trim() && (
+                    <a href={`tel:${checklist.supervisor_phone.replace(/\s/g, "")}`} className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2.5 text-sm font-medium">
+                      Call
+                    </a>
+                  )}
+                </div>
+              </Field>
+              <Field label="Best time to reach on site" className="col-span-2">
+                <input className={inputCls} value={checklist.supervisor_time} onChange={(e) => setC("supervisor_time", e.target.value)} placeholder="e.g. Before 7:30 am" />
+              </Field>
+              <Field label="Site access / notes (gate codes, parking)" className="col-span-2">
+                <input className={inputCls} value={checklist.access_notes} onChange={(e) => setC("access_notes", e.target.value)} />
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Job specifics · Building site">
+            <div className="flex flex-col gap-4">
+              <Group label="Quoting">
+                <Toggle on={checklist.quote_ceiling} onClick={() => setC("quote_ceiling", !checklist.quote_ceiling)}>
+                  Ceiling batts
+                </Toggle>
+                <Toggle on={checklist.quote_underfloor} onClick={() => setC("quote_underfloor", !checklist.quote_underfloor)}>
+                  Underfloor batts
+                </Toggle>
+                <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
+                  Wall batts
+                </Toggle>
+              </Group>
+              <Group label="Stage of build">
+                {BUILD_STAGES.map((o) => (
+                  <Toggle key={o} on={checklist.stage === o} onClick={() => setC("stage", checklist.stage === o ? "" : o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              <Group label="Storeys">
+                {STOREYS.map((o) => (
+                  <Toggle key={o} on={checklist.storeys === o} onClick={() => setC("storeys", checklist.storeys === o ? "" : o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              <Group label="Roof">
+                {ROOF_TYPES.map((o) => (
+                  <Toggle key={o} on={checklist.roof.includes(o)} onClick={() => toggleIn("roof", o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              <Group label="Truss spacing">
+                {TRUSS_SIZES.map((o) => (
+                  <Toggle key={o} on={checklist.truss === o} onClick={() => setC("truss", checklist.truss === o ? "" : o)}>
+                    {o === "Mixed" ? "Mixed" : `${o} mm`}
+                  </Toggle>
+                ))}
+              </Group>
+              <Group label="Ceiling battened?">
+                {BATTEN_OPTIONS.map((o) => (
+                  <Toggle key={o} on={checklist.batten === o} onClick={() => setC("batten", checklist.batten === o ? "" : o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {checklist.batten === BATTEN_OPTIONS[0] && (
+                  <>
+                    <Field label="Batten spacing (mm)">
+                      <input inputMode="numeric" className={inputCls} value={checklist.batten_spacing} onChange={(e) => setC("batten_spacing", e.target.value)} />
+                    </Field>
+                    <Field label="Batten depth (mm)">
+                      <input inputMode="numeric" className={inputCls} value={checklist.batten_depth} onChange={(e) => setC("batten_depth", e.target.value)} />
+                    </Field>
+                  </>
+                )}
+                <Field label="Ceiling height (m)" className="col-span-2">
+                  <input className={inputCls} value={checklist.ceiling_height} onChange={(e) => setC("ceiling_height", e.target.value)} placeholder="e.g. 2.7 / 3.0 living" />
+                </Field>
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Skylights & shaft liners">
+            <div className="flex flex-col gap-4">
+              <Group label="Skylights?">
+                {["None", "Yes"].map((o) => (
+                  <Toggle key={o} on={checklist.skylights === o} onClick={() => setC("skylights", checklist.skylights === o ? "" : o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              {checklist.skylights === "Yes" && (
+                <>
+                  <Group label="Box-out status">
+                    {SKYLIGHT_STATUS.map((o) => (
+                      <Toggle
+                        key={o}
+                        on={checklist.skylight_status === o}
+                        tone={o === "Boxed out" ? "good" : o === "Not boxed out" ? "bad" : o === "Part done" ? "warn" : undefined}
+                        onClick={() => setC("skylight_status", checklist.skylight_status === o ? "" : o)}
+                      >
+                        {o}
+                      </Toggle>
+                    ))}
+                  </Group>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Field label="How many">
+                      <input inputMode="numeric" className={inputCls} value={checklist.skylight_count} onChange={(e) => setC("skylight_count", e.target.value)} />
+                    </Field>
+                    <Field label="Boxed out by" className="col-span-2">
+                      <input className={inputCls} value={checklist.skylight_boxed_by} onChange={(e) => setC("skylight_boxed_by", e.target.value)} placeholder="e.g. Builder / carpenter" />
+                    </Field>
+                  </div>
+                  <p className="text-xs text-[var(--muted)]">Insulation must stop short of the shaft liner, so un-boxed shafts need fixing before we install.</p>
+                </>
+              )}
+            </div>
+          </Section>
+
+          <Section title="High ceilings & access">
+            <div className="flex flex-col gap-4">
+              <Group label="Over 3.0 m?">
+                {["No", "Yes"].map((o) => (
+                  <Toggle key={o} on={checklist.high_ceilings === o} onClick={() => setC("high_ceilings", checklist.high_ceilings === o ? "" : o)}>
+                    {o}
+                  </Toggle>
+                ))}
+              </Group>
+              {checklist.high_ceilings === "Yes" && (
+                <>
+                  <Group label="Access to install">
+                    {SCAFFOLD_OPTIONS.map((o) => (
+                      <Toggle key={o} on={checklist.high_access.includes(o)} onClick={() => toggleIn("high_access", o)}>
+                        {o}
+                      </Toggle>
+                    ))}
+                  </Group>
+                  <Group label="Void protection">
+                    {VOID_OPTIONS.map((o) => (
+                      <Toggle key={o} on={checklist.high_void.includes(o)} onClick={() => toggleIn("high_void", o)}>
+                        {o}
+                      </Toggle>
+                    ))}
+                  </Group>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Field label="Highest ceiling (m)">
+                      <input className={inputCls} value={checklist.highest_ceiling} onChange={(e) => setC("highest_ceiling", e.target.value)} />
+                    </Field>
+                    <Field label="Area over 3.0 m (m²)">
+                      <input inputMode="numeric" className={inputCls} value={checklist.area_over_3m} onChange={(e) => setC("area_over_3m", e.target.value)} />
+                    </Field>
+                    <Field label="Who arranges scaffold / protection" className="col-span-2">
+                      <input className={inputCls} value={checklist.access_arranged_by} onChange={(e) => setC("access_arranged_by", e.target.value)} />
+                    </Field>
+                  </div>
+                  <p className="text-xs text-[var(--muted)]">Stairwells, double-height voids and open edges need protection before anyone works at height.</p>
+                </>
+              )}
+            </div>
+          </Section>
+        </>
+      ) : (
+      <>
       {/* Job specifics */}
       <Section title="Job specifics">
         <div className="flex flex-col gap-4">
@@ -496,6 +684,8 @@ export default function SiteVisitEditor({
           </Group>
         </div>
       </Section>
+      </>
+      )}
 
       {/* Ceiling */}
       <Section title="Ceiling batts" muted={!checklist.quote_ceiling} hint={!checklist.quote_ceiling ? "Tick Ceiling batts above if you're quoting the ceiling." : undefined}>

@@ -3,7 +3,13 @@
 import Link from "next/link";
 import {
   ACCESS_LEVELS,
+  BATTEN_OPTIONS,
+  BUILD_STAGES,
   CEILING_EXISTING,
+  SCAFFOLD_OPTIONS,
+  SKYLIGHT_STATUS,
+  VOID_OPTIONS,
+  isBuilderVisit,
   ROOF_TYPES,
   STOREYS,
   TRUSS_SIZES,
@@ -50,6 +56,7 @@ export default function SiteVisitPrintView({
   const plans = photos.filter((p) => p.category === "Site plan");
   const sitePhotos = photos.filter((p) => p.category !== "Site plan");
   const rooms = c.rooms.filter((r) => r.length || r.width);
+  const builder = isBuilderVisit(visit.visit_type);
 
   return (
     <div>
@@ -80,13 +87,75 @@ export default function SiteVisitPrintView({
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2.5">
-          <div className="col-span-2"><Value label="Customer name" value={visit.customer_name} /></div>
+          <div className="col-span-2"><Value label={builder ? "Builder / company" : "Customer name"} value={visit.customer_name} /></div>
+          {builder && <div className="col-span-2"><Value label="Main contact" value={c.main_contact} /></div>}
           <div className="col-span-2"><Value label="Address" value={visit.address} /></div>
           <Value label="Suburb" value={visit.suburb} />
-          <Value label="Phone" value={visit.phone} />
-          <div className="col-span-2"><Value label="Email" value={visit.email} /></div>
+          <Value label={builder ? "Main contact phone" : "Phone"} value={visit.phone} />
+          <div className="col-span-2"><Value label={builder ? "Main contact email" : "Email"} value={visit.email} /></div>
+          {builder && (
+            <>
+              <Value label="Lot / job no." value={c.lot_number} />
+              <Value label="Best time on site" value={c.supervisor_time} />
+              <Value label="Site supervisor" value={c.supervisor_name} />
+              <Value label="Supervisor phone" value={c.supervisor_phone} />
+              <div className="col-span-2"><Value label="Site access / notes" value={c.access_notes} /></div>
+            </>
+          )}
         </div>
 
+        {builder ? (
+          <>
+            <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Job specific · {visit.visit_type}</h3>
+            <div className="mt-3 grid grid-cols-3 gap-y-2">
+              <Box on={c.quote_ceiling}>Quote ceiling batts</Box>
+              <Box on={c.quote_underfloor}>Quote underfloor batts</Box>
+              <Box on={c.quote_walls}>Quote wall batts</Box>
+              {BUILD_STAGES.map((o) => <Box key={o} on={c.stage === o}>{o}</Box>)}
+              {STOREYS.map((o) => <Box key={o} on={c.storeys === o}>{o}</Box>)}
+              {ROOF_TYPES.map((o) => <Box key={o} on={c.roof.includes(o)}>{o}</Box>)}
+              {TRUSS_SIZES.map((o) => <Box key={o} on={c.truss === o}>Truss {o}{o === "Mixed" ? "" : " mm"}</Box>)}
+            </div>
+            <div className="mt-3 flex flex-col gap-1.5">
+              <div className="text-[#6b6862]">Ceiling battened?</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">{BATTEN_OPTIONS.map((o) => <Box key={o} on={c.batten === o}>{o}</Box>)}</div>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
+                <Value label="Batten spacing (mm)" value={c.batten_spacing} />
+                <Value label="Batten depth (mm)" value={c.batten_depth} />
+                <Value label="Ceiling height (m)" value={c.ceiling_height} />
+              </div>
+            </div>
+
+            <h3 className="mt-6 border-b border-[#201f1c] pb-1 font-bold">Skylights &amp; shaft liners</h3>
+            <div className="mt-2 flex flex-col gap-1.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <Box on={c.skylights === "None"}>None</Box>
+                <Box on={c.skylights === "Yes"}>Yes</Box>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">{SKYLIGHT_STATUS.map((o) => <Box key={o} on={c.skylight_status === o}>{o}</Box>)}</div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                <Value label="How many" value={c.skylight_count} />
+                <Value label="Boxed out by" value={c.skylight_boxed_by} />
+              </div>
+            </div>
+
+            <h3 className="mt-6 border-b border-[#201f1c] pb-1 font-bold">High ceilings &amp; access</h3>
+            <div className="mt-2 flex flex-col gap-1.5">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <Box on={c.high_ceilings === "No"}>Under 3.0 m</Box>
+                <Box on={c.high_ceilings === "Yes"}>Over 3.0 m</Box>
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">{SCAFFOLD_OPTIONS.map((o) => <Box key={o} on={c.high_access.includes(o)}>{o}</Box>)}</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1">{VOID_OPTIONS.map((o) => <Box key={o} on={c.high_void.includes(o)}>{o}</Box>)}</div>
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1.5">
+                <Value label="Highest ceiling (m)" value={c.highest_ceiling} />
+                <Value label="Area over 3.0 m (m²)" value={c.area_over_3m} />
+                <Value label="Scaffold / protection by" value={c.access_arranged_by} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Job specific · {visit.visit_type}</h3>
         <div className="mt-3 grid grid-cols-3 gap-y-2">
           {ROOF_TYPES.map((o) => <Box key={o} on={c.roof.includes(o)}>{o}</Box>)}
@@ -101,6 +170,9 @@ export default function SiteVisitPrintView({
             {c.tile_lift && c.tile_lift_qty ? <span className="ml-2">How many: <strong>{c.tile_lift_qty}</strong></span> : null}
           </span>
         </div>
+
+          </>
+        )}
 
         <div className="mt-6 grid grid-cols-2 gap-6">
           <div>
