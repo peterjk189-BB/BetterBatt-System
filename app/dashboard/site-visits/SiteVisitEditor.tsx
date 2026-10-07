@@ -892,14 +892,6 @@ function Toggle({
         on ? onCls : "border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[#c9c5bb]"
       }`}
     >
-      <span
-        aria-hidden
-        className={`flex h-4 w-4 items-center justify-center rounded-[4px] border text-[11px] leading-none ${
-          on ? "border-white/70 bg-white/20" : "border-[#b9b5ac]"
-        }`}
-      >
-        {on ? "✓" : ""}
-      </span>
       {children}
     </button>
   );
