@@ -204,14 +204,14 @@ function Pipeline({
         </button>
       </div>
 
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-3">
+      <div className="mt-4 grid grid-cols-1 gap-2 pb-3 sm:grid-cols-3 xl:grid-cols-6">
         {columns.map((stage) => {
           const col = visible.filter((l) => effectiveStage(l) === stage);
           const total = col.reduce((s, l) => s + (Number(l.est_value) || 0), 0);
           return (
             <div
               key={stage}
-              className="flex w-72 shrink-0 flex-col rounded-xl border border-[var(--border)] bg-[#f6f5f2]"
+              className="flex min-w-0 flex-col rounded-xl border border-[var(--border)] bg-[#f6f5f2]"
               onDragOver={(e) => e.preventDefault()}
               onDrop={() => {
                 const l = leads.find((x) => x.id === dragId);
@@ -219,8 +219,8 @@ function Pipeline({
                 if (l) change(l, stage);
               }}
             >
-              <div className="flex items-center justify-between px-3 py-2.5">
-                <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STAGE_STYLES[stage]}`}>{stage}</span>
+              <div className="flex flex-wrap items-center justify-between gap-1 px-2 py-2.5">
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${STAGE_STYLES[stage]}`}>{stage}</span>
                 <span className="text-xs tabular-nums text-[var(--muted)]">
                   {col.length}
                   {total > 0 ? ` · ${total.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 })}` : ""}
@@ -234,7 +234,7 @@ function Pipeline({
                       key={l.id}
                       draggable
                       onDragStart={() => setDragId(l.id)}
-                      className="cursor-grab rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm shadow-sm active:cursor-grabbing"
+                      className="cursor-grab rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2.5 text-sm shadow-sm active:cursor-grabbing"
                     >
                       <Link href={`/dashboard/crm/leads/${l.id}`} className="font-semibold hover:underline">
                         {l.name}
@@ -244,7 +244,7 @@ function Pipeline({
                         {l.projects ? ` · Q${l.projects.quote_number}` : ""}
                       </div>
                       {l.enquiry_note && <div className="mt-1 line-clamp-2 text-xs">{l.enquiry_note}</div>}
-                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-[var(--muted)]">
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">
                         <span>
                           {age === 0 ? "Today" : `${age}d`} · {staffName(staff, l.owner_id).split(" ")[0]}
                         </span>
@@ -252,7 +252,7 @@ function Pipeline({
                           aria-label="Move to stage"
                           value={effectiveStage(l)}
                           onChange={(e) => change(l, e.target.value as Stage)}
-                          className="rounded border border-[var(--border)] bg-white px-1 py-0.5 text-xs"
+                          className="min-w-0 max-w-full rounded border border-[var(--border)] bg-white px-1 py-0.5 text-xs"
                         >
                           {STAGES.map((s) => (
                             <option key={s} value={s}>
