@@ -10,7 +10,9 @@ export const INSURANCE_CATEGORY = "Insurance Certificate";
 const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2";
 
 function friendly(m: string) {
-  return /check constraint|column|schema cache|does not exist/i.test(m)
+  if (/schema cache/i.test(m))
+    return `${m} — the database has the new columns but hasn't refreshed. In Supabase SQL Editor run:  notify pgrst, 'reload schema';  then try again.`;
+  return /check constraint|column|does not exist/i.test(m)
     ? `${m} — the database hasn't been updated yet. Run the 0026 SQL in Supabase (SQL Editor), then try again.`
     : m;
 }
@@ -71,10 +73,21 @@ export default function SubInsurance({
       insurance_cover: next.insurance_cover ? Number(next.insurance_cover) : null,
       insurance_expiry: next.insurance_expiry || null,
     };
-    const { error } = await supabase.from("subcontractors").update(payload).eq("id", subcontractor.id);
-    if (error) {
+    // Read the row back so we only say "saved" if the database really kept it.
+    const { data: kept, error } = await supabase
+      .from("subcontractors")
+      .update(payload)
+      .eq("id", subcontractor.id)
+      .select("insurance_insurer, insurance_policy, insurance_cover, insurance_expiry")
+      .single();
+    if (error || !kept) {
       setBusy("");
-      setMsg({ ok: false, text: friendly(error.message) });
+      setMsg({ ok: false, text: friendly(error?.message || "The database didn't accept the change (no permission?).") });
+      return;
+    }
+    if ((kept.insurance_expiry || null) !== payload.insurance_expiry || (kept.insurance_policy || null) !== payload.insurance_policy) {
+      setBusy("");
+      setMsg({ ok: false, text: "The details didn't stick in the database. Please tell Claude — something is blocking the save." });
       return;
     }
     onSubcontractorChange?.({ ...subcontractor, ...payload });
