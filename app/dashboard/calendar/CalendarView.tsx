@@ -115,7 +115,28 @@ type InspectionEvent = {
   reinspection: boolean;
 };
 
-type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent;
+export type CrmCalendarTask = {
+  id: string;
+  title: string;
+  kind: string;
+  due_date: string;
+  lead_id: string | null;
+  customer_id: string | null;
+  leads?: { name: string } | null;
+  customers?: { name: string } | null;
+};
+
+type CrmEvent = {
+  kind: "crm";
+  date: string;
+  id: string;
+  title: string;
+  taskKind: string;
+  href: string;
+  who: string;
+};
+
+type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent;
 
 function fmtTime(t: string | null) {
   if (!t) return "";
@@ -157,6 +178,7 @@ export default function CalendarView({
   pos,
   visits,
   inspections = [],
+  crmTasks = [],
   bookingErrors = [],
   installerNote,
 }: {
@@ -165,6 +187,8 @@ export default function CalendarView({
   visits: Visit[];
   /** Site inspections (office only). Booked/in-progress ones show in bold red and can be moved to another day. */
   inspections?: Inspection[];
+  /** The signed-in office user's open CRM follow-ups; each links to its CRM file. */
+  crmTasks?: CrmCalendarTask[];
   /** Work orders whose due inspection couldn't be booked automatically, with the reason. */
   bookingErrors?: string[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
@@ -309,11 +333,27 @@ export default function CalendarView({
       });
     }
 
+    for (const t of crmTasks) {
+      push(t.due_date, {
+        kind: "crm",
+        date: t.due_date,
+        id: t.id,
+        title: t.title,
+        taskKind: t.kind,
+        href: t.lead_id
+          ? `/dashboard/crm/leads/${t.lead_id}`
+          : t.customer_id
+          ? `/dashboard/crm/accounts/${t.customer_id}`
+          : "/dashboard/crm?tab=tasks",
+        who: t.customers?.name || t.leads?.name || "",
+      });
+    }
+
     // Booked inspections sit at the top of each day so they stand out.
     for (const arr of map.values()) arr.sort((a, b) => (a.kind === "inspection" ? 0 : 1) - (b.kind === "inspection" ? 0 : 1));
 
     return map;
-  }, [woLines, pos, visits, inspections, movedDates]);
+  }, [woLines, pos, visits, inspections, crmTasks, movedDates]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -505,6 +545,21 @@ export default function CalendarView({
                                 className="block truncate rounded bg-blue-100 px-1.5 py-0.5 text-[11px] text-blue-900 hover:bg-blue-200"
                               >
                                 PO {ev.poNumber} · {ev.supplierName}
+                              </Link>
+                            );
+                          }
+                          if (ev.kind === "crm") {
+                            return (
+                              <Link
+                                key={`crm-${ev.id}`}
+                                href={ev.href}
+                                title={`CRM follow-up — ${ev.title}${ev.who ? ` (${ev.who})` : ""}`}
+                                className="block rounded bg-purple-100 px-1.5 py-1 text-[11px] leading-tight text-purple-900 hover:bg-purple-200"
+                              >
+                                <div className="truncate font-medium">
+                                  {ev.taskKind} · {ev.title}
+                                </div>
+                                {ev.who && <div className="truncate text-purple-800">{ev.who}</div>}
                               </Link>
                             );
                           }

@@ -236,7 +236,17 @@ export default function CrmCalendar({
               <input type="checkbox" checked={t.done} onChange={() => toggle(t)} className="h-4 w-4" />
               <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${KIND_STYLE[t.kind] || KIND_STYLE.Other}`}>{t.kind}</span>
               <span className={`flex-1 ${t.done ? "text-[var(--muted)] line-through" : ""}`}>
-                {t.title}
+                {t.lead_id || t.customer_id ? (
+                  <Link
+                    href={t.lead_id ? `/dashboard/crm/leads/${t.lead_id}` : `/dashboard/crm/accounts/${t.customer_id}`}
+                    className="text-accent hover:underline"
+                    title="Open the CRM file"
+                  >
+                    {t.title}
+                  </Link>
+                ) : (
+                  t.title
+                )}
                 {(t.customers?.name || leadName(t.lead_id)) && (
                   <span className="text-[var(--muted)]"> · {t.customers?.name || leadName(t.lead_id)}</span>
                 )}

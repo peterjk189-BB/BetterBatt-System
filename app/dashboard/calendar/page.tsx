@@ -61,6 +61,22 @@ export default async function CalendarPage() {
     bookingErrors = [e?.message || "Couldn't check for inspections to book"];
   }
 
+  // Office / admin users also see their own open CRM follow-ups on the calendar.
+  let crmTasks: any[] = [];
+  if (role === "admin" || role === "office") {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("crm_tasks")
+        .select("id, title, kind, due_date, lead_id, customer_id, leads:crm_leads(name), customers(name)")
+        .eq("assigned_to", user.id)
+        .eq("done", false);
+      crmTasks = data ?? [];
+    }
+  }
+
   const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
@@ -85,6 +101,7 @@ export default async function CalendarPage() {
       pos={(pos ?? []) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
+      crmTasks={crmTasks as any}
       bookingErrors={bookingErrors}
       installerNote={null}
     />
