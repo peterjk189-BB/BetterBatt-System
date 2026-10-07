@@ -15,6 +15,9 @@ type Part = {
   pack_cost_ex_gst: number;
   installer_rate_per_m2: number;
   supply_charge_per_pack: number;
+  price_retail: number;
+  price_trade: number;
+  price_regency: number;
   supply_install_rate_per_m2: number;
   pack_per_multi: number;
   multi: number;
@@ -39,6 +42,9 @@ const emptyForm = {
   pack_cost_ex_gst: 0,
   installer_rate_per_m2: 0,
   supply_charge_per_pack: 0,
+  price_retail: 0,
+  price_trade: 0,
+  price_regency: 0,
   supply_install_rate_per_m2: 0,
   pack_per_multi: 0,
   multi: 0,
@@ -62,6 +68,9 @@ const COLUMN_TO_CSV_FIELD: Record<string, string | null> = {
   supplyInstall: "supply_install_rate_per_m2",
   installerRate: "installer_rate_per_m2",
   supplyPack: "supply_charge_per_pack",
+  priceRetail: "price_retail",
+  priceTrade: "price_trade",
+  priceRegency: "price_regency",
   pks: "pks",
   multi: "multi",
   stock: null,
@@ -83,6 +92,9 @@ const CSV_TEMPLATE_EXAMPLES: Record<string, [string, string, string]> = {
   supply_install_rate_per_m2: ["12.40", "10.90", "45.00"],
   installer_rate_per_m2: ["3.20", "2.80", "0"],
   supply_charge_per_pack: ["9.90", "8.50", "0"],
+  price_retail: ["14.50", "12.90", "0"],
+  price_trade: ["11.20", "9.80", "0"],
+  price_regency: ["12.60", "11.00", "0"],
   pks: ["0", "0", "0"],
   multi: ["24", "12", "0"],
   is_stock_item: ["TRUE", "TRUE", "FALSE"],
@@ -194,6 +206,9 @@ const INVENTORY_COLS = [
   { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 130 },
   { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 120 },
   { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
+  { key: "priceRetail", label: "Retail/pack", align: "center" as Align, width: 100 },
+  { key: "priceTrade", label: "Trade/pack", align: "center" as Align, width: 100 },
+  { key: "priceRegency", label: "Regency/pack", align: "center" as Align, width: 100 },
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
   { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
   { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
@@ -360,8 +375,14 @@ export default function PartsTable({
         const parsed = JSON.parse(savedOrder);
         if (Array.isArray(parsed)) {
           const known = parsed.filter((k: string) => DEFAULT_COL_ORDER.includes(k));
-          const missing = DEFAULT_COL_ORDER.filter((k) => !known.includes(k));
-          setColOrder([...known, ...missing]);
+          const merged = [...known];
+          DEFAULT_COL_ORDER.forEach((k, i) => {
+            if (merged.includes(k)) return;
+            // a column added after this layout was saved goes next to the one before it by default
+            const prev = i > 0 ? merged.indexOf(DEFAULT_COL_ORDER[i - 1]) : -1;
+            merged.splice(prev + 1, 0, k);
+          });
+          setColOrder(merged);
         }
       }
     } catch {
@@ -506,6 +527,9 @@ export default function PartsTable({
               pack_cost_ex_gst: parseNum(row.pack_cost_ex_gst),
               installer_rate_per_m2: parseNum(row.installer_rate_per_m2),
               supply_charge_per_pack: parseNum(row.supply_charge_per_pack),
+              price_retail: parseNum(row.price_retail),
+              price_trade: parseNum(row.price_trade),
+              price_regency: parseNum(row.price_regency),
               supply_install_rate_per_m2: parseNum(row.supply_install_rate_per_m2),
               pack_per_multi: parseIntish(row.pack_per_multi),
               multi: parseIntish(row.multi),
@@ -677,6 +701,36 @@ export default function PartsTable({
             type="number"
             value={p.supply_charge_per_pack}
             onCommit={(v) => patch(p, "supply_charge_per_pack", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "priceRetail":
+        return (
+          <InlineCell
+            type="number"
+            value={p.price_retail}
+            onCommit={(v) => patch(p, "price_retail", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "priceTrade":
+        return (
+          <InlineCell
+            type="number"
+            value={p.price_trade}
+            onCommit={(v) => patch(p, "price_trade", v)}
+            align="center"
+            prefix="$"
+          />
+        );
+      case "priceRegency":
+        return (
+          <InlineCell
+            type="number"
+            value={p.price_regency}
+            onCommit={(v) => patch(p, "price_regency", v)}
             align="center"
             prefix="$"
           />
@@ -1052,6 +1106,36 @@ export default function PartsTable({
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={form.supply_charge_per_pack}
                     onChange={(e) => setForm({ ...form, supply_charge_per_pack: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Retail supply ($/pack)
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.price_retail}
+                    onChange={(e) => setForm({ ...form, price_retail: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Trade supply ($/pack)
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.price_trade}
+                    onChange={(e) => setForm({ ...form, price_trade: Number(e.target.value) })}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Regency supply ($/pack)
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.price_regency}
+                    onChange={(e) => setForm({ ...form, price_regency: Number(e.target.value) })}
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-sm">

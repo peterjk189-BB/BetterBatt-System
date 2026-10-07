@@ -27,13 +27,13 @@ export default async function ReportsPage() {
     supabase
       .from("projects")
       .select(
-        "id, quote_number, customer_id, job_type, outcome, entry_date, quote_markup, archived, customers(name, discount_pct)"
+        "id, quote_number, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, customers(name, discount_pct)"
       )
       .order("entry_date", { ascending: false }),
     supabase
       .from("project_lines")
       .select(
-        "id, project_id, qty_m2, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, supply_install_rate_per_m2)"
+        "id, project_id, qty_m2, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
       ),
   ]);
 

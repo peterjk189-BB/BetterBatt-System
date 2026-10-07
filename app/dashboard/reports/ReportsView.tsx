@@ -1,5 +1,6 @@
 "use client";
 
+import { supplyPackPrice } from "@/lib/priceTiers";
 import { useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -53,6 +54,7 @@ type Project = {
   outcome: "Open" | "Accepted" | "Lost" | "Cancelled";
   entry_date: string;
   quote_markup: number;
+  price_tier?: string | null;
   archived: boolean;
   customers: { name: string; discount_pct: number } | null;
 };
@@ -66,6 +68,9 @@ type ProjectLine = {
     pack_cost_ex_gst: number;
     installer_rate_per_m2: number;
     supply_charge_per_pack: number;
+    price_retail?: number | null;
+    price_trade?: number | null;
+    price_regency?: number | null;
     supply_install_rate_per_m2: number;
   } | null;
 };
@@ -298,7 +303,7 @@ function computeProjectValue(project: Project, lines: ProjectLine[]) {
     const q = Number(l.qty_m2) || 0;
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;
     const usedForCal = packs * part.coverage_m2;
-    const gross = isSupplyOnly ? packs * part.supply_charge_per_pack : usedForCal * part.supply_install_rate_per_m2;
+    const gross = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : usedForCal * part.supply_install_rate_per_m2;
     return s + gross;
   }, 0);
   const discountTotal = chargeBeforeMarkup * (discountPct / 100);

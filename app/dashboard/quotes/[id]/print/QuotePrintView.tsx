@@ -1,5 +1,6 @@
 "use client";
 
+import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useRef, useState } from "react";
 import Link from "next/link";
 
@@ -11,6 +12,9 @@ type Line = {
     name: string;
     coverage_m2: number;
     supply_charge_per_pack: number;
+    price_retail?: number | null;
+    price_trade?: number | null;
+    price_regency?: number | null;
     supply_install_rate_per_m2: number;
   } | null;
 };
@@ -26,6 +30,7 @@ type Project = {
   notes: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
+  price_tier?: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
@@ -96,7 +101,7 @@ export default function QuotePrintView({
     if (!part) return { ...l, packs: 0, charge: 0, isDelivery: false };
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
     const usedForCal = packs * part.coverage_m2;
-    const charge = isSupplyOnly ? packs * part.supply_charge_per_pack : usedForCal * part.supply_install_rate_per_m2;
+    const charge = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : usedForCal * part.supply_install_rate_per_m2;
     return { ...l, packs, charge, isDelivery: isDeliveryItem(part.name) };
   });
 

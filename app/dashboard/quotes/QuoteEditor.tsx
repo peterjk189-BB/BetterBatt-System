@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { ensureLead } from "@/lib/crmActions";
+import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
 
 type Customer = {
   id: string;
@@ -22,6 +23,9 @@ type Part = {
   pack_cost_ex_gst: number;
   installer_rate_per_m2: number;
   supply_charge_per_pack: number;
+  price_retail?: number | null;
+  price_trade?: number | null;
+  price_regency?: number | null;
   supply_install_rate_per_m2: number;
   is_stock_item: boolean;
 };
@@ -43,6 +47,7 @@ type Project = {
   notes: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
+  price_tier?: string | null;
   archived: boolean;
   share_token?: string | null;
   accepted_at?: string | null;
@@ -79,7 +84,7 @@ function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
-function computeLine(part: Part | undefined, qty: number) {
+function computeLine(part: Part | undefined, qty: number, tier: string | null) {
   if (!part) {
     return { packs: 0, usedForCal: 0, materialCost: 0, labourCost: 0, supplyOnlyCharge: 0, supplyInstallCharge: 0 };
   }
@@ -91,7 +96,7 @@ function computeLine(part: Part | undefined, qty: number) {
     usedForCal,
     materialCost: packs * part.pack_cost_ex_gst,
     labourCost: q * part.installer_rate_per_m2,
-    supplyOnlyCharge: packs * part.supply_charge_per_pack,
+    supplyOnlyCharge: packs * supplyPackPrice(part, tier),
     supplyInstallCharge: usedForCal * part.supply_install_rate_per_m2,
   };
 }
@@ -191,6 +196,7 @@ export default function QuoteEditor({
     notes: project?.notes || "",
     quote_markup: project?.quote_markup ?? 0,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
+    price_tier: project?.price_tier || "",
   });
 
   // The discount/markup can be entered as a flat $ amount or as a % of the line-items
@@ -268,10 +274,12 @@ export default function QuoteEditor({
   const customerDiscountPct = selectedCustomer?.discount_pct || 0;
 
   const computedLines = lineItems.map((l) => {
-    const c = computeLine(partById[l.part_id || ""], l.qty_m2);
+    const part = partById[l.part_id || ""];
+    const c = computeLine(part, l.qty_m2, form.price_tier || null);
+    const tierMissing = isSupplyOnly && !!part && tierPriceMissing(part, form.price_tier || null);
     const grossCharge = isSupplyOnly ? c.supplyOnlyCharge : c.supplyInstallCharge;
     const discountAmount = grossCharge * (customerDiscountPct / 100);
-    return { ...l, ...c, grossCharge, discountAmount };
+    return { ...l, ...c, grossCharge, discountAmount, tierMissing };
   });
   const materialCost = computedLines.reduce((s, l) => s + l.materialCost, 0);
   const labourCost = isSupplyOnly ? 0 : computedLines.reduce((s, l) => s + l.labourCost, 0);
@@ -308,6 +316,7 @@ export default function QuoteEditor({
       notes: form.notes || null,
       quote_markup: adjustmentAmount,
       show_qty_on_quote: form.show_qty_on_quote,
+      price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
     };
 
     let projectId = project?.id;
@@ -571,6 +580,23 @@ export default function QuoteEditor({
             ))}
           </select>
         </label>
+        {isSupplyOnly && (
+          <label className="flex flex-col gap-1 text-sm">
+            Price point
+            <select
+              className="rounded-lg border border-[var(--border)] px-3 py-2"
+              value={form.price_tier}
+              onChange={(e) => setForm({ ...form, price_tier: e.target.value })}
+            >
+              <option value="">Standard (supply/pack)</option>
+              {PRICE_TIERS.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           Outcome
           <select
@@ -725,7 +751,19 @@ export default function QuoteEditor({
                       onChange={(e) => updateLine(idx, { note: e.target.value })}
                     />
                   </td>
-                  <td className="px-3 py-2 text-right font-medium">{fmtCurrency(l.grossCharge)}</td>
+                  <td className="px-3 py-2 text-right font-medium">
+                    {fmtCurrency(l.grossCharge)}
+                    {isSupplyOnly && l.part_id && partById[l.part_id] && (
+                      <div className="text-xs font-normal text-[var(--muted)]">
+                        {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
+                      </div>
+                    )}
+                    {l.tierMissing && (
+                      <div className="text-xs font-normal text-amber-700">
+                        No {tierLabel(form.price_tier).toLowerCase()} price set — using standard
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right text-[var(--muted)]">
                     {customerDiscountPct > 0 ? `-${fmtCurrency(l.discountAmount)}` : "—"}
                   </td>
