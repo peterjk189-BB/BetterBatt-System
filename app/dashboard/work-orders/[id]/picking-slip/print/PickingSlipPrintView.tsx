@@ -58,26 +58,26 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
               <img
                 src="/logo.png"
                 alt=""
-                className="h-10 w-auto rounded bg-white/90 object-contain p-0.5"
+                className="h-14 w-auto rounded bg-white/90 object-contain p-0.5"
                 onError={(e) => {
                   (e.currentTarget as HTMLImageElement).style.display = "none";
                 }}
               />
               <div>
-                <div className="text-xl font-bold">Better Batt Insulation</div>
-                <div className="text-xs text-gray-300">Picking Slip</div>
+                <div className="text-3xl font-bold">Better Batt Insulation</div>
+                <div className="text-lg font-semibold tracking-wide text-gray-300">Picking Slip</div>
               </div>
             </div>
             <div className="text-right">
-              <div className="text-xs uppercase tracking-wide text-gray-300">Work Order</div>
-              <div className="text-2xl font-bold">{workOrder.wo_number}</div>
+              <div className="text-sm uppercase tracking-wide text-gray-300">Work Order</div>
+              <div className="text-4xl font-bold">{workOrder.wo_number}</div>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="mt-4 grid grid-cols-2 gap-3 text-base">
           <div className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Job</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">Job</div>
             <div className="mt-0.5 font-semibold">
               {workOrder.quoteNumber ? `Q${workOrder.quoteNumber} — ` : ""}
               {workOrder.customerName || "—"}
@@ -85,7 +85,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             <div className="text-gray-600">{workOrder.address || "—"}</div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Date printed</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">Date printed</div>
             <div className="mt-0.5 font-semibold">{today}</div>
           </div>
         </div>

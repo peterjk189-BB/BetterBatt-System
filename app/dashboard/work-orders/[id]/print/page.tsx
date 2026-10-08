@@ -15,7 +15,7 @@ export default async function WorkOrderPrintPage({
     supabase
       .from("work_orders")
       .select(
-        "id, wo_number, po_number, po_value, entry_date, completed_date, jsa_received, notes, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(id, name, phone, email)"
+        "id, wo_number, po_number, po_value, entry_date, completed_date, jsa_received, notes, contractor_id, projects(quote_number, lot_no, address, suburb, customers(name)), subcontractors(id, name, phone, email)"
       )
       .eq("id", params.id)
       .single(),

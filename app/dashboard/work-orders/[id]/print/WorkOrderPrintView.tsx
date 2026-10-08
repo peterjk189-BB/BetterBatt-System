@@ -23,6 +23,7 @@ type WorkOrder = {
   notes: string | null;
   projects: {
     quote_number: number;
+    lot_no?: string | null;
     address: string | null;
     suburb: string | null;
     customers: { name: string } | null;
@@ -90,7 +91,17 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
   const contractorTotal = computed.reduce((s, l) => s + l.cost, 0);
 
   const siteLine = workOrder.projects
-    ? [workOrder.projects.address, workOrder.projects.suburb].filter(Boolean).join(", ")
+    ? [
+        workOrder.projects.lot_no
+          ? /^lot\b/i.test(workOrder.projects.lot_no.trim())
+            ? workOrder.projects.lot_no.trim()
+            : `Lot ${workOrder.projects.lot_no.trim()}`
+          : null,
+        workOrder.projects.address,
+        workOrder.projects.suburb,
+      ]
+        .filter(Boolean)
+        .join(", ")
     : "—";
 
   return (
