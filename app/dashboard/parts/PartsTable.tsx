@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -173,6 +173,10 @@ const TEXT_ALIGN: Record<Align, string> = {
   center: "text-center",
 };
 
+// When the Inventory page's "Lock editing" box is ticked, every inline cell becomes read-only — except the
+// ones marked alwaysEditable (Pks and Multi, which change constantly as stock moves).
+const EditLockContext = createContext(false);
+
 function InlineCell({
   value,
   onCommit,
@@ -180,6 +184,7 @@ function InlineCell({
   align = "left",
   prefix,
   integer = false,
+  alwaysEditable = false,
 }: {
   value: string | number;
   onCommit: (v: string | number) => void;
@@ -187,7 +192,9 @@ function InlineCell({
   align?: Align;
   prefix?: string;
   integer?: boolean;
+  alwaysEditable?: boolean;
 }) {
+  const locked = useContext(EditLockContext) && !alwaysEditable;
   const [v, setV] = useState(String(value));
 
   useEffect(() => {
@@ -208,11 +215,18 @@ function InlineCell({
         step={type === "number" ? (integer ? "1" : "0.01") : undefined}
         value={v}
         onChange={(e) => setV(e.target.value)}
+        readOnly={locked}
+        tabIndex={locked ? -1 : undefined}
         onBlur={() => {
+          if (locked) return;
           const parsed = type === "number" ? (integer ? Math.round(Number(v)) || 0 : Number(v) || 0) : v;
           if (parsed !== value) onCommit(parsed);
         }}
-        className={`min-w-0 flex-1 ${prefixWidthCap} rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
+        className={`min-w-0 flex-1 ${prefixWidthCap} rounded border border-transparent bg-transparent px-1 py-1 text-sm ${
+          locked
+            ? "cursor-default select-none focus:outline-none"
+            : "hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none"
+        } ${TEXT_ALIGN[align]}`}
       />
     </div>
   );
@@ -343,11 +357,13 @@ function InlineSelect({
   onCommit: (v: string) => void;
   align?: Align;
 }) {
+  const locked = useContext(EditLockContext);
   return (
     <select
       value={value}
+      disabled={locked}
       onChange={(e) => onCommit(e.target.value)}
-      className={`w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none ${TEXT_ALIGN[align]}`}
+      className={`w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none disabled:cursor-default disabled:opacity-100 disabled:hover:border-transparent ${TEXT_ALIGN[align]}`}
     >
       <option value="">—</option>
       {options.map((o) => (
@@ -373,6 +389,23 @@ export default function PartsTable({
   const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
   const [hideNonStock, setHideNonStock] = useState(false);
+  // Locked by default so a stray click-and-type can't change a price. Remembered per browser.
+  const [lockEdits, setLockEdits] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("coverage-inventory-lock") === "off") setLockEdits(false);
+    } catch {
+      // storage unavailable — stay locked
+    }
+  }, []);
+  function changeLock(next: boolean) {
+    setLockEdits(next);
+    try {
+      localStorage.setItem("coverage-inventory-lock", next ? "on" : "off");
+    } catch {
+      // ignore
+    }
+  }
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -776,9 +809,13 @@ export default function PartsTable({
           />
         );
       case "pks":
-        return <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer />;
+        return (
+          <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer alwaysEditable />
+        );
       case "multi":
-        return <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer />;
+        return (
+          <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer alwaysEditable />
+        );
       case "packPerMulti":
         return (
           <InlineCell
@@ -946,6 +983,7 @@ export default function PartsTable({
   const grandTotal = supplierTotals.reduce((s, [, t]) => s + t.value, 0);
 
   return (
+    <EditLockContext.Provider value={lockEdits}>
     <div>
       <div className="flex items-center justify-between">
         <div>
@@ -1179,6 +1217,10 @@ export default function PartsTable({
         <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
           <input type="checkbox" checked={hideNonStock} onChange={(e) => setHideNonStock(e.target.checked)} />
           Hide non-stock items
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={lockEdits} onChange={(e) => changeLock(e.target.checked)} />
+          Lock editing (Pks and Multi stay editable)
         </label>
         <button onClick={() => setShowArchived((v) => !v)} className="text-sm text-[var(--muted)] underline">
           {showArchived ? "View active" : "View archived"}
@@ -1460,5 +1502,6 @@ export default function PartsTable({
         </div>
       )}
     </div>
+    </EditLockContext.Provider>
   );
 }
