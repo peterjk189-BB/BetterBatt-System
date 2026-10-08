@@ -240,6 +240,21 @@ const INVENTORY_COLS = [
   { key: "actions", label: "", align: "center" as Align, width: 90 },
 ];
 
+const SELL_PCT_KEY = "coverage-inventory-sell-pct";
+type SellBasis = "markup" | "margin";
+
+/** Sell price from a pack cost and a percentage — null when there's nothing sensible to calculate. */
+function sellFromCost(cost: number, pctText: string, basis: SellBasis): number | null {
+  if (pctText.trim() === "") return null;
+  const pct = Number(pctText);
+  if (!Number.isFinite(pct) || pct < 0 || !(cost > 0)) return null;
+  if (basis === "margin") {
+    if (pct >= 100) return null;
+    return Math.round((cost / (1 - pct / 100)) * 100) / 100;
+  }
+  return Math.round(cost * (1 + pct / 100) * 100) / 100;
+}
+
 const COL_WIDTHS_KEY = "coverage-inventory-col-widths";
 const COL_ORDER_KEY = "coverage-inventory-col-order";
 const DEFAULT_COL_ORDER = INVENTORY_COLS.map((c) => c.key);
@@ -804,6 +819,116 @@ export default function PartsTable({
       .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
   }, [parts, showArchived, search, hideNonStock]);
 
+  // ---- Sell price calculator: percentages -> Retail / Trade / Regency prices -------------------
+  const [pricerOpen, setPricerOpen] = useState(false);
+  const [pct, setPct] = useState({ retail: "", trade: "", regency: "" });
+  const [basis, setBasis] = useState<SellBasis>("markup");
+  const [priceScope, setPriceScope] = useState<"shown" | "all">("shown");
+  const [onlyBlank, setOnlyBlank] = useState(false);
+  const [pricing, setPricing] = useState(false);
+  const [pricerMsg, setPricerMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SELL_PCT_KEY);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v && typeof v === "object") {
+          setPct({ retail: String(v.retail ?? ""), trade: String(v.trade ?? ""), regency: String(v.regency ?? "") });
+          if (v.basis === "margin" || v.basis === "markup") setBasis(v.basis);
+        }
+      }
+    } catch {
+      // nothing saved yet, or storage unavailable
+    }
+  }, []);
+
+  function savePricer(nextPct: typeof pct, nextBasis: SellBasis) {
+    try {
+      localStorage.setItem(SELL_PCT_KEY, JSON.stringify({ ...nextPct, basis: nextBasis }));
+    } catch {
+      // ignore — remembering the percentages is a convenience only
+    }
+  }
+
+  const priceTargets = priceScope === "shown" ? visible : parts.filter((p) => !p.archived);
+  const sampleCost = priceTargets.find((p) => p.pack_cost_ex_gst > 0)?.pack_cost_ex_gst ?? 0;
+
+  async function applySellPrices() {
+    setPricerMsg(null);
+    const fields: { key: "retail" | "trade" | "regency"; col: "price_retail" | "price_trade" | "price_regency" }[] = [
+      { key: "retail", col: "price_retail" },
+      { key: "trade", col: "price_trade" },
+      { key: "regency", col: "price_regency" },
+    ];
+    if (fields.every((f) => pct[f.key].trim() === "")) {
+      setPricerMsg("Enter a percentage in at least one box.");
+      return;
+    }
+    const updates: { part: Part; patch: Record<string, number> }[] = [];
+    for (const part of priceTargets) {
+      const patchObj: Record<string, number> = {};
+      for (const f of fields) {
+        const price = sellFromCost(Number(part.pack_cost_ex_gst) || 0, pct[f.key], basis);
+        if (price === null) continue;
+        if (onlyBlank && Number(part[f.col]) > 0) continue;
+        if (Number(part[f.col]) === price) continue;
+        patchObj[f.col] = price;
+      }
+      if (Object.keys(patchObj).length > 0) updates.push({ part, patch: patchObj });
+    }
+    if (updates.length === 0) {
+      setPricerMsg("Nothing to change — items with no pack cost are skipped, and prices that already match are left alone.");
+      return;
+    }
+    const names = fields.filter((f) => pct[f.key].trim() !== "").map((f) => f.key[0].toUpperCase() + f.key.slice(1));
+    if (
+      !confirm(
+        `This sets the ${names.join(", ")} price${names.length > 1 ? "s" : ""} on ${updates.length} item${
+          updates.length === 1 ? "" : "s"
+        }${onlyBlank ? " (blank ones only)" : ", replacing what is there now"}. Continue?`
+      )
+    )
+      return;
+
+    setPricing(true);
+    let done = 0;
+    const failure = { msg: null as string | null };
+    for (let i = 0; i < updates.length; i += 15) {
+      const chunk = updates.slice(i, i + 15);
+      const results = await Promise.all(
+        chunk.map((u) => supabase.from("parts").update(u.patch).eq("id", u.part.id).select().single())
+      );
+      const fresh: Record<string, Part> = {};
+      results.forEach((r, idx) => {
+        if (r.error || !r.data) {
+          failure.msg = failure.msg || r.error?.message || "Update failed";
+        } else {
+          fresh[chunk[idx].part.id] = r.data as Part;
+          done += 1;
+        }
+      });
+      setParts((prev) => prev.map((x) => fresh[x.id] ?? x));
+    }
+    setPricing(false);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "part",
+      entityLabel: "Sell prices",
+      details: `${names.join("/")} set from ${basis === "margin" ? "margin" : "markup"} % on ${done} item(s) (${["retail", "trade", "regency"]
+        .filter((k) => pct[k as "retail"].trim() !== "")
+        .map((k) => `${k} ${pct[k as "retail"]}%`)
+        .join(", ")})`,
+    });
+    setPricerMsg(
+      failure.msg
+        ? `Updated ${done} of ${updates.length}. ${
+            failure.msg.includes("price_") ? "Run migration 0027 in Supabase first." : failure.msg
+          }`
+        : `Updated ${done} item${done === 1 ? "" : "s"}.`
+    );
+  }
+
   // Inventory value + total m² by supplier, for the KPI cards up top.
   const supplierTotals = useMemo(() => {
     const totals: Record<string, { value: number; totalM2: number }> = {};
@@ -898,6 +1023,16 @@ export default function PartsTable({
               </>
             )}
           </div>
+          {isAdmin && (
+            <button
+              onClick={() => setPricerOpen((v) => !v)}
+              className={`rounded-lg border px-4 py-2 text-sm font-medium ${
+                pricerOpen ? "border-[#201f1c] bg-[#f2f0ec]" : "border-[var(--border)]"
+              }`}
+            >
+              Sell price %
+            </button>
+          )}
           <button
             onClick={() => setModalOpen(true)}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
@@ -906,6 +1041,94 @@ export default function PartsTable({
           </button>
         </div>
       </div>
+
+      {isAdmin && pricerOpen && (
+        <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Set sell prices from a percentage</h2>
+            <div className="flex items-center rounded-lg border border-[var(--border)] p-0.5 text-sm">
+              {(
+                [
+                  ["markup", "Markup on cost"],
+                  ["margin", "Margin on sell"],
+                ] as [SellBasis, string][]
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => {
+                    setBasis(v);
+                    savePricer(pct, v);
+                  }}
+                  className={`rounded-md px-3 py-1 ${basis === v ? "bg-[#201f1c] text-white" : "text-[var(--muted)]"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-end gap-4">
+            {(
+              [
+                ["retail", "Retail %"],
+                ["trade", "Trade %"],
+                ["regency", "Regency %"],
+              ] as ["retail" | "trade" | "regency", string][]
+            ).map(([k, label]) => {
+              const example = sellFromCost(sampleCost, pct[k], basis);
+              return (
+                <label key={k} className="flex flex-col gap-1 text-sm">
+                  {label}
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="e.g. 35"
+                    value={pct[k]}
+                    onChange={(e) => {
+                      const next = { ...pct, [k]: e.target.value };
+                      setPct(next);
+                      savePricer(next, basis);
+                    }}
+                    className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5 text-right"
+                  />
+                  <span className="h-4 text-xs text-[var(--muted)]">
+                    {example !== null ? `$${sampleCost.toFixed(2)} → $${example.toFixed(2)}` : ""}
+                  </span>
+                </label>
+              );
+            })}
+            <label className="flex flex-col gap-1 text-sm">
+              Apply to
+              <select
+                value={priceScope}
+                onChange={(e) => setPriceScope(e.target.value as "shown" | "all")}
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5"
+              >
+                <option value="shown">Items shown now ({visible.length})</option>
+                <option value="all">All active items ({parts.filter((p) => !p.archived).length})</option>
+              </select>
+              <span className="h-4" />
+            </label>
+            <label className="mb-5 flex items-center gap-2 text-sm text-[var(--muted)]">
+              <input type="checkbox" checked={onlyBlank} onChange={(e) => setOnlyBlank(e.target.checked)} />
+              Only fill blank prices
+            </label>
+            <button
+              onClick={applySellPrices}
+              disabled={pricing}
+              className="mb-5 rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              {pricing ? "Applying..." : "Apply"}
+            </button>
+          </div>
+          <p className="text-xs text-[var(--muted)]">
+            Works from the Pack cost ex column and fills Retail/pack, Trade/pack and Regency/pack, rounded to the cent. Leave a box
+            empty to leave that price alone. Items with no pack cost are skipped. You can still edit any price by hand afterwards.
+          </p>
+          {pricerMsg && <p className="mt-2 text-sm font-medium">{pricerMsg}</p>}
+        </div>
+      )}
 
       {/* KPI cards: total value + per-supplier value */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
