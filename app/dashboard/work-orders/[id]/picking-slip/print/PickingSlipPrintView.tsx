@@ -11,7 +11,7 @@ type Line = {
   picked: boolean;
   multi_picked: number | null;
   packs_picked: number | null;
-  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number };
+  parts: { name: string; code: string | null; coverage_m2: number; pack_per_multi: number; stock_on_hand?: number | null };
 };
 
 type WorkOrder = {
@@ -109,9 +109,11 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Code</th>
               <th className="px-2 py-1.5">Product</th>
-              <th className="px-2 py-1.5">Notes</th>
               <th className="px-2 py-1.5 text-right">Packs needed</th>
-              <th className="rounded-r-lg px-2 py-1.5">Picked (write in what was used)</th>
+              <th className="px-2 py-1.5 text-right">System stock</th>
+              <th className="px-2 py-1.5">Shelf count</th>
+              <th className="px-2 py-1.5">Short (to order)</th>
+              <th className="rounded-r-lg px-2 py-1.5">Picked</th>
             </tr>
           </thead>
           <tbody>
@@ -124,9 +126,12 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                   <td className="px-2 py-2 font-medium">
                     {l.parts.name}
                     {packPerMulti > 1 && <span className="ml-1 font-normal text-gray-400">({packPerMulti}/multi)</span>}
+                    {l.note && <div className="text-xs font-normal text-gray-500">{l.note}</div>}
                   </td>
-                  <td className="px-2 py-2 text-gray-600">{l.note || "—"}</td>
                   <td className="px-2 py-2 text-right font-semibold">{needed} pack{needed === 1 ? "" : "s"}</td>
+                  <td className="px-2 py-2 text-right text-gray-600">{Number(l.parts.stock_on_hand ?? 0)}</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
+                  <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
                   <td className="px-2 py-2">
                     {l.picked ? (
                       <span className="font-semibold">{fmtSplit(l.multi_picked || 0, l.packs_picked || 0)}</span>
@@ -141,7 +146,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             })}
             {lines.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-gray-400">
+                <td colSpan={7} className="py-6 text-center text-gray-400">
                   No material lines on this work order.
                 </td>
               </tr>
