@@ -276,6 +276,14 @@ export default function WorkOrderEditor({
               Picking slip
             </Link>
           )}
+          {!isNew && isAdmin && (
+            <Link
+              href={`/dashboard/work-orders/${workOrder!.id}/purchase-order`}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Purchase order
+            </Link>
+          )}
           {!isNew && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/picking-slip/print`}

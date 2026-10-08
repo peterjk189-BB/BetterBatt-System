@@ -15,6 +15,11 @@ export default async function PurchaseOrderPage({ params }: { params: { id: stri
 
   if (!purchaseOrder) notFound();
 
+  // Which job each line is for (only present once lines have been drafted from a work order).
+  const jobIds = Array.from(new Set((lines ?? []).map((l: any) => l.work_order_id).filter(Boolean))) as string[];
+  const { data: jobs } = jobIds.length > 0 ? await supabase.from("work_orders").select("id, wo_number").in("id", jobIds) : { data: [] as any[] };
+  const woNumbers: Record<string, string> = Object.fromEntries((jobs ?? []).map((j: any) => [j.id, j.wo_number]));
+
   return (
     <PurchaseOrderEditor
       purchaseOrder={purchaseOrder}
@@ -22,6 +27,7 @@ export default async function PurchaseOrderPage({ params }: { params: { id: stri
       suppliers={suppliers ?? []}
       parts={parts ?? []}
       isAdmin={role === "admin"}
+      woNumbers={woNumbers}
     />
   );
 }

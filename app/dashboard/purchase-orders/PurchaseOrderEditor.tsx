@@ -43,6 +43,8 @@ type Line = {
   received_multi: number;
   received_pks: number;
   unit_cost: number | null;
+  // The work order (job) this line is for, when the PO was drafted from one.
+  work_order_id?: string | null;
 };
 
 function fmtCurrency(n: number) {
@@ -56,6 +58,7 @@ export default function PurchaseOrderEditor({
   parts,
   isAdmin,
   initial,
+  woNumbers = {},
 }: {
   purchaseOrder: PurchaseOrder | null;
   lines: Line[];
@@ -63,6 +66,8 @@ export default function PurchaseOrderEditor({
   parts: Part[];
   isAdmin: boolean;
   /** Prefill for a brand-new PO started from elsewhere (e.g. a picking slip's "Order shortfall"). Ignored when editing an existing PO. */
+  /** work order id -> number, to label which job each line is for. */
+  woNumbers?: Record<string, string>;
   initial?: { part_id?: string; qty_pks?: number; supplier_id?: string; delivery_address?: string; notes?: string } | null;
 }) {
   const supabase = createClient();
@@ -139,6 +144,7 @@ export default function PurchaseOrderEditor({
     return (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0);
   }
 
+  const showJobs = lineItems.some((l) => !!l.work_order_id);
   const subtotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
   const gst = subtotal * 0.1;
   const grandTotal = subtotal + gst;
@@ -193,6 +199,8 @@ export default function PurchaseOrderEditor({
         received_multi: Number(l.received_multi) || 0,
         received_pks: Number(l.received_pks) || 0,
         unit_cost: Number(l.unit_cost) || 0,
+        // Only sent when set, so saving still works before the work-order column exists.
+        ...(l.work_order_id ? { work_order_id: l.work_order_id } : {}),
       }));
 
     if (rowsToInsert.length > 0) {
@@ -440,6 +448,7 @@ export default function PurchaseOrderEditor({
               <tr>
                 <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Item</th>
+                {showJobs && <th className="px-3 py-2">Job</th>}
                 <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
                 <th className="px-3 py-2 text-right">Line total</th>
@@ -479,6 +488,17 @@ export default function PurchaseOrderEditor({
                       )}
                     </select>
                   </td>
+                  {showJobs && (
+                    <td className="px-3 py-2">
+                      {l.work_order_id ? (
+                        <Link href={`/dashboard/work-orders/${l.work_order_id}`} className="text-accent hover:underline">
+                          {woNumbers[l.work_order_id] || "Work order"}
+                        </Link>
+                      ) : (
+                        <span className="text-[var(--muted)]">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-3 py-2">
                     <input
                       type="number"
@@ -525,7 +545,7 @@ export default function PurchaseOrderEditor({
               ))}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={showJobs ? 9 : 8} className="px-4 py-8 text-center text-[var(--muted)]">
                     No line items yet.
                   </td>
                 </tr>
