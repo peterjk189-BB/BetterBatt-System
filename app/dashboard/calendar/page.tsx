@@ -96,7 +96,7 @@ export default async function CalendarPage() {
     // Stock to be delivered for a work order (set on its picking slip).
     supabase
       .from("work_orders")
-      .select("id, wo_number, stock_delivery_date, projects(lot_no, address, suburb, customers(name))")
+      .select("id, wo_number, stock_delivery_date, projects(lot_no, address, suburb, customers(name)), work_order_lines(parts(is_stock_item, suppliers(name)))")
       .eq("archived", false)
       .not("stock_delivery_date", "is", null),
   ]);

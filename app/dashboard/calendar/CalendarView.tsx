@@ -146,6 +146,7 @@ type StockDelivery = {
     suburb: string | null;
     customers: { name: string } | null;
   } | null;
+  work_order_lines?: { parts: { is_stock_item: boolean | null; suppliers: { name: string } | null } | null }[] | null;
 };
 
 type DeliveryEvent = {
@@ -156,6 +157,7 @@ type DeliveryEvent = {
   woNumber: string;
   customerName: string;
   address: string;
+  suppliers: string;
 };
 
 type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent | DeliveryEvent;
@@ -350,6 +352,13 @@ export default function CalendarView({
         workOrderId: d.id,
         woNumber: d.wo_number,
         customerName: d.projects?.customers?.name || "—",
+        suppliers: Array.from(
+          new Set(
+            (d.work_order_lines ?? [])
+              .filter((l) => l.parts && l.parts.is_stock_item !== false && l.parts.suppliers?.name)
+              .map((l) => l.parts!.suppliers!.name)
+          )
+        ).join(", "),
         address:
           [lot ? (/^lot\b/i.test(lot) ? lot : `Lot ${lot}`) : null, d.projects?.address, d.projects?.suburb]
             .filter(Boolean)
@@ -476,9 +485,9 @@ export default function CalendarView({
             [
               ["wo", "Work orders", "bg-orange-500"],
               ["po", "PO deliveries", "bg-blue-500"],
-              ["delivery", "Stock deliveries", "bg-teal-600"],
+              ["delivery", "Stock deliveries", "bg-red-500"],
               ["visit", "Site visits", "bg-green-500"],
-              ["inspection", "Inspections", "bg-[#b91c1c]"],
+              ["inspection", "Inspections", "bg-[#1e3a8a]"],
               ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
             ] as string[][]
           ).map(([k, label, dot]) => {
@@ -551,7 +560,7 @@ export default function CalendarView({
                     <div
                       key={dateStr}
                       className={`min-h-[110px] p-2 ${isToday ? "bg-amber-50" : ""} ${
-                        dragId && dropDate === dateStr ? "bg-red-50 ring-2 ring-inset ring-[#b91c1c]" : ""
+                        dragId && dropDate === dateStr ? "bg-blue-50 ring-2 ring-inset ring-[#1e3a8a]" : ""
                       }`}
                       onDragOver={(e) => {
                         if (!dragId) return;
@@ -628,11 +637,12 @@ export default function CalendarView({
                               <Link
                                 key={`delivery-${ev.id}`}
                                 href={`/dashboard/work-orders/${ev.workOrderId}/picking-slip`}
-                                title={`Stock delivery — ${ev.woNumber} — ${ev.customerName} (${ev.address})`}
-                                className="block rounded bg-teal-100 px-1.5 py-1 text-[11px] leading-tight text-teal-900 hover:bg-teal-200"
+                                title={`Stock delivery — ${ev.woNumber} — ${ev.customerName} (${ev.address})${ev.suppliers ? ` — ${ev.suppliers}` : ""}`}
+                                className="block rounded bg-red-600 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-red-700"
                               >
-                                <div className="truncate font-medium">Stock delivery · {ev.woNumber}</div>
-                                <div className="truncate text-teal-800">
+                                <div className="truncate font-bold">Stock delivery · {ev.woNumber}</div>
+                                {ev.suppliers && <div className="truncate font-semibold">{ev.suppliers}</div>}
+                                <div className="truncate text-red-100">
                                   {ev.customerName} — {ev.address}
                                 </div>
                               </Link>
@@ -713,7 +723,7 @@ function InspectionChip({
           ? ev.result === "PASS"
             ? "border border-green-300 bg-green-50 text-green-900"
             : "border border-red-300 bg-red-50 text-red-900"
-          : "cursor-grab border-2 border-[#b91c1c] bg-[#fde8e8] font-bold text-[#b91c1c] active:cursor-grabbing"
+          : "cursor-grab border-2 border-[#1e3a8a] bg-[#dbe4f7] font-bold text-[#1e3a8a] active:cursor-grabbing"
       }`}
       title={`${ev.reinspection ? "Re-inspection" : "Inspection"} INS${ev.number} — ${ev.builderName} (${ev.address})${
         ev.woNumber ? ` — WO ${ev.woNumber}` : ""
@@ -740,14 +750,14 @@ function InspectionChip({
               }
             }}
             onBlur={() => setMoving(false)}
-            className="mt-1 w-full rounded border border-[#b91c1c] bg-white px-1 py-0.5 text-[12px] font-normal text-[#201f1c]"
+            className="mt-1 w-full rounded border border-[#1e3a8a] bg-white px-1 py-0.5 text-[12px] font-normal text-[#201f1c]"
             aria-label="Move inspection to"
           />
         ) : (
           <button
             type="button"
             onClick={() => setMoving(true)}
-            className="mt-1 rounded border border-[#b91c1c] bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]"
+            className="mt-1 rounded border border-[#1e3a8a] bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#1e3a8a]"
           >
             Move
           </button>
