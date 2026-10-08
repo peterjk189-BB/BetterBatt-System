@@ -20,6 +20,7 @@ type WorkOrder = {
   address: string | null;
   customerName: string | null;
   quoteNumber: number | null;
+  deliveryDate?: string | null;
 };
 
 export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: WorkOrder; lines: Line[] }) {
@@ -75,7 +76,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-base">
+        <div className="mt-4 grid grid-cols-3 gap-3 text-base">
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">Job</div>
             <div className="mt-0.5 font-semibold">
@@ -83,6 +84,19 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
               {workOrder.customerName || "—"}
             </div>
             <div className="text-gray-600">{workOrder.address || "—"}</div>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-3 py-2">
+            <div className="text-xs uppercase tracking-wide text-gray-500">Delivery date</div>
+            <div className="mt-0.5 text-lg font-bold">
+              {workOrder.deliveryDate
+                ? new Date(`${workOrder.deliveryDate}T00:00:00`).toLocaleDateString("en-AU", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })
+                : "Not set"}
+            </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">Date printed</div>

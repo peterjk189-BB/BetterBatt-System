@@ -41,7 +41,7 @@ export default function PickingSlip({
   lines,
   reservedByPart,
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
 }) {
@@ -51,6 +51,31 @@ export default function PickingSlip({
   const [pickMulti, setPickMulti] = useState<Record<string, string>>({});
   const [pickPks, setPickPks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [deliveryDate, setDeliveryDate] = useState(workOrder.deliveryDate || "");
+  const [dateStatus, setDateStatus] = useState<"" | "saving" | "saved">("");
+
+  async function saveDeliveryDate(value: string) {
+    setDeliveryDate(value);
+    setDateStatus("saving");
+    setError(null);
+    const { error: err } = await supabase
+      .from("work_orders")
+      .update({ stock_delivery_date: value || null })
+      .eq("id", workOrder.id);
+    if (err) {
+      setDateStatus("");
+      setError(err.message?.includes("stock_delivery_date") ? "Couldn't save the delivery date — run migration 0028 in Supabase first." : err.message);
+      return;
+    }
+    setDateStatus("saved");
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work order",
+      entityId: workOrder.id,
+      entityLabel: `WO${workOrder.wo_number}`,
+      details: value ? `Stock delivery date ${value}` : "Stock delivery date cleared",
+    });
+  }
 
   async function run(lineId: string, label: string, action: () => Promise<{ error: any }>) {
     setBusyId(lineId);
@@ -108,6 +133,19 @@ export default function PickingSlip({
         {[workOrder.customerName, workOrder.address].filter(Boolean).join(" — ") || "No address on file"}
         {workOrder.quoteNumber ? ` · Q${workOrder.quoteNumber}` : ""}
       </p>
+
+      <label className="mt-4 flex flex-wrap items-center gap-3 text-sm font-medium">
+        Delivery date
+        <input
+          type="date"
+          value={deliveryDate}
+          onChange={(e) => saveDeliveryDate(e.target.value)}
+          className="rounded-lg border border-[var(--border)] px-3 py-1.5 font-normal"
+        />
+        <span className="text-xs font-normal text-[var(--muted)]">
+          {dateStatus === "saving" ? "Saving..." : dateStatus === "saved" ? "Saved — shows on the printed picking slip" : "Shows on the printed picking slip"}
+        </span>
+      </label>
 
       {error && <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>}
 

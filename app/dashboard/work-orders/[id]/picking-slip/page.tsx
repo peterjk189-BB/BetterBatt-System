@@ -9,7 +9,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
   const [{ data: workOrder }, { data: lines }] = await Promise.all([
     supabase
       .from("work_orders")
-      .select("id, wo_number, projects(quote_number, lot_no, address, suburb, customers(name))")
+      .select("id, wo_number, stock_delivery_date, projects(quote_number, lot_no, address, suburb, customers(name))")
       .eq("id", params.id)
       .single(),
     supabase
@@ -56,6 +56,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
         address: project ? [(project.lot_no ? (/^lot\b/i.test(project.lot_no.trim()) ? project.lot_no.trim() : `Lot ${project.lot_no.trim()}`) : null), project.address, project.suburb].filter(Boolean).join(", ") : null,
         customerName: project?.customers?.name ?? null,
         quoteNumber: project?.quote_number ?? null,
+        deliveryDate: (workOrder as any).stock_delivery_date ?? null,
       }}
       lines={materialLines as any}
       reservedByPart={reservedByPart}
