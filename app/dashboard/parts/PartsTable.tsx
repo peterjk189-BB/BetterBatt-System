@@ -100,6 +100,26 @@ const CSV_TEMPLATE_EXAMPLES: Record<string, [string, string, string]> = {
   is_stock_item: ["TRUE", "TRUE", "FALSE"],
 };
 
+// Column heading shown in the Inventory table for each importable field (and so in the template).
+const STOCK_ITEM_HEADER = "Stock item";
+// Built on demand because INVENTORY_COLS is declared further down this file.
+function fieldToHeader(): Record<string, string> {
+  return {
+    ...Object.fromEntries(
+      Object.entries(COLUMN_TO_CSV_FIELD)
+        .filter(([, f]) => !!f)
+        .map(([key, f]) => [f as string, INVENTORY_COLS.find((c) => c.key === key)?.label ?? (f as string)])
+    ),
+    is_stock_item: STOCK_ITEM_HEADER,
+  };
+}
+// Import accepts either the table headings or the old field names, in any capitalisation.
+function normaliseCsvHeader(h: string) {
+  const k = h.replace(/^\uFEFF/, "").trim().toLowerCase();
+  const hit = Object.entries(fieldToHeader()).find(([, label]) => label.trim().toLowerCase() === k);
+  return hit ? hit[0] : k;
+}
+
 function parseNum(v: string | undefined) {
   const n = parseFloat((v || "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -124,8 +144,11 @@ function downloadCsvTemplate(visibleColOrder: string[]) {
     .filter((f): f is string => !!f);
   fields.push("is_stock_item");
 
+  // Header row uses the same wording as the Inventory table's column headings.
+  const headerByField = fieldToHeader();
+  const headers = fields.map((f) => headerByField[f] ?? f);
   const rows = [0, 1, 2].map((i) => fields.map((f) => CSV_TEMPLATE_EXAMPLES[f]?.[i] ?? ""));
-  const csv = [fields.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -483,6 +506,7 @@ export default function PartsTable({
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: normaliseCsvHeader,
       complete: async (results) => {
         try {
           const rows = results.data;
