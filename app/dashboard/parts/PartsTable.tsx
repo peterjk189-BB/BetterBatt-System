@@ -311,7 +311,7 @@ function ResizableTh({
   align: Align;
   isDragging?: boolean;
   highlightClass?: string;
-  onResizeStart: (e: React.MouseEvent) => void;
+  onResizeStart: (e: React.PointerEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
@@ -331,7 +331,7 @@ function ResizableTh({
       {label}
       <span
         draggable={false}
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           // Stop the header's own drag-to-reorder from hijacking this — without this, the
           // browser can start dragging the whole column instead of resizing it.
           e.preventDefault();
@@ -339,7 +339,8 @@ function ResizableTh({
           onResizeStart(e);
         }}
         onDragStart={(e) => e.stopPropagation()}
-        className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-accent/40"
+        style={{ touchAction: "none" }}
+        className="absolute right-0 top-0 h-full w-4 cursor-col-resize after:absolute after:right-1.5 after:top-1/4 after:h-1/2 after:w-0.5 after:rounded after:bg-[#c9c5bb] hover:bg-accent/40"
       />
     </th>
   );
@@ -475,7 +476,7 @@ export default function PartsTable({
   }, []);
 
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       if (!resizingRef.current) return;
       const { key, startX, startWidth } = resizingRef.current;
       const next = Math.max(50, startWidth + (e.clientX - startX));
@@ -493,15 +494,17 @@ export default function PartsTable({
         return prev;
       });
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
     return () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
     };
   }, []);
 
-  const startResize = (key: string) => (e: React.MouseEvent) => {
+  const startResize = (key: string) => (e: React.PointerEvent) => {
     resizingRef.current = { key, startX: e.clientX, startWidth: colWidths[key] ?? DEFAULT_COL_WIDTHS[key] };
   };
 
