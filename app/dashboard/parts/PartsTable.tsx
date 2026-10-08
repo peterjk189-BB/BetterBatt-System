@@ -327,9 +327,9 @@ function ResizableTh({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`relative cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
+      className={`sticky top-0 z-10 cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
         TEXT_ALIGN[align]
-      } ${highlightClass ?? ""} ${isDragging ? "opacity-40" : ""}`}
+      } ${highlightClass ?? "bg-[#f2f0ec]"} ${isDragging ? "opacity-40" : ""}`}
     >
       {label}
       <span
@@ -393,6 +393,15 @@ export default function PartsTable({
   const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
   const [hideNonStock, setHideNonStock] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
+  useEffect(() => {
+    if (!fullScreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullScreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullScreen]);
   // Locked by default so a stray click-and-type can't change a price. Remembered per browser.
   const [lockEdits, setLockEdits] = useState(true);
   useEffect(() => {
@@ -1237,16 +1246,51 @@ export default function PartsTable({
         <button onClick={() => setShowArchived((v) => !v)} className="text-sm text-[var(--muted)] underline">
           {showArchived ? "View active" : "View archived"}
         </button>
+        <button
+          onClick={() => setFullScreen(true)}
+          className="ml-auto rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:bg-black/[0.03]"
+        >
+          ⛶ Full screen
+        </button>
       </div>
 
       <p className="mt-3 text-xs text-[var(--muted)]">
         Drag a column's right edge to resize it, or drag its header left/right to reorder it —
         both are remembered next time you open this page.
       </p>
-      <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
+      <div className={fullScreen ? "fixed inset-0 z-[45] flex flex-col bg-[var(--bg)] p-3" : ""}>
+      {fullScreen && (
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-bold">Inventory</h2>
+          <input
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
+          />
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input type="checkbox" checked={lockEdits} onChange={(e) => changeLock(e.target.checked)} />
+            Lock editing (Pks and Multi stay editable)
+          </label>
+          <button
+            onClick={() => setFullScreen(false)}
+            className="ml-auto rounded-lg bg-[#201f1c] px-3 py-1.5 text-sm font-medium text-white"
+          >
+            Exit full screen (Esc)
+          </button>
+        </div>
+      )}
+      <div
+        className={`mt-2 overflow-auto rounded-xl border border-[var(--border)] ${
+          fullScreen ? "min-h-0 flex-1" : "max-h-[calc(100vh-9rem)]"
+        }`}
+      >
         <table
           className="table-fixed text-sm"
-          style={{ width: visibleColOrder.reduce((a, key) => a + (colWidths[key] ?? DEFAULT_COL_WIDTHS[key]), 0) }}
+          style={{
+            width: visibleColOrder.reduce((a, key) => a + (colWidths[key] ?? DEFAULT_COL_WIDTHS[key]), 0),
+            minWidth: fullScreen ? "100%" : undefined,
+          }}
         >
           <colgroup>
             {visibleColOrder.map((key) => (
@@ -1312,6 +1356,7 @@ export default function PartsTable({
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {modalOpen && (
