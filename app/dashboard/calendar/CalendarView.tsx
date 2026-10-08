@@ -136,7 +136,29 @@ type CrmEvent = {
   who: string;
 };
 
-type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent;
+type StockDelivery = {
+  id: string;
+  wo_number: string;
+  stock_delivery_date: string | null;
+  projects: {
+    lot_no: string | null;
+    address: string | null;
+    suburb: string | null;
+    customers: { name: string } | null;
+  } | null;
+};
+
+type DeliveryEvent = {
+  kind: "delivery";
+  date: string;
+  id: string;
+  workOrderId: string;
+  woNumber: string;
+  customerName: string;
+  address: string;
+};
+
+type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent | DeliveryEvent;
 
 function fmtTime(t: string | null) {
   if (!t) return "";
@@ -179,6 +201,7 @@ export default function CalendarView({
   visits,
   inspections = [],
   crmTasks = [],
+  stockDeliveries = [],
   bookingErrors = [],
   installerNote,
 }: {
@@ -189,6 +212,7 @@ export default function CalendarView({
   inspections?: Inspection[];
   /** The signed-in office user's open CRM follow-ups; each links to its CRM file. */
   crmTasks?: CrmCalendarTask[];
+  stockDeliveries?: StockDelivery[];
   /** Work orders whose due inspection couldn't be booked automatically, with the reason. */
   bookingErrors?: string[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
@@ -316,6 +340,23 @@ export default function CalendarView({
       });
     }
 
+    for (const d of stockDeliveries) {
+      if (!d.stock_delivery_date) continue;
+      const lot = d.projects?.lot_no?.trim();
+      push(d.stock_delivery_date, {
+        kind: "delivery",
+        date: d.stock_delivery_date,
+        id: d.id,
+        workOrderId: d.id,
+        woNumber: d.wo_number,
+        customerName: d.projects?.customers?.name || "—",
+        address:
+          [lot ? (/^lot\b/i.test(lot) ? lot : `Lot ${lot}`) : null, d.projects?.address, d.projects?.suburb]
+            .filter(Boolean)
+            .join(", ") || "—",
+      });
+    }
+
     for (const v of visits) {
       if (!v.visit_date || v.archived) continue;
       push(v.visit_date, {
@@ -371,7 +412,7 @@ export default function CalendarView({
     for (const arr of map.values()) arr.sort((a, b) => (a.kind === "inspection" ? 0 : 1) - (b.kind === "inspection" ? 0 : 1));
 
     return map;
-  }, [woLines, pos, visits, inspections, crmTasks, movedDates]);
+  }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, movedDates]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -435,6 +476,7 @@ export default function CalendarView({
             [
               ["wo", "Work orders", "bg-orange-500"],
               ["po", "PO deliveries", "bg-blue-500"],
+              ["delivery", "Stock deliveries", "bg-teal-600"],
               ["visit", "Site visits", "bg-green-500"],
               ["inspection", "Inspections", "bg-[#b91c1c]"],
               ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
@@ -578,6 +620,21 @@ export default function CalendarView({
                                 className="block truncate rounded bg-blue-100 px-1.5 py-0.5 text-[11px] text-blue-900 hover:bg-blue-200"
                               >
                                 PO {ev.poNumber} · {ev.supplierName}
+                              </Link>
+                            );
+                          }
+                          if (ev.kind === "delivery") {
+                            return (
+                              <Link
+                                key={`delivery-${ev.id}`}
+                                href={`/dashboard/work-orders/${ev.workOrderId}/picking-slip`}
+                                title={`Stock delivery — ${ev.woNumber} — ${ev.customerName} (${ev.address})`}
+                                className="block rounded bg-teal-100 px-1.5 py-1 text-[11px] leading-tight text-teal-900 hover:bg-teal-200"
+                              >
+                                <div className="truncate font-medium">Stock delivery · {ev.woNumber}</div>
+                                <div className="truncate text-teal-800">
+                                  {ev.customerName} — {ev.address}
+                                </div>
                               </Link>
                             );
                           }

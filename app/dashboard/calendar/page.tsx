@@ -77,7 +77,7 @@ export default async function CalendarPage() {
     }
   }
 
-  const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }] = await Promise.all([
+  const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
       .from("purchase_orders")
@@ -93,6 +93,12 @@ export default async function CalendarPage() {
       .from("inspections")
       .select("id, inspection_number, inspection_date, inspection_time, status, result, site_address, suburb, builder_name, installer_name, parent_inspection_id, archived, work_orders(wo_number)")
       .eq("archived", false),
+    // Stock to be delivered for a work order (set on its picking slip).
+    supabase
+      .from("work_orders")
+      .select("id, wo_number, stock_delivery_date, projects(lot_no, address, suburb, customers(name))")
+      .eq("archived", false)
+      .not("stock_delivery_date", "is", null),
   ]);
 
   return (
@@ -102,6 +108,7 @@ export default async function CalendarPage() {
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
       crmTasks={crmTasks as any}
+      stockDeliveries={(stockDeliveries ?? []) as any}
       bookingErrors={bookingErrors}
       installerNote={null}
     />
