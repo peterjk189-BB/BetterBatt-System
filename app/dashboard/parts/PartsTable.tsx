@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 
@@ -1023,6 +1024,12 @@ export default function PartsTable({
               </>
             )}
           </div>
+          <Link
+            href="/dashboard/parts/price-book"
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+          >
+            Price book
+          </Link>
           {isAdmin && (
             <button
               onClick={() => setPricerOpen((v) => !v)}
