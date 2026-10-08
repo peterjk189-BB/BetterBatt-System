@@ -245,8 +245,11 @@ const INVENTORY_COLS = [
   { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 120 },
   { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
   { key: "priceRetail", label: "Retail/pack", align: "center" as Align, width: 100 },
+  { key: "priceRetailInc", label: "Retail inc GST", align: "center" as Align, width: 100 },
   { key: "priceTrade", label: "Trade/pack", align: "center" as Align, width: 100 },
+  { key: "priceTradeInc", label: "Trade inc GST", align: "center" as Align, width: 100 },
   { key: "priceRegency", label: "Regency/pack", align: "center" as Align, width: 100 },
+  { key: "priceRegencyInc", label: "Regency inc GST", align: "center" as Align, width: 100 },
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
   { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
   { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
@@ -839,6 +842,12 @@ export default function PartsTable({
             prefix="$"
           />
         );
+      case "priceRetailInc":
+        return p.price_retail ? fmtCurrency(p.price_retail * 1.1) : "—";
+      case "priceTradeInc":
+        return p.price_trade ? fmtCurrency(p.price_trade * 1.1) : "—";
+      case "priceRegencyInc":
+        return p.price_regency ? fmtCurrency(p.price_regency * 1.1) : "—";
       case "value":
         return fmtCurrency(p.pack_cost_ex_gst * p.stock_on_hand);
       case "actions":
