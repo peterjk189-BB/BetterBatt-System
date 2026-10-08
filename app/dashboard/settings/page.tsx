@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
 import CompanyDetailsForm from "./CompanyDetailsForm";
+import AgreementForm from "./AgreementForm";
+import { DEFAULT_SUBCONTRACTOR_AGREEMENT } from "@/lib/subAgreement";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -25,6 +27,7 @@ export default async function SettingsPage() {
 
       <CompanyDetailsForm initialAbn={settings?.abn ?? ""} initialPhone={settings?.company_phone ?? ""} />
       <SettingsForm initialTerms={settings?.terms_and_conditions ?? ""} />
+      <AgreementForm initial={settings?.subcontractor_agreement || DEFAULT_SUBCONTRACTOR_AGREEMENT} standard={DEFAULT_SUBCONTRACTOR_AGREEMENT} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import SubcontractorPanel, { type Attachment } from "./SubcontractorPanel";
+import OnboardingInvites, { type Invite } from "./OnboardingInvites";
 
 type Subcontractor = {
   id: string;
@@ -63,10 +64,12 @@ export default function SubcontractorsTable({
   initial,
   photos,
   isAdmin,
+  invites = [],
 }: {
   initial: Subcontractor[];
   photos: ProfilePhoto[];
   isAdmin: boolean;
+  invites?: Invite[];
 }) {
   const supabase = createClient();
   const [subs, setSubs] = useState(initial);
@@ -197,6 +200,8 @@ export default function SubcontractorsTable({
           Add subcontractor
         </button>
       </div>
+
+      {isAdmin && <OnboardingInvites initial={invites} onApproved={(sub) => setSubs((prev) => [sub as Subcontractor, ...prev])} />}
 
       <button onClick={() => setShowArchived((v) => !v)} className="mt-4 text-sm text-[var(--muted)] underline">
         {showArchived ? "View active" : "View archived"}

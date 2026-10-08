@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import SubInsurance from "./SubInsurance";
 import SubWorkers from "./SubWorkers";
+import SubBanking from "./SubBanking";
 
 export type Subcontractor = {
   id: string;
@@ -26,6 +27,12 @@ export type Subcontractor = {
   insurance_policy?: string | null;
   insurance_cover?: number | null;
   insurance_expiry?: string | null;
+  trading_name?: string | null;
+  whitecard_number?: string | null;
+  bank_account_name?: string | null;
+  bank_bsb?: string | null;
+  bank_account_number?: string | null;
+  agreement_signed_at?: string | null;
 };
 
 export type Attachment = {
@@ -36,7 +43,7 @@ export type Attachment = {
   created_at: string;
 };
 
-const DOC_CATEGORIES = ["White Card", "Photo ID", "Driver's Licence"] as const;
+const DOC_CATEGORIES = ["White Card", "Photo ID", "Driver's Licence", "Other Ticket", "Signed Agreement"] as const;
 export const PROFILE_CATEGORY = "Profile Photo";
 
 export function initials(name: string) {
@@ -444,6 +451,8 @@ export default function SubcontractorPanel({
         onFiles={updateFiles}
         onSubcontractorChange={onSubcontractorChange}
       />
+
+      <SubBanking subcontractor={subcontractor} onSubcontractorChange={onSubcontractorChange} />
 
       <SubWorkers subcontractorId={subcontractor.id} />
 

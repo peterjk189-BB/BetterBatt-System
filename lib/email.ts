@@ -72,10 +72,13 @@ export async function sendEmail({
   to,
   subject,
   html,
+  attachments,
 }: {
   to: string | string[];
   subject: string;
   html: string;
+  /** Base64-encoded file content. */
+  attachments?: { filename: string; content: string }[];
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -90,7 +93,7 @@ export async function sendEmail({
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({ from, to, subject, html, ...(attachments?.length ? { attachments } : {}) }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
