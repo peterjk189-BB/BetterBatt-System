@@ -240,7 +240,7 @@ const INVENTORY_COLS = [
   { key: "actions", label: "", align: "center" as Align, width: 90 },
 ];
 
-const SELL_PCT_KEY = "coverage-inventory-sell-pct";
+const SELL_PCT_KEY = "coverage-inventory-sell-pct-v2";
 type SellBasis = "markup" | "margin";
 
 /** Sell price from a pack cost and a percentage — null when there's nothing sensible to calculate. */
@@ -822,7 +822,7 @@ export default function PartsTable({
   // ---- Sell price calculator: percentages -> Retail / Trade / Regency prices -------------------
   const [pricerOpen, setPricerOpen] = useState(false);
   const [pct, setPct] = useState({ retail: "", trade: "", regency: "" });
-  const [basis, setBasis] = useState<SellBasis>("markup");
+  const [basis, setBasis] = useState<SellBasis>("margin");
   const [priceScope, setPriceScope] = useState<"shown" | "all">("shown");
   const [onlyBlank, setOnlyBlank] = useState(false);
   const [pricing, setPricing] = useState(false);
@@ -1049,8 +1049,8 @@ export default function PartsTable({
             <div className="flex items-center rounded-lg border border-[var(--border)] p-0.5 text-sm">
               {(
                 [
-                  ["markup", "Markup on cost"],
-                  ["margin", "Margin on sell"],
+                  ["margin", "Margin (% of sell price)"],
+                  ["markup", "Markup (% on cost)"],
                 ] as [SellBasis, string][]
               ).map(([v, label]) => (
                 <button
@@ -1070,9 +1070,9 @@ export default function PartsTable({
           <div className="mt-3 flex flex-wrap items-end gap-4">
             {(
               [
-                ["retail", "Retail %"],
-                ["trade", "Trade %"],
-                ["regency", "Regency %"],
+                ["retail", basis === "margin" ? "Retail margin %" : "Retail markup %"],
+                ["trade", basis === "margin" ? "Trade margin %" : "Trade markup %"],
+                ["regency", basis === "margin" ? "Regency margin %" : "Regency markup %"],
               ] as ["retail" | "trade" | "regency", string][]
             ).map(([k, label]) => {
               const example = sellFromCost(sampleCost, pct[k], basis);
@@ -1123,6 +1123,9 @@ export default function PartsTable({
             </button>
           </div>
           <p className="text-xs text-[var(--muted)]">
+            {basis === "margin"
+              ? "Margin: the percentage is the profit share of the sell price, so 30% on a $70 cost gives $100."
+              : "Markup: the percentage is added on top of cost, so 30% on a $100 cost gives $130."}{" "}
             Works from the Pack cost ex column and fills Retail/pack, Trade/pack and Regency/pack, rounded to the cent. Leave a box
             empty to leave that price alone. Items with no pack cost are skipped. You can still edit any price by hand afterwards.
           </p>
