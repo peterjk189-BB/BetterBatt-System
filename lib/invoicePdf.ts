@@ -61,22 +61,46 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   }
 
   y = Math.max(y, my) + 10;
+  const colW = (W - M * 2) / 2 - 6;
+  const RX = W / 2 + 6; // right column (delivery address)
+  const top = y;
+
+  // left: BILL TO
+  let ly = top;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(110);
-  doc.text("BILL TO", M, y);
+  doc.text("BILL TO", M, ly);
   doc.setTextColor(0);
-  y += 5;
+  ly += 5;
   doc.setFontSize(11);
-  doc.text(input.customerName || "—", M, y);
+  for (const l of doc.splitTextToSize(input.customerName || "—", colW) as string[]) { doc.text(l, M, ly); ly += 5; }
+  ly -= 5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
-  if (input.customerEmail) { y += 5; doc.text(input.customerEmail, M, y); }
-  if (input.siteAddress) { y += 5; doc.text(`Job site: ${input.siteAddress}`, M, y); }
-  if (input.deliveryAddress) {
-    const dl = doc.splitTextToSize(`Deliver to: ${input.deliveryAddress.replace(/\s*\n\s*/g, ", ")}`, W - M * 2) as string[];
-    for (const l of dl) { y += 5; doc.text(l, M, y); }
+  if (input.customerEmail) { ly += 5; doc.text(input.customerEmail, M, ly); }
+  if (input.siteAddress) {
+    for (const l of doc.splitTextToSize(`Job site: ${input.siteAddress}`, colW) as string[]) { ly += 5; doc.text(l, M, ly); }
   }
+
+  // right: DELIVERY ADDRESS
+  let ry = top;
+  if (input.deliveryAddress) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(110);
+    doc.text("DELIVERY ADDRESS", RX, ry);
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const parts = input.deliveryAddress.split(/\n+/).map((x) => x.trim()).filter(Boolean);
+    ry += 5;
+    for (const part of parts) {
+      for (const l of doc.splitTextToSize(part, colW) as string[]) { doc.text(l, RX, ry); ry += 5; }
+    }
+    ry -= 5;
+  }
+  y = Math.max(ly, ry);
 
   // line table
   y += 12;
