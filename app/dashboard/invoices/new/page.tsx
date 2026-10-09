@@ -4,7 +4,7 @@ import NewInvoice from "./NewInvoice";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
   const supabase = await createClient();
-  const [{ data: projects }, { data: lines }, { data: invoices }] = await Promise.all([
+  const [{ data: projects }, { data: lines }, { data: invoices }, { data: customers }] = await Promise.all([
     supabase
       .from("projects")
       .select("id, quote_number, job_type, lot_no, address, suburb, quote_markup, price_tier, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)")
@@ -15,6 +15,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
       .from("project_lines")
       .select("project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2, price_retail, price_trade, price_regency)"),
     supabase.from("invoices").select("project_id, amount_ex_gst, status, kind").neq("status", "Void"),
+    supabase.from("customers").select("id, name, payment_terms").eq("archived", false).order("name"),
   ]);
 
   const items = (projects ?? []).map((p: any) => {
@@ -34,5 +35,5 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
     };
   });
 
-  return <NewInvoice quotes={items} initialProjectId={searchParams.project_id ?? ""} />;
+  return <NewInvoice quotes={items} customers={(customers ?? []) as any} initialProjectId={searchParams.project_id ?? ""} />;
 }

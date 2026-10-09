@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
-import { derivedStatus, fmtDate, invNo, money, paidTotal, PAY_METHODS, round2, STATUS_STYLE, today, type Invoice, type Payment } from "@/lib/invoices";
+import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
+import { derivedStatus, fmtDate, invNo, money, paidTotal, PAY_METHODS, round2, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 
 type Full = Invoice & {
@@ -15,7 +16,9 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-export default function InvoiceEditor({ invoice, payments: initialPayments }: { invoice: Full; payments: Payment[] }) {
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null };
+
+export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[] }) {
   const supabase = createClient();
   const router = useRouter();
   const [inv, setInv] = useState<Full>(invoice);
@@ -23,12 +26,60 @@ export default function InvoiceEditor({ invoice, payments: initialPayments }: { 
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [emailTo, setEmailTo] = useState(invoice.customers?.contact_email || invoice.projects?.contact_email || "");
+  const [lines, setLines] = useState<InvoiceLine[]>(initialLines);
+  const [tier, setTier] = useState<string>("retail");
+  const [partSearch, setPartSearch] = useState("");
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
   const paid = paidTotal(payments);
   const status = derivedStatus(inv, paid);
   const balance = Math.max(0, round2(inv.total - paid));
+
+  const hasLines = lines.length > 0;
+
+  /** Items drive the invoice amount: ex GST = sum of lines, GST = 10%. */
+  async function syncTotals(next: InvoiceLine[]) {
+    const ex = round2(next.reduce((s, l) => s + Number(l.line_ex || 0), 0));
+    const gst = round2(ex * 0.1);
+    await save({ amount_ex_gst: ex, gst, total: round2(ex + gst) });
+  }
+
+  async function addItem(p: PartOpt) {
+    const unit = round2(supplyPackPrice(p, tier === "standard" ? null : tier));
+    const { data, error } = await supabase
+      .from("invoice_lines")
+      .insert({ invoice_id: inv.id, part_id: p.id, description: `${p.code ? p.code + " - " : ""}${p.name}`, qty: 1, unit_price: unit, line_ex: unit, sort_order: lines.length })
+      .select()
+      .single();
+    if (error || !data) return setMsg({ ok: false, text: (error?.message || "Could not add the item") + " (has migration 0033 been run?)" });
+    const next = [...lines, data as InvoiceLine];
+    setLines(next);
+    setPartSearch("");
+    await syncTotals(next);
+  }
+
+  async function changeLine(l: InvoiceLine, patch: Partial<InvoiceLine>) {
+    const merged = { ...l, ...patch };
+    merged.line_ex = round2(Number(merged.qty || 0) * Number(merged.unit_price || 0));
+    const { error } = await supabase.from("invoice_lines").update({ description: merged.description, qty: merged.qty, unit_price: merged.unit_price, line_ex: merged.line_ex }).eq("id", l.id);
+    if (error) return setMsg({ ok: false, text: error.message });
+    const next = lines.map((x) => (x.id === l.id ? merged : x));
+    setLines(next);
+    await syncTotals(next);
+  }
+
+  async function removeLine(l: InvoiceLine) {
+    const { error } = await supabase.from("invoice_lines").delete().eq("id", l.id);
+    if (error) return setMsg({ ok: false, text: error.message });
+    const next = lines.filter((x) => x.id !== l.id);
+    setLines(next);
+    await syncTotals(next);
+  }
+
+  const matches = partSearch.trim().length >= 2
+    ? parts.filter((p) => `${p.code ?? ""} ${p.name}`.toLowerCase().includes(partSearch.toLowerCase().trim())).slice(0, 8)
+    : [];
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
@@ -167,8 +218,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments }: { 
         </label>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">
-            Amount ex GST {!draft && <span className="text-xs text-[var(--muted)]">(locked once sent)</span>}
-            <input className={input} inputMode="decimal" disabled={!draft} value={inv.amount_ex_gst} onChange={(e) => setAmounts(e.target.value)} />
+            Amount ex GST {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items below)</span> : null}
+            <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={inv.amount_ex_gst} onChange={(e) => setAmounts(e.target.value)} />
           </label>
           <div className="text-sm">
             <p>GST</p>
@@ -195,6 +246,63 @@ export default function InvoiceEditor({ invoice, payments: initialPayments }: { 
         <button onClick={saveDetails} disabled={busy === "save"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {busy === "save" ? "Saving..." : "Save changes"}
         </button>
+      </div>
+
+      <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Inventory items</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">Add materials you&apos;re selling on this invoice. Once there are items, the invoice amount is the total of the items. Prices are per pack, ex GST.</p>
+        {lines.length > 0 && (
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                <tr><th className="py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount</th><th></th></tr>
+              </thead>
+              <tbody>
+                {lines.map((l) => (
+                  <tr key={l.id} className="border-t border-[var(--border)]">
+                    <td className="py-1 pr-2">
+                      {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" value={l.description} onChange={(e) => setLines(lines.map((x) => (x.id === l.id ? { ...x, description: e.target.value } : x)))} onBlur={() => changeLine(l, { description: l.description })} /> : l.description}
+                    </td>
+                    <td className="px-2">
+                      {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={l.qty} onBlur={(e) => Number(e.target.value) !== Number(l.qty) && changeLine(l, { qty: Number(e.target.value) || 0 })} /> : l.qty}
+                    </td>
+                    <td className="px-2">
+                      {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={l.unit_price} onBlur={(e) => Number(e.target.value) !== Number(l.unit_price) && changeLine(l, { unit_price: Number(e.target.value) || 0 })} /> : money(l.unit_price)}
+                    </td>
+                    <td className="px-2 text-right">{money(l.line_ex)}</td>
+                    <td className="text-right">{draft && <button onClick={() => removeLine(l)} className="text-xs text-red-700 underline">Remove</button>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {draft ? (
+          <div className="mt-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" placeholder="Search inventory by code or name to add..." value={partSearch} onChange={(e) => setPartSearch(e.target.value)} />
+              <select className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-sm" value={tier} onChange={(e) => setTier(e.target.value)}>
+                <option value="standard">Standard price</option>
+                {PRICE_TIERS.map((t) => (<option key={t.value} value={t.value}>{t.label} price</option>))}
+              </select>
+            </div>
+            {matches.length > 0 && (
+              <ul className="mt-1 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-white text-sm">
+                {matches.map((p) => (
+                  <li key={p.id}>
+                    <button onClick={() => addItem(p)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-black/[0.03]">
+                      <span>{p.code ? `${p.code} · ` : ""}{p.name}</span>
+                      <span className="shrink-0 text-[var(--muted)]">{money(supplyPackPrice(p, tier === "standard" ? null : tier))}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-2 text-xs text-[var(--muted)]">The price point is picked when you add an item (a price left at $0 on the item falls back to Standard). You can edit the price or quantity on the line.</p>
+          </div>
+        ) : (
+          lines.length === 0 && <p className="mt-2 text-xs text-[var(--muted)]">No items on this invoice.</p>
+        )}
       </div>
 
       {inv.status !== "Void" && (

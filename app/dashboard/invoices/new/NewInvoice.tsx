@@ -23,10 +23,11 @@ type QuoteItem = {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-export default function NewInvoice({ quotes, initialProjectId }: { quotes: QuoteItem[]; initialProjectId: string }) {
+export default function NewInvoice({ quotes, customers, initialProjectId }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string }) {
   const router = useRouter();
   const supabase = createClient();
   const [projectId, setProjectId] = useState(initialProjectId);
+  const [customerId, setCustomerId] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("Deposit");
   const [mode, setMode] = useState<"pct" | "amount">("pct");
   const [pct, setPct] = useState("");
@@ -43,8 +44,12 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
 
   const q = quotes.find((x) => x.id === projectId) || null;
   const remainingEx = q ? round2(q.quote_ex - q.invoiced_ex) : 0;
+  const customer = customers.find((c) => c.id === customerId) || null;
+  const terms = q?.terms ?? customer?.payment_terms ?? null;
+  const isItems = kind === "Items";
 
   const ex = useMemo(() => {
+    if (kind === "Items") return 0;
     if (!q) return 0;
     if (kind === "Balance") return Math.max(0, remainingEx);
     if (kind === "Full") return q.quote_ex;
@@ -54,18 +59,20 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
   const gst = round2(ex * 0.1);
   const total = round2(ex + gst);
 
-  const autoDesc = q
+  const autoDesc = isItems
+    ? `Sale of materials${q ? ` - Quote Q${q.quote_number}` : ""}${siteAddress(q) || siteEdited ? `, ${siteEdited ?? siteAddress(q)}` : ""}`
+    : q
     ? `${kind === "Deposit" ? "Deposit" : kind === "Balance" ? "Balance on completion" : kind === "Full" ? "Insulation supply and installation" : "Progress payment"} - Quote Q${q.quote_number}${siteAddress(q) ? `, ${siteAddress(q)}` : ""}`
     : "";
   const description = descEdited ?? autoDesc;
   const siteAddr = siteEdited ?? (q ? siteAddress(q) : "");
-  const autoDue = q ? dueFromTerms(kind, q.terms, invoiceDate) : invoiceDate;
+  const autoDue = dueFromTerms(kind, terms, invoiceDate);
   const due = dueTouched ? dueDate : autoDue;
 
   async function create() {
-    if (!q) return setErr("Choose a quote first.");
-    if (ex <= 0) return setErr("Enter an amount above $0.");
-    if (kind !== "Balance" && kind !== "Full" && ex > remainingEx + 0.005 && !confirm(`This is more than the ${money(remainingEx)} (ex GST) still to invoice on this quote. Create it anyway?`)) return;
+    if (!q && !(isItems && customerId)) return setErr("Choose an accepted quote, or for an item sale choose a customer.");
+    if (!isItems && ex <= 0) return setErr("Enter an amount above $0.");
+    if (q && kind !== "Balance" && kind !== "Full" && ex > remainingEx + 0.005 && !confirm(`This is more than the ${money(remainingEx)} (ex GST) still to invoice on this quote. Create it anyway?`)) return;
     setSaving(true);
     setErr("");
     const {
@@ -74,8 +81,8 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
     const { data, error } = await supabase
       .from("invoices")
       .insert({
-        project_id: q.id,
-        customer_id: q.customer_id,
+        project_id: q?.id ?? null,
+        customer_id: q?.customer_id ?? customerId,
         kind,
         description,
         amount_ex_gst: ex,
@@ -83,7 +90,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
         total,
         invoice_date: invoiceDate,
         due_date: due || null,
-        terms: q.terms,
+        terms,
         customer_po: po.trim() || null,
         site_address: siteAddr.trim() || null,
         notes: notes.trim() || null,
@@ -93,7 +100,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
       .single();
     setSaving(false);
     if (error || !data) return setErr((error?.message || "Could not create the invoice") + " (has migration 0031 been run?)");
-    logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: data.id, entityLabel: `INV-${data.invoice_number}`, details: `${kind} ${money(total)} for Q${q.quote_number}` });
+    logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: data.id, entityLabel: `INV-${data.invoice_number}`, details: `${kind} ${isItems ? "item sale" : money(total)}${q ? ` for Q${q.quote_number}` : ""}` });
     router.push(`/dashboard/invoices/${data.id}`);
   }
 
@@ -105,9 +112,9 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <label className="block text-sm">
-          Accepted quote
+          Accepted quote {isItems && <span className="text-xs text-[var(--muted)]">(optional for item sales)</span>}
           <select className={input} value={projectId} onChange={(e) => { setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); setSiteEdited(null); }}>
-            <option value="">Choose...</option>
+            <option value="">{isItems ? "No quote (counter / item sale)" : "Choose..."}</option>
             {quotes.map((x) => (
               <option key={x.id} value={x.id}>
                 Q{x.quote_number} · {x.customer_name || "No customer"} · {siteAddress(x) || "no address"}
@@ -116,7 +123,17 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
           </select>
         </label>
 
-        {q && (
+        {!q && isItems && (
+          <label className="block text-sm">
+            Customer
+            <select className={input} value={customerId} onChange={(e) => { setCustomerId(e.target.value); setDueTouched(false); }}>
+              <option value="">Choose...</option>
+              {customers.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+            </select>
+          </label>
+        )}
+
+        {q && !isItems && (
           <div className="grid gap-2 rounded-lg bg-[#f7f6f3] p-3 text-sm sm:grid-cols-3">
             <div><p className="text-xs text-[var(--muted)]">Quote (ex GST)</p><p className="font-semibold">{money(q.quote_ex)}</p></div>
             <div><p className="text-xs text-[var(--muted)]">Already invoiced (ex GST)</p><p className="font-semibold">{money(q.invoiced_ex)}</p></div>
@@ -131,7 +148,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
               {KINDS.map((k) => (<option key={k}>{k}</option>))}
             </select>
           </label>
-          {(kind === "Deposit" || kind === "Progress" || kind === "Other") && (
+          {(kind === "Deposit" || kind === "Progress" || kind === "Other") && !isItems && (
             <div className="block text-sm">
               Amount
               <div className="mt-1 flex gap-2">
@@ -165,7 +182,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
             <input type="date" className={input} value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
           </label>
           <label className="block text-sm">
-            Due date {q?.terms && <span className="text-xs text-[var(--muted)]">({kind === "Deposit" ? "deposit: on issue" : q.terms})</span>}
+            Due date {terms && <span className="text-xs text-[var(--muted)]">({kind === "Deposit" ? "deposit: on issue" : terms})</span>}
             <input type="date" className={input} value={due} onChange={(e) => { setDueDate(e.target.value); setDueTouched(true); }} />
           </label>
           <label className="block text-sm">
@@ -178,15 +195,19 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
           <textarea className={input} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
 
+        {isItems ? (
+          <p className="rounded-lg bg-[#f7f6f3] p-3 text-sm text-[var(--muted)]">You&apos;ll pick the inventory items, quantities and price point on the next screen.</p>
+        ) : (
         <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
           <div className="flex justify-between"><span>Subtotal (ex GST)</span><span>{money(ex)}</span></div>
           <div className="flex justify-between"><span>GST (10%)</span><span>{money(gst)}</span></div>
           <div className="mt-1 flex justify-between border-t border-[var(--border)] pt-1 font-bold"><span>Total</span><span>{money(total)}</span></div>
         </div>
+        )}
 
         {err && <p className="text-sm text-red-700">{err}</p>}
         <button onClick={create} disabled={saving} className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white disabled:opacity-60">
-          {saving ? "Creating..." : "Create draft invoice"}
+          {saving ? "Creating..." : isItems ? "Create and add items" : "Create draft invoice"}
         </button>
       </div>
     </div>

@@ -18,11 +18,12 @@ export async function requireStaff() {
 export async function loadInvoicePdf(supabase: any, id: string) {
   const { data: inv } = await supabase.from("invoices").select("*").eq("id", id).single();
   if (!inv) return null;
-  const [{ data: payments }, { data: customer }, { data: project }, { data: settings }] = await Promise.all([
+  const [{ data: payments }, { data: customer }, { data: project }, { data: settings }, { data: lines }] = await Promise.all([
     supabase.from("invoice_payments").select("*").eq("invoice_id", id),
     inv.customer_id ? supabase.from("customers").select("name, contact_email").eq("id", inv.customer_id).single() : Promise.resolve({ data: null }),
     inv.project_id ? supabase.from("projects").select("quote_number, lot_no, address, suburb, contact_email").eq("id", inv.project_id).single() : Promise.resolve({ data: null }),
     supabase.from("company_settings").select("abn, company_phone, invoice_bank_details, invoice_footer").eq("id", true).maybeSingle(),
+    supabase.from("invoice_lines").select("description, qty, unit_price, line_ex").eq("invoice_id", id).order("sort_order"),
   ]);
   const bytes = await buildInvoicePdf({
     invoice: inv as Invoice,
@@ -31,6 +32,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     siteAddress: inv.site_address || (project ? siteAddress(project as any) : null),
     quoteNumber: project?.quote_number ?? null,
     paid: paidTotal((payments ?? []) as Payment[]),
+    lines: (lines ?? []) as any,
     company: { abn: settings?.abn, phone: settings?.company_phone, bankDetails: settings?.invoice_bank_details, footer: settings?.invoice_footer },
   });
   return { bytes, inv: inv as Invoice, customerEmail: customer?.contact_email || project?.contact_email || null, customerName: customer?.name || "" };

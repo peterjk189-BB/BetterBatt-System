@@ -9,6 +9,7 @@ export type InvoicePdfInput = {
   siteAddress?: string | null;
   quoteNumber?: number | null;
   paid: number;
+  lines?: { description: string; qty: number; unit_price: number; line_ex: number }[];
   company: { abn?: string | null; phone?: string | null; bankDetails?: string | null; footer?: string | null };
 };
 
@@ -78,15 +79,49 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   doc.rect(M, y - 5, W - M * 2, 8, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
-  doc.text("Description", M + 2, y);
-  doc.text("Amount (ex GST)", W - M - 2, y, { align: "right" });
-  y += 9;
-  doc.setFont("helvetica", "normal");
-  const desc = inv.description || `${inv.kind} invoice`;
-  const lines = doc.splitTextToSize(desc, W - M * 2 - 50) as string[];
-  doc.text(lines, M + 2, y);
-  doc.text(money(inv.amount_ex_gst), W - M - 2, y, { align: "right" });
-  y += lines.length * 4.8 + 4;
+  const lines = input.lines ?? [];
+  const num = (n: number) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2));
+  if (lines.length > 0) {
+    doc.text("Item", M + 2, y);
+    doc.text("Qty", W - M - 78, y, { align: "right" });
+    doc.text("Unit (ex GST)", W - M - 32, y, { align: "right" });
+    doc.text("Amount (ex GST)", W - M - 2, y, { align: "right" });
+    y += 9;
+    doc.setFont("helvetica", "normal");
+    for (const l of lines) {
+      const wrapped = doc.splitTextToSize(l.description || "", W - M * 2 - 90) as string[];
+      const h = Math.max(1, wrapped.length) * 4.8;
+      if (y + h > 262) {
+        doc.addPage();
+        y = M + 6;
+      }
+      doc.text(wrapped, M + 2, y);
+      doc.text(num(l.qty), W - M - 78, y, { align: "right" });
+      doc.text(money(l.unit_price), W - M - 32, y, { align: "right" });
+      doc.text(money(l.line_ex), W - M - 2, y, { align: "right" });
+      y += h + 2;
+    }
+    y += 2;
+    if (inv.description) {
+      doc.setTextColor(110);
+      doc.setFontSize(8.5);
+      const dl = doc.splitTextToSize(inv.description, W - M * 2) as string[];
+      doc.text(dl, M + 2, y);
+      y += dl.length * 4.2 + 2;
+      doc.setTextColor(0);
+      doc.setFontSize(9.5);
+    }
+  } else {
+    doc.text("Description", M + 2, y);
+    doc.text("Amount (ex GST)", W - M - 2, y, { align: "right" });
+    y += 9;
+    doc.setFont("helvetica", "normal");
+    const desc = inv.description || `${inv.kind} invoice`;
+    const dl = doc.splitTextToSize(desc, W - M * 2 - 50) as string[];
+    doc.text(dl, M + 2, y);
+    doc.text(money(inv.amount_ex_gst), W - M - 2, y, { align: "right" });
+    y += dl.length * 4.8 + 4;
+  }
   doc.setDrawColor(210);
   doc.line(M, y, W - M, y);
 

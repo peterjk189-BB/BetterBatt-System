@@ -3,7 +3,7 @@ export type Invoice = {
   invoice_number: number;
   project_id: string | null;
   customer_id: string | null;
-  kind: "Deposit" | "Balance" | "Full" | "Progress" | "Other";
+  kind: "Deposit" | "Balance" | "Full" | "Progress" | "Other" | "Items";
   description: string | null;
   amount_ex_gst: number;
   gst: number;
@@ -23,7 +23,9 @@ export type Invoice = {
 
 export type Payment = { id: string; invoice_id: string; paid_on: string; amount: number; method: string | null; reference: string | null };
 
-export const KINDS = ["Deposit", "Balance", "Full", "Progress", "Other"] as const;
+export const KINDS = ["Deposit", "Balance", "Full", "Progress", "Other", "Items"] as const;
+
+export type InvoiceLine = { id: string; invoice_id: string; part_id: string | null; description: string; qty: number; unit_price: number; line_ex: number; sort_order: number };
 export const PAY_METHODS = ["Bank transfer", "Card", "Cash", "Cheque", "Other"] as const;
 export const invNo = (n: number) => `INV-${n}`;
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
