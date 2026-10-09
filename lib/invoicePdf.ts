@@ -1,5 +1,6 @@
 // Server-side invoice PDF (jsPDF, text only so it stays crisp).
 import { money, fmtDate, invNo, type Invoice } from "@/lib/invoices";
+import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 
 export type InvoicePdfInput = {
   invoice: Invoice;
@@ -22,9 +23,13 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.text("TAX INVOICE", W - M, y + 2, { align: "right" });
-  doc.setFontSize(15);
-  doc.text("Better Batt Insulation", M, y + 2);
-  y += 8;
+  try {
+    doc.addImage(LOGO_PNG_DATA_URL, "PNG", M, M - 5, 44, 22);
+  } catch {
+    doc.setFontSize(15);
+    doc.text("Better Batt Insulation", M, y + 2);
+  }
+  y += 24;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(90);

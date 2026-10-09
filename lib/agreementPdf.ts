@@ -1,5 +1,6 @@
 // Builds the signed working-agreement PDF (server side, jsPDF).
 import { parseAgreement } from "@/lib/subAgreement";
+import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 
 export type AgreementPdfInput = {
   agreementText: string;
@@ -27,10 +28,15 @@ export async function buildAgreementPdf(input: AgreementPdfInput): Promise<Uint8
     }
   };
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("Better Batt Insulation", M, y);
-  y += 7;
+  try {
+    doc.addImage(LOGO_PNG_DATA_URL, "PNG", M, y - 6, 40, 20);
+    y += 17;
+  } catch {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Better Batt Insulation", M, y);
+    y += 7;
+  }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(110);
