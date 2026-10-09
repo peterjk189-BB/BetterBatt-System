@@ -467,6 +467,14 @@ export default function QuoteEditor({
               Create work order
             </Link>
           )}
+          {!isNew && (isAdmin || crmEnabled) && project!.outcome === "Accepted" && (
+            <Link
+              href={`/dashboard/invoices/new?project_id=${project!.id}`}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+            >
+              Create invoice
+            </Link>
+          )}
           <button
             onClick={save}
             disabled={saving}

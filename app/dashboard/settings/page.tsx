@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
 import CompanyDetailsForm from "./CompanyDetailsForm";
 import AgreementForm from "./AgreementForm";
+import InvoiceSettingsForm from "./InvoiceSettingsForm";
 import { DEFAULT_SUBCONTRACTOR_AGREEMENT } from "@/lib/subAgreement";
 
 export default async function SettingsPage() {
@@ -26,6 +27,15 @@ export default async function SettingsPage() {
       <p className="mt-1 text-sm text-[var(--muted)]">Company-wide settings for the app.</p>
 
       <CompanyDetailsForm initialAbn={settings?.abn ?? ""} initialPhone={settings?.company_phone ?? ""} />
+      <InvoiceSettingsForm
+        initial={{
+          bank: settings?.invoice_bank_details ?? "",
+          footer: settings?.invoice_footer ?? "",
+          ar: settings?.qb_ar_account ?? "",
+          income: settings?.qb_income_account ?? "",
+          gst: settings?.qb_gst_account ?? "",
+        }}
+      />
       <SettingsForm initialTerms={settings?.terms_and_conditions ?? ""} />
       <AgreementForm initial={settings?.subcontractor_agreement || DEFAULT_SUBCONTRACTOR_AGREEMENT} standard={DEFAULT_SUBCONTRACTOR_AGREEMENT} />
     </div>

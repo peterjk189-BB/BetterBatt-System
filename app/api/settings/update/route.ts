@@ -25,7 +25,7 @@ export async function POST(req: Request) {
   if (typeof body.subcontractor_agreement === "string") {
     update.subcontractor_agreement = body.subcontractor_agreement.trim() || null;
   }
-  for (const key of ["abn", "company_phone"]) {
+  for (const key of ["abn", "company_phone", "invoice_bank_details", "invoice_footer", "qb_ar_account", "qb_income_account", "qb_gst_account"]) {
     if (typeof body[key] === "string") update[key] = body[key].trim() || null;
   }
   if (typeof body.inspection_notify_emails === "string") {

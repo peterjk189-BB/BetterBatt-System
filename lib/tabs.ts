@@ -70,6 +70,14 @@ export const ALL_TABS = [
     group: "Operations",
   },
   {
+    key: "invoices",
+    href: "/dashboard/invoices",
+    label: "Invoices",
+    desc: "Deposit and balance invoices, payments and QuickBooks export",
+    adminOnly: false,
+    group: "Sales",
+  },
+  {
     key: "customers",
     href: "/dashboard/customers",
     label: "Customers",
