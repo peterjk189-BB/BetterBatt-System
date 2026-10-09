@@ -39,6 +39,7 @@ export default function NewInvoice({ quotes, customers, initialProjectId, proble
   const [notes, setNotes] = useState("");
   const [descEdited, setDescEdited] = useState<string | null>(null);
   const [siteEdited, setSiteEdited] = useState<string | null>(null);
+  const [deliveryAddr, setDeliveryAddr] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -93,6 +94,7 @@ export default function NewInvoice({ quotes, customers, initialProjectId, proble
         terms,
         customer_po: po.trim() || null,
         site_address: siteAddr.trim() || null,
+        ...(deliveryAddr.trim() ? { delivery_address: deliveryAddr.trim() } : {}),
         notes: notes.trim() || null,
         created_by: user?.id ?? null,
       })
@@ -182,6 +184,10 @@ export default function NewInvoice({ quotes, customers, initialProjectId, proble
         <label className="block text-sm">
           Site address <span className="text-xs text-[var(--muted)]">(printed on the invoice; filled from the quote, change it if needed)</span>
           <input className={input} value={siteAddr} onChange={(e) => setSiteEdited(e.target.value)} placeholder="Lot, street, suburb" />
+        </label>
+        <label className="block text-sm">
+          Delivery address <span className="text-xs text-[var(--muted)]">(optional - for product sales delivered somewhere other than the site; printed as &quot;Deliver to&quot;)</span>
+          <textarea className={input} rows={2} value={deliveryAddr} onChange={(e) => setDeliveryAddr(e.target.value)} placeholder="Street, suburb, state, postcode" />
         </label>
 
         <label className="block text-sm">

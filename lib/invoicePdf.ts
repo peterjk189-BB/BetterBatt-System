@@ -7,6 +7,7 @@ export type InvoicePdfInput = {
   customerName: string;
   customerEmail?: string | null;
   siteAddress?: string | null;
+  deliveryAddress?: string | null;
   quoteNumber?: number | null;
   paid: number;
   lines?: { description: string; qty: number; unit_price: number; line_ex: number }[];
@@ -72,6 +73,10 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   doc.setFontSize(9.5);
   if (input.customerEmail) { y += 5; doc.text(input.customerEmail, M, y); }
   if (input.siteAddress) { y += 5; doc.text(`Job site: ${input.siteAddress}`, M, y); }
+  if (input.deliveryAddress) {
+    const dl = doc.splitTextToSize(`Deliver to: ${input.deliveryAddress.replace(/\s*\n\s*/g, ", ")}`, W - M * 2) as string[];
+    for (const l of dl) { y += 5; doc.text(l, M, y); }
+  }
 
   // line table
   y += 12;

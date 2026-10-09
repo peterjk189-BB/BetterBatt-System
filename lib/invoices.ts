@@ -13,6 +13,7 @@ export type Invoice = {
   terms: string | null;
   customer_po: string | null;
   site_address?: string | null;
+  delivery_address?: string | null;
   notes: string | null;
   status: "Draft" | "Sent" | "Void";
   sent_at: string | null;

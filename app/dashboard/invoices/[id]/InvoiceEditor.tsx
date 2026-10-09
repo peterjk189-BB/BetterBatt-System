@@ -111,6 +111,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         due_date: inv.due_date,
         customer_po: inv.customer_po,
         site_address: inv.site_address ?? null,
+        ...(inv.delivery_address !== undefined ? { delivery_address: inv.delivery_address?.trim() || null } : {}),
         notes: inv.notes,
         qb_ref: inv.qb_ref,
       },
@@ -212,6 +213,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         <label className="block text-sm">
           Site address {!inv.site_address && inv.projects && <span className="text-xs text-[var(--muted)]">(blank = uses the quote&apos;s address: {siteAddress(inv.projects)})</span>}
           <input className={input} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} placeholder="Lot, street, suburb" />
+        </label>
+        <label className="block text-sm">
+          Delivery address <span className="text-xs text-[var(--muted)]">(optional - printed as &quot;Deliver to&quot; on the invoice)</span>
+          <textarea className={input} rows={2} value={inv.delivery_address ?? ""} onChange={(e) => setInv({ ...inv, delivery_address: e.target.value })} placeholder="Street, suburb, state, postcode" />
         </label>
         <label className="block text-sm">
           Description
