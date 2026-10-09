@@ -23,7 +23,7 @@ type QuoteItem = {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-export default function NewInvoice({ quotes, customers, initialProjectId }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string }) {
+export default function NewInvoice({ quotes, customers, initialProjectId, problems = [] }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string; problems?: string[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -109,6 +109,19 @@ export default function NewInvoice({ quotes, customers, initialProjectId }: { qu
       <Link href="/dashboard/invoices" className="text-sm text-[var(--muted)] hover:underline">← Invoices</Link>
       <h1 className="mt-2 text-2xl font-bold">New invoice</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">Raised from an accepted quote. It&apos;s saved as a draft so you can check it before sending.</p>
+
+      {problems.length > 0 && (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          {problems.map((m) => (
+            <div key={m}>{m}</div>
+          ))}
+        </div>
+      )}
+      {problems.length === 0 && quotes.length === 0 && (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          No accepted quotes found. A quote appears here once its outcome is set to <b>Accepted</b> (and it isn&apos;t archived). For a counter or item sale, set the type to <b>Items</b>.
+        </div>
+      )}
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <label className="block text-sm">

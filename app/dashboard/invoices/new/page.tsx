@@ -4,19 +4,32 @@ import NewInvoice from "./NewInvoice";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
   const supabase = await createClient();
-  const [{ data: projects }, { data: lines }, { data: invoices }, { data: customers }] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id, quote_number, job_type, lot_no, address, suburb, quote_markup, price_tier, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)")
-      .eq("outcome", "Accepted")
-      .eq("archived", false)
-      .order("quote_number", { ascending: false }),
-    supabase
-      .from("project_lines")
-      .select("project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2, price_retail, price_trade, price_regency)"),
+  const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)";
+  const lineSel = "project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
+  const loadProjects = (cols: string) =>
+    supabase.from("projects").select(cols).eq("outcome", "Accepted").eq("archived", false).order("quote_number", { ascending: false });
+  const [pr, ln, { data: invoices, error: invErr }, { data: customers }] = await Promise.all([
+    loadProjects(projSel + ", price_tier"),
+    supabase.from("project_lines").select(lineSel + ", price_retail, price_trade, price_regency)"),
     supabase.from("invoices").select("project_id, amount_ex_gst, status, kind").neq("status", "Void"),
     supabase.from("customers").select("id, name, payment_terms").eq("archived", false).order("name"),
   ]);
+  let projects: any[] | null = pr.data as any;
+  let lines: any[] | null = ln.data as any;
+  const problems: string[] = [];
+  // Older databases may not have the newer price-tier columns yet: retry without them
+  if (pr.error) {
+    const retry = await loadProjects(projSel);
+    projects = retry.data as any;
+    if (retry.error) problems.push("Could not load quotes: " + retry.error.message);
+  }
+  if (ln.error) {
+    const retry = await supabase.from("project_lines").select(lineSel + ")");
+    lines = retry.data as any;
+    if (retry.error) problems.push("Could not load quote lines: " + retry.error.message);
+  }
+  if (invErr) problems.push("The invoices table is missing - run migrations 0031, 0032 and 0033 in Supabase.");
+  if (pr.error || ln.error) problems.push("Run migration 0027 in Supabase so price tiers are used in quote totals.");
 
   const items = (projects ?? []).map((p: any) => {
     const t = quoteTotals(p, (lines ?? []).filter((l: any) => l.project_id === p.id) as any);
@@ -35,5 +48,5 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
     };
   });
 
-  return <NewInvoice quotes={items} customers={(customers ?? []) as any} initialProjectId={searchParams.project_id ?? ""} />;
+  return <NewInvoice quotes={items} customers={(customers ?? []) as any} initialProjectId={searchParams.project_id ?? ""} problems={problems} />;
 }
