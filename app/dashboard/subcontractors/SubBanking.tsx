@@ -71,14 +71,18 @@ export default function SubBanking({
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Bank account name
-          <input className={inputCls} value={f.bank_account_name} onChange={(e) => setF({ ...f, bank_account_name: e.target.value })} />
+          <input className={inputCls} name="sub-bank-acct-name" autoComplete="off" data-1p-ignore value={f.bank_account_name} onChange={(e) => setF({ ...f, bank_account_name: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           BSB
           <input
             className={inputCls}
-            type={shown ? "text" : "password"}
+            type="text"
+            name="sub-bank-bsb"
             autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            style={shown ? undefined : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)}
             value={f.bank_bsb}
             onChange={(e) => setF({ ...f, bank_bsb: e.target.value })}
             placeholder={hasBank ? "" : "123-456"}
@@ -88,8 +92,12 @@ export default function SubBanking({
           Account number
           <input
             className={inputCls}
-            type={shown ? "text" : "password"}
+            type="text"
+            name="sub-bank-acct"
             autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
+            style={shown ? undefined : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)}
             value={f.bank_account_number}
             onChange={(e) => setF({ ...f, bank_account_number: e.target.value })}
           />
