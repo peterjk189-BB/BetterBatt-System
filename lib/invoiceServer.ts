@@ -28,7 +28,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     invoice: inv as Invoice,
     customerName: customer?.name || "",
     customerEmail: customer?.contact_email || project?.contact_email || null,
-    siteAddress: project ? siteAddress(project as any) : null,
+    siteAddress: inv.site_address || (project ? siteAddress(project as any) : null),
     quoteNumber: project?.quote_number ?? null,
     paid: paidTotal((payments ?? []) as Payment[]),
     company: { abn: settings?.abn, phone: settings?.company_phone, bankDetails: settings?.invoice_bank_details, footer: settings?.invoice_footer },

@@ -37,6 +37,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
   const [po, setPo] = useState("");
   const [notes, setNotes] = useState("");
   const [descEdited, setDescEdited] = useState<string | null>(null);
+  const [siteEdited, setSiteEdited] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -57,6 +58,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
     ? `${kind === "Deposit" ? "Deposit" : kind === "Balance" ? "Balance on completion" : kind === "Full" ? "Insulation supply and installation" : "Progress payment"} - Quote Q${q.quote_number}${siteAddress(q) ? `, ${siteAddress(q)}` : ""}`
     : "";
   const description = descEdited ?? autoDesc;
+  const siteAddr = siteEdited ?? (q ? siteAddress(q) : "");
   const autoDue = q ? dueFromTerms(kind, q.terms, invoiceDate) : invoiceDate;
   const due = dueTouched ? dueDate : autoDue;
 
@@ -83,6 +85,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
         due_date: due || null,
         terms: q.terms,
         customer_po: po.trim() || null,
+        site_address: siteAddr.trim() || null,
         notes: notes.trim() || null,
         created_by: user?.id ?? null,
       })
@@ -103,7 +106,7 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <label className="block text-sm">
           Accepted quote
-          <select className={input} value={projectId} onChange={(e) => { setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); }}>
+          <select className={input} value={projectId} onChange={(e) => { setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); setSiteEdited(null); }}>
             <option value="">Choose...</option>
             {quotes.map((x) => (
               <option key={x.id} value={x.id}>
@@ -145,6 +148,11 @@ export default function NewInvoice({ quotes, initialProjectId }: { quotes: Quote
             </div>
           )}
         </div>
+
+        <label className="block text-sm">
+          Site address <span className="text-xs text-[var(--muted)]">(printed on the invoice; filled from the quote, change it if needed)</span>
+          <input className={input} value={siteAddr} onChange={(e) => setSiteEdited(e.target.value)} placeholder="Lot, street, suburb" />
+        </label>
 
         <label className="block text-sm">
           Description on invoice

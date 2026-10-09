@@ -58,6 +58,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments }: { 
         invoice_date: inv.invoice_date,
         due_date: inv.due_date,
         customer_po: inv.customer_po,
+        site_address: inv.site_address ?? null,
         notes: inv.notes,
         qb_ref: inv.qb_ref,
       },
@@ -156,6 +157,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments }: { 
       </div>
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <label className="block text-sm">
+          Site address {!inv.site_address && inv.projects && <span className="text-xs text-[var(--muted)]">(blank = uses the quote&apos;s address: {siteAddress(inv.projects)})</span>}
+          <input className={input} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} placeholder="Lot, street, suburb" />
+        </label>
         <label className="block text-sm">
           Description
           <input className={input} value={inv.description ?? ""} onChange={(e) => setInv({ ...inv, description: e.target.value })} />
