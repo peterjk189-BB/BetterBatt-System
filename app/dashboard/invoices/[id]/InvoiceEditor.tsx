@@ -77,9 +77,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     await syncTotals(next);
   }
 
-  const matches = partSearch.trim().length >= 2
-    ? parts.filter((p) => `${p.code ?? ""} ${p.name}`.toLowerCase().includes(partSearch.toLowerCase().trim())).slice(0, 8)
-    : [];
+  const matches = parts
+    .filter((p) => !partSearch.trim() || `${p.code ?? ""} ${p.name}`.toLowerCase().includes(partSearch.toLowerCase().trim()))
+    .slice()
+    .sort((x, y) => `${x.code ?? ""} ${x.name}`.localeCompare(`${y.code ?? ""} ${y.name}`));
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
@@ -280,24 +281,27 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         {draft ? (
           <div className="mt-3">
             <div className="flex flex-wrap items-center gap-2">
-              <input className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" placeholder="Search inventory by code or name to add..." value={partSearch} onChange={(e) => setPartSearch(e.target.value)} />
+              <select
+                className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                value=""
+                onChange={(e) => {
+                  const p = parts.find((x) => x.id === e.target.value);
+                  if (p) addItem(p);
+                }}
+              >
+                <option value="">Add an inventory item...</option>
+                {matches.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.code ? `${p.code} · ` : ""}{p.name} — {money(supplyPackPrice(p, tier === "standard" ? null : tier))}
+                  </option>
+                ))}
+              </select>
               <select className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-sm" value={tier} onChange={(e) => setTier(e.target.value)}>
                 <option value="standard">Standard price</option>
                 {PRICE_TIERS.map((t) => (<option key={t.value} value={t.value}>{t.label} price</option>))}
               </select>
+              <input className="w-40 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" placeholder="Filter list..." value={partSearch} onChange={(e) => setPartSearch(e.target.value)} />
             </div>
-            {matches.length > 0 && (
-              <ul className="mt-1 divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-white text-sm">
-                {matches.map((p) => (
-                  <li key={p.id}>
-                    <button onClick={() => addItem(p)} className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-black/[0.03]">
-                      <span>{p.code ? `${p.code} · ` : ""}{p.name}</span>
-                      <span className="shrink-0 text-[var(--muted)]">{money(supplyPackPrice(p, tier === "standard" ? null : tier))}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
             <p className="mt-2 text-xs text-[var(--muted)]">The price point is picked when you add an item (a price left at $0 on the item falls back to Standard). You can edit the price or quantity on the line.</p>
           </div>
         ) : (
