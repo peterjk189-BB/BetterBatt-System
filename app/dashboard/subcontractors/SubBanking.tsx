@@ -7,6 +7,26 @@ import type { Subcontractor } from "./SubcontractorPanel";
 
 const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2";
 
+/** Text box browsers won't autofill: read-only until you actually click into it. */
+function SafeInput({ className, onFocus, ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
+  const [ro, setRo] = useState(true);
+  return (
+    <input
+      {...rest}
+      type="text"
+      readOnly={ro}
+      autoComplete="off"
+      data-1p-ignore
+      data-lpignore="true"
+      className={className}
+      onFocus={(e) => {
+        setRo(false);
+        onFocus?.(e);
+      }}
+    />
+  );
+}
+
 /** Payment details + onboarding facts. Bank numbers stay hidden until "Show" is pressed. */
 export default function SubBanking({
   subcontractor,
@@ -29,8 +49,13 @@ export default function SubBanking({
   const hasBank = !!(f.bank_bsb || f.bank_account_number);
 
   async function save() {
-    setBusy(true);
     setMsg(null);
+    const bsb = f.bank_bsb.replace(/\s/g, "");
+    const acct = f.bank_account_number.replace(/\s/g, "");
+    if (f.bank_account_name.includes("@")) return setMsg({ ok: false, text: "Bank account name looks like an email address - please check it." });
+    if (bsb && !/^\d{3}-?\d{3}$/.test(bsb)) return setMsg({ ok: false, text: "BSB should be 6 digits, e.g. 123-456." });
+    if (acct && !/^\d{5,10}$/.test(acct)) return setMsg({ ok: false, text: "Account number should be 5-10 digits." });
+    setBusy(true);
     const payload = {
       trading_name: f.trading_name.trim() || null,
       whitecard_number: f.whitecard_number.trim() || null,
@@ -63,45 +88,35 @@ export default function SubBanking({
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm">
           Trading name
-          <input className={inputCls} value={f.trading_name} onChange={(e) => setF({ ...f, trading_name: e.target.value })} />
+          <SafeInput name="sb-trading" className={inputCls} value={f.trading_name} onChange={(e) => setF({ ...f, trading_name: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           White Card number
-          <input className={inputCls} value={f.whitecard_number} onChange={(e) => setF({ ...f, whitecard_number: e.target.value })} />
+          <SafeInput name="sb-whitecard" className={inputCls} value={f.whitecard_number} onChange={(e) => setF({ ...f, whitecard_number: e.target.value })} />
         </label>
-        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Bank account name
-          <input className={inputCls} name="sub-bank-acct-name" autoComplete="off" data-1p-ignore value={f.bank_account_name} onChange={(e) => setF({ ...f, bank_account_name: e.target.value })} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          BSB
-          <input
-            className={inputCls}
-            type="text"
-            name="sub-bank-bsb"
-            autoComplete="off"
-            data-1p-ignore
-            data-lpignore="true"
-            style={shown ? undefined : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)}
-            value={f.bank_bsb}
-            onChange={(e) => setF({ ...f, bank_bsb: e.target.value })}
-            placeholder={hasBank ? "" : "123-456"}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          Account number
-          <input
-            className={inputCls}
-            type="text"
-            name="sub-bank-acct"
-            autoComplete="off"
-            data-1p-ignore
-            data-lpignore="true"
-            style={shown ? undefined : ({ WebkitTextSecurity: "disc" } as React.CSSProperties)}
-            value={f.bank_account_number}
-            onChange={(e) => setF({ ...f, bank_account_number: e.target.value })}
-          />
-        </label>
+        {shown ? (
+          <>
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+              Bank account name
+              <SafeInput name="sb-acct-name" className={inputCls} value={f.bank_account_name} onChange={(e) => setF({ ...f, bank_account_name: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              BSB
+              <SafeInput name="sb-bsb" className={inputCls} inputMode="numeric" value={f.bank_bsb} onChange={(e) => setF({ ...f, bank_bsb: e.target.value })} placeholder="123-456" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Account number
+              <SafeInput name="sb-acct-no" className={inputCls} inputMode="numeric" value={f.bank_account_number} onChange={(e) => setF({ ...f, bank_account_number: e.target.value })} />
+            </label>
+          </>
+        ) : (
+          <div className="rounded-lg bg-[#f7f6f3] px-3 py-2 text-sm text-[var(--muted)] sm:col-span-2">
+            {hasBank || f.bank_account_name
+              ? `${f.bank_account_name || "—"} · BSB ••• ••• · Account •••• ${f.bank_account_number.slice(-3)}`
+              : "No bank details on file."}{" "}
+            Press &ldquo;Show bank details&rdquo; to view or edit.
+          </div>
+        )}
       </div>
       <div className="mt-3 flex items-center gap-3">
         <button onClick={save} disabled={busy} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
