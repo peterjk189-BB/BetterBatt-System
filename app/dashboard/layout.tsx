@@ -6,6 +6,7 @@ import { resolveTabsForRequest } from "@/lib/preview";
 import SignOutButton from "./SignOutButton";
 import NavTabs from "./NavTabs";
 import Sidebar from "./Sidebar";
+import SelectNumberOnFocus from "./SelectNumberOnFocus";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
 import QuickEnquiry from "./crm/QuickEnquiry";
@@ -86,6 +87,7 @@ export default async function DashboardLayout({
         {hasAnyTab && <Sidebar links={navLinks} />}
         <main className="min-w-0 flex-1 px-6 py-8">
           <AccessGuard allowedHrefs={allowedHrefs} />
+          <SelectNumberOnFocus />
           {children}
           {myTabs.includes("crm") && !previewing && <QuickEnquiry userId={user.id} />}
         </main>
