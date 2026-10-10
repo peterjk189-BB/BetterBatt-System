@@ -39,6 +39,7 @@ export default async function DashboardLayout({
     user.id
   );
   const navLinks = ALL_TABS.filter((t) => myTabs.includes(t.key)).map((t) => ({
+    key: t.key,
     href: t.href,
     label: t.label,
     group: t.group,

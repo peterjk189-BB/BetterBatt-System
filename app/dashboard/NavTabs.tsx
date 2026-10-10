@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import TabIcon from "@/lib/TabIcon";
 
-export default function NavTabs({ links }: { links: { href: string; label: string }[] }) {
+export default function NavTabs({ links }: { links: { key: string; href: string; label: string }[] }) {
   const pathname = usePathname();
 
   return (
@@ -14,12 +15,13 @@ export default function NavTabs({ links }: { links: { href: string; label: strin
           <Link
             key={l.href}
             href={l.href}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
               active
                 ? "border-accent bg-accent text-white"
                 : "border-[var(--border)] text-[var(--muted)] hover:border-accent hover:text-[var(--text)]"
             }`}
           >
+            <TabIcon tabKey={l.key} color="currentColor" className="h-4 w-4 shrink-0" />
             {l.label}
           </Link>
         );

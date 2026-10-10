@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import TabIcon from "@/lib/TabIcon";
 import { GROUP_ACCENTS, GROUP_ACCENT_TEXT } from "@/lib/tabs";
 
-type NavLink = { href: string; label: string; group: string };
+type NavLink = { key: string; href: string; label: string; group: string };
 
 export default function Sidebar({ links }: { links: NavLink[] }) {
   const pathname = usePathname();
@@ -39,11 +40,12 @@ export default function Sidebar({ links }: { links: NavLink[] }) {
                       key={l.href}
                       href={l.href}
                       style={active ? { backgroundColor: accent, color: accentText } : undefined}
-                      className={`rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
                         active ? "" : "text-[var(--muted)] hover:bg-white hover:text-[var(--text)]"
                       }`}
                     >
-                      {l.label}
+                      <TabIcon tabKey={l.key} color="currentColor" className="h-[18px] w-[18px] shrink-0" />
+                      <span className="min-w-0">{l.label}</span>
                     </Link>
                   );
                 })}
