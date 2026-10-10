@@ -2,6 +2,7 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
+import TabIcon from "@/lib/TabIcon";
 
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
@@ -9,6 +10,14 @@ function fmtCurrency(n: number) {
 
 // Brand accent colors sampled from public/logo.png, cycled across the KPI tiles.
 const KPI_ACCENTS = ["#fdb930", "#b1841f", "#5f6062", "#2563eb"];
+
+// Soft icon-tile colours per nav group: [background, icon colour]
+const ICON_TILE: Record<string, [string, string]> = {
+  Sales: ["#fff3d1", "#a87500"],
+  Operations: ["#f4ead2", "#b1841f"],
+  Insights: ["#dbe7fd", "#2563eb"],
+  Admin: ["#e8e8e6", "#5f6062"],
+};
 
 export default async function DashboardHome() {
   const supabase = await createClient();
@@ -163,10 +172,18 @@ export default async function DashboardHome() {
             key={t.href}
             href={t.href}
             style={{ borderLeftColor: GROUP_ACCENTS[t.group] ?? "var(--border)" }}
-            className="rounded-xl border border-l-4 border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:bg-[var(--bg)]"
+            className="flex items-start gap-3 rounded-xl border border-l-4 border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:bg-[var(--bg)]"
           >
-            <p className="font-semibold">{t.label}</p>
-            <p className="mt-1 text-xs text-[var(--muted)]">{t.desc}</p>
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
+              style={{ backgroundColor: (ICON_TILE[t.group] ?? ICON_TILE.Admin)[0] }}
+            >
+              <TabIcon tabKey={t.key} color={(ICON_TILE[t.group] ?? ICON_TILE.Admin)[1]} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold">{t.label}</span>
+              <span className="mt-1 block text-xs text-[var(--muted)]">{t.desc}</span>
+            </span>
           </a>
         ))}
       </div>
