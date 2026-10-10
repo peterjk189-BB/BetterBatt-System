@@ -23,11 +23,15 @@ type QuoteItem = {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-export default function NewInvoice({ quotes, customers, initialProjectId, problems = [] }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string; problems?: string[] }) {
+export default function NewInvoice({ quotes, customers: customersProp, initialProjectId, problems = [] }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string; problems?: string[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [projectId, setProjectId] = useState(initialProjectId);
+  const [customers, setCustomers] = useState(customersProp);
   const [customerId, setCustomerId] = useState("");
+  const [newCust, setNewCust] = useState<null | { name: string; category: string; payment_terms: string; contact_name: string; contact_phone: string; contact_email: string }>(null);
+  const [custBusy, setCustBusy] = useState(false);
+  const [custErr, setCustErr] = useState("");
   const [kind, setKind] = useState<(typeof KINDS)[number]>("Deposit");
   const [mode, setMode] = useState<"pct" | "amount">("pct");
   const [pct, setPct] = useState("");
@@ -45,6 +49,28 @@ export default function NewInvoice({ quotes, customers, initialProjectId, proble
 
   const q = quotes.find((x) => x.id === projectId) || null;
   const remainingEx = q ? round2(q.quote_ex - q.invoiced_ex) : 0;
+  async function createCustomer() {
+    if (!newCust || !newCust.name.trim()) return setCustErr("Enter the customer's name.");
+    setCustBusy(true);
+    setCustErr("");
+    const row = {
+      name: newCust.name.trim(),
+      category: newCust.category,
+      payment_terms: newCust.payment_terms,
+      contact_name: newCust.contact_name.trim() || null,
+      contact_phone: newCust.contact_phone.trim() || null,
+      contact_email: newCust.contact_email.trim() || null,
+    };
+    const { data, error } = await supabase.from("customers").insert(row).select("id, name, payment_terms").single();
+    setCustBusy(false);
+    if (error || !data) return setCustErr(error?.message || "Could not create the customer");
+    logAudit(supabase, { eventType: "create", entityType: "customer", entityId: data.id, entityLabel: data.name });
+    setCustomers((prev) => [...prev, data as any].sort((a, b) => a.name.localeCompare(b.name)));
+    setCustomerId(data.id);
+    setDueTouched(false);
+    setNewCust(null);
+  }
+
   const customer = customers.find((c) => c.id === customerId) || null;
   const terms = q?.terms ?? customer?.payment_terms ?? null;
   const isItems = kind === "Items";
@@ -145,7 +171,59 @@ export default function NewInvoice({ quotes, customers, initialProjectId, proble
               <option value="">Choose...</option>
               {customers.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
             </select>
+            {!newCust && (
+              <button type="button" onClick={() => setNewCust({ name: "", category: "Private", payment_terms: "7 Days", contact_name: "", contact_phone: "", contact_email: "" })} className="mt-1 text-xs font-medium text-accent hover:underline">
+                + New customer
+              </button>
+            )}
           </label>
+        )}
+
+        {!q && isItems && newCust && (
+          <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[#f7f6f3] p-3 text-sm">
+            <div className="font-semibold">New customer</div>
+            <label className="block">
+              Name
+              <input className={input} value={newCust.name} onChange={(e) => setNewCust({ ...newCust, name: e.target.value })} />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                Type
+                <select className={input} value={newCust.category} onChange={(e) => setNewCust({ ...newCust, category: e.target.value })}>
+                  <option>Private</option>
+                  <option>Builder</option>
+                  <option>Retro Fit</option>
+                </select>
+              </label>
+              <label className="block">
+                Payment terms
+                <select className={input} value={newCust.payment_terms} onChange={(e) => setNewCust({ ...newCust, payment_terms: e.target.value })}>
+                  <option>7 Days</option>
+                  <option>COD</option>
+                  <option>30 Days</option>
+                </select>
+              </label>
+              <label className="block">
+                Contact name
+                <input className={input} value={newCust.contact_name} onChange={(e) => setNewCust({ ...newCust, contact_name: e.target.value })} />
+              </label>
+              <label className="block">
+                Phone
+                <input className={input} value={newCust.contact_phone} onChange={(e) => setNewCust({ ...newCust, contact_phone: e.target.value })} />
+              </label>
+            </div>
+            <label className="block">
+              Email (used when emailing the invoice)
+              <input className={input} type="email" value={newCust.contact_email} onChange={(e) => setNewCust({ ...newCust, contact_email: e.target.value })} />
+            </label>
+            {custErr && <p className="text-red-700">{custErr}</p>}
+            <div className="flex gap-2">
+              <button type="button" onClick={createCustomer} disabled={custBusy} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">
+                {custBusy ? "Saving..." : "Save customer"}
+              </button>
+              <button type="button" onClick={() => { setNewCust(null); setCustErr(""); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Cancel</button>
+            </div>
+          </div>
         )}
 
         {q && !isItems && (
