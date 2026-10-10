@@ -393,6 +393,7 @@ export default function PartsTable({
   const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
   const [hideNonStock, setHideNonStock] = useState(false);
+  const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   useEffect(() => {
     if (!fullScreen) return;
@@ -875,8 +876,9 @@ export default function PartsTable({
       .filter((p) => p.archived === showArchived)
       .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
       .filter((p) => !hideNonStock || p.is_stock_item)
+      .filter((p) => supplierFilter === null || (p.supplier_id ? supplierById[p.supplier_id] || "Unassigned" : "Unassigned") === supplierFilter)
       .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
-  }, [parts, showArchived, search, hideNonStock]);
+  }, [parts, showArchived, search, hideNonStock, supplierFilter, supplierById]);
 
   // ---- Sell price calculator: percentages -> Retail / Trade / Regency prices -------------------
   const [pricerOpen, setPricerOpen] = useState(false);
@@ -1201,10 +1203,15 @@ export default function PartsTable({
 
       {/* KPI cards: total value + per-supplier value */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="rounded-xl border border-black bg-[#0a0a0b] p-3 text-white">
+        <button
+          type="button"
+          onClick={() => setSupplierFilter(null)}
+          title="Show all suppliers"
+          className={`rounded-xl border border-black bg-[#0a0a0b] p-3 text-left text-white ${supplierFilter === null ? "ring-2 ring-offset-1 ring-black" : "opacity-80 hover:opacity-100"}`}
+        >
           <div className="text-xs font-semibold uppercase text-white">Total inventory value</div>
           <div className="mt-1 text-lg font-bold">{fmtCurrency(grandTotal)}</div>
-        </div>
+        </button>
         {supplierTotals.map(([supplier, totals]) => {
           const name = supplier.toLowerCase();
           const tone = name.includes("fletcher")
@@ -1215,7 +1222,13 @@ export default function PartsTable({
             ? "border-yellow-400 bg-yellow-100 text-yellow-900"
             : "border-[var(--border)]";
           return (
-            <div key={supplier} className={`rounded-xl border p-3 ${tone}`}>
+            <button
+              type="button"
+              key={supplier}
+              onClick={() => setSupplierFilter(supplierFilter === supplier ? null : supplier)}
+              title={supplierFilter === supplier ? "Click to show all suppliers" : `Show only ${supplier} items`}
+              className={`rounded-xl border p-3 text-left transition ${tone} ${supplierFilter === supplier ? "ring-2 ring-offset-1 ring-black" : supplierFilter !== null ? "opacity-60 hover:opacity-100" : "hover:shadow-md"}`}
+            >
               <div className="text-xs uppercase opacity-70">{supplier}</div>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="text-lg font-bold">{fmtCurrency(totals.value)}</span>
@@ -1223,7 +1236,7 @@ export default function PartsTable({
                   {totals.totalM2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m²
                 </span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1235,6 +1248,15 @@ export default function PartsTable({
           onChange={(e) => setSearch(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
         />
+        {supplierFilter !== null && (
+          <button
+            type="button"
+            onClick={() => setSupplierFilter(null)}
+            className="rounded-full border border-[var(--border)] bg-white px-3 py-1 text-xs font-medium"
+          >
+            Supplier: {supplierFilter} ✕
+          </button>
+        )}
         <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
           <input type="checkbox" checked={hideNonStock} onChange={(e) => setHideNonStock(e.target.checked)} />
           Hide non-stock items
