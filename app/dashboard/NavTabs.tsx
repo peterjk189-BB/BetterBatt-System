@@ -21,7 +21,7 @@ export default function NavTabs({ links }: { links: { key: string; href: string;
                 : "border-[var(--border)] text-[var(--muted)] hover:border-accent hover:text-[var(--text)]"
             }`}
           >
-            <TabIcon tabKey={l.key} color="currentColor" className="h-4 w-4 shrink-0" />
+            <TabIcon tabKey={l.key} color="currentColor" size={16} className="shrink-0" />
             {l.label}
           </Link>
         );

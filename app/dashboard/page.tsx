@@ -178,7 +178,7 @@ export default async function DashboardHome() {
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
               style={{ backgroundColor: (ICON_TILE[t.group] ?? ICON_TILE.Admin)[0] }}
             >
-              <TabIcon tabKey={t.key} color={(ICON_TILE[t.group] ?? ICON_TILE.Admin)[1]} />
+              <TabIcon tabKey={t.key} color={(ICON_TILE[t.group] ?? ICON_TILE.Admin)[1]} size={24} />
             </span>
             <span className="min-w-0">
               <span className="block font-semibold">{t.label}</span>

@@ -44,7 +44,7 @@ export default function Sidebar({ links }: { links: NavLink[] }) {
                         active ? "" : "text-[var(--muted)] hover:bg-white hover:text-[var(--text)]"
                       }`}
                     >
-                      <TabIcon tabKey={l.key} color="currentColor" className="h-[18px] w-[18px] shrink-0" />
+                      <TabIcon tabKey={l.key} color="currentColor" size={18} className="shrink-0" />
                       <span className="min-w-0">{l.label}</span>
                     </Link>
                   );
