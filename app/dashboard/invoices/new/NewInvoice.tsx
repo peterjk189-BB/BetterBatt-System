@@ -62,7 +62,11 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
   const [newCust, setNewCust] = useState<null | { name: string; category: string; payment_terms: string; contact_name: string; contact_phone: string; contact_email: string }>(null);
   const [custBusy, setCustBusy] = useState(false);
   const [custErr, setCustErr] = useState("");
-  const [kind, setKind] = useState<(typeof KINDS)[number]>("Deposit");
+  // A quote that already has an invoice (e.g. a deposit) can only be invoiced for the balance
+  const [kind, setKind] = useState<(typeof KINDS)[number]>(() => {
+    const iq = quotes.find((x) => x.id === initialProjectId);
+    return iq && iq.invoiced_ex > 0.005 ? "Balance" : "Deposit";
+  });
   const [mode, setMode] = useState<"pct" | "amount">("pct");
   const [pct, setPct] = useState("50");
   const [showDelivery, setShowDelivery] = useState(false);
@@ -130,6 +134,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
 
   async function create() {
     if (!q && !(isItems && customerId)) return setErr("Choose an accepted quote, or for an item sale choose a customer.");
+    if (q && kind === "Balance" && ex <= 0) return setErr("This quote is already fully invoiced.");
     if (!isItems && ex <= 0) return setErr("Enter an amount above $0.");
     if (q && kind !== "Balance" && kind !== "Full" && ex > remainingEx + 0.005 && !confirm(`This is more than the ${money(remainingEx)} (ex GST) still to invoice on this quote. Create it anyway?`)) return;
     setSaving(true);
@@ -172,6 +177,8 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     setPct(QUICK_PCTS[k] ? String(QUICK_PCTS[k][0]) : "");
   }
 
+  const alreadyInvoiced = !!q && q.invoiced_ex > 0.005;
+  const kindCards = alreadyInvoiced ? KIND_INFO.filter((k) => k.kind === "Balance") : KIND_INFO;
   const showAmount = !isItems && (kind === "Deposit" || kind === "Progress" || kind === "Other");
   const quickPcts = QUICK_PCTS[kind] ?? [];
   const pctInvoiced = q && q.quote_ex > 0 ? Math.min(100, (q.invoiced_ex / q.quote_ex) * 100) : 0;
@@ -208,8 +215,15 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
       <div className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-4">
           <Step n={1} title="What are you invoicing?">
+            {alreadyInvoiced && q && (
+              <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                {remainingEx > 0.005
+                  ? `Q${q.quote_number} already has ${money(q.invoiced_ex)} (ex GST) invoiced, so this invoice is for the balance.`
+                  : `Q${q.quote_number} is already fully invoiced.`}
+              </p>
+            )}
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-              {KIND_INFO.map(({ kind: k, sub }) => {
+              {kindCards.map(({ kind: k, sub }) => {
                 const on = k === kind;
                 return (
                   <button
@@ -230,7 +244,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
           <Step n={2} title={isItems ? "Quote or customer" : "Which quote?"}>
             <label className="block text-sm">
               Accepted quote {isItems && <span className="text-xs text-[var(--muted)]">(optional for item sales)</span>}
-              <select className={field} value={projectId} onChange={(e) => { setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); setSiteEdited(null); }}>
+              <select className={field} value={projectId} onChange={(e) => { const nq = quotes.find((x) => x.id === e.target.value); setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); setSiteEdited(null); if (nq && nq.invoiced_ex > 0.005) chooseKind("Balance"); }}>
                 <option value="">{isItems ? "No quote (counter / item sale)" : "Choose..."}</option>
                 {quotes.map((x) => (
                   <option key={x.id} value={x.id}>
