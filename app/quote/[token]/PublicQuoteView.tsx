@@ -166,7 +166,7 @@ export default function PublicQuoteView({
             <thead>
               <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
                 <th className="rounded-l-lg px-2.5 py-2 font-semibold">Product</th>
-                {project.show_qty_on_quote && <th className="px-2.5 py-2 text-right font-semibold">Qty (m²)</th>}
+                {project.show_qty_on_quote && <th className="px-2.5 py-2 text-right font-semibold">Qty</th>}
                 <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>
               </tr>
             </thead>
@@ -175,7 +175,7 @@ export default function PublicQuoteView({
                 <Fragment key={i}>
                   <tr className={l.note ? "" : "border-b border-gray-300"}>
                     <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
-                    {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.qty_m2} m²</td>}
+                    {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
                     <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
                   </tr>
                   {l.note && (
