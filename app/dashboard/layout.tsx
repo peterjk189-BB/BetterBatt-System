@@ -7,6 +7,7 @@ import SignOutButton from "./SignOutButton";
 import NavTabs from "./NavTabs";
 import Sidebar from "./Sidebar";
 import SelectNumberOnFocus from "./SelectNumberOnFocus";
+import PushToggle from "./PushToggle";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
 import QuickEnquiry from "./crm/QuickEnquiry";
@@ -74,6 +75,7 @@ export default async function DashboardLayout({
               {profile?.full_name || user.email}
               {isAdmin ? " (admin)" : isOffice ? " (office)" : " (installer)"}
             </span>
+            <PushToggle />
             <SignOutButton />
           </div>
         </div>

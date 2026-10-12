@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
+import { sendPushToUser } from "@/lib/push";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -33,6 +34,18 @@ export async function POST(req: Request) {
   if (!v || !v.assigned_to) return NextResponse.json({ ok: true, sent: false, reason: "No one assigned" });
   if (v.assigned_to === user.id) return NextResponse.json({ ok: true, sent: false, reason: "Assigned to yourself" });
   if (v.status === "Cancelled") return NextResponse.json({ ok: true, sent: false, reason: "Cancelled" });
+
+  // Push notification first (instant, on their phone/iPad). If they haven't switched notifications on
+  // for any device yet, fall back to an email so they still find out.
+  const siteLine = [v.address, v.suburb].filter(Boolean).join(", ");
+  const whenLine = new Date(`${v.visit_date}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+  const pushed = await sendPushToUser(admin, v.assigned_to, {
+    title: `Site visit booked for you — ${whenLine}${v.visit_time ? " " + String(v.visit_time).slice(0, 5) : ""}`,
+    body: [v.customer_name, siteLine].filter(Boolean).join(" · ") || `SV${v.visit_number}`,
+    url: `/dashboard/site-visits/${v.id}`,
+    tag: `site-visit-${v.id}`,
+  });
+  if (pushed > 0) return NextResponse.json({ ok: true, sent: true, via: "push", devices: pushed });
 
   const [{ data: target }, { data: targetProfile }, { data: byProfile }] = await Promise.all([
     admin.auth.admin.getUserById(v.assigned_to),
@@ -70,5 +83,5 @@ export async function POST(req: Request) {
     }),
   });
   if (!result.ok) return NextResponse.json({ ok: false, sent: false, error: result.error });
-  return NextResponse.json({ ok: true, sent: true });
+  return NextResponse.json({ ok: true, sent: true, via: "email" });
 }
