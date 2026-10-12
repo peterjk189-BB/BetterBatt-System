@@ -91,6 +91,20 @@ export default function SiteVisitEditor({
 
   const builder = isBuilderVisit(form.visit_type);
   const creating = useRef<Promise<string | null> | null>(null);
+  // Who has already been emailed about this visit (so autosaves don't email them again).
+  const notifiedTo = useRef<string>(visit?.assigned_to || "");
+  const notifyAssignee = useCallback(
+    (id: string, assignedTo: string) => {
+      if (!assignedTo || assignedTo === notifiedTo.current) return;
+      notifiedTo.current = assignedTo;
+      fetch("/api/site-visits/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visit_id: id }),
+      }).catch(() => {});
+    },
+    []
+  );
   const firstRender = useRef(true);
 
   const payload = useCallback(
@@ -144,6 +158,7 @@ export default function SiteVisitEditor({
       // Swap the URL to the saved record without remounting, so uploads in progress carry on.
       window.history.replaceState(null, "", `/dashboard/site-visits/${data.id}`);
       logAudit(supabase, { eventType: "create", entityType: "site visit", entityId: data.id, entityLabel: visitLabel(data) });
+      notifyAssignee(data.id, form.assigned_to);
       if (crmEnabled && user?.id) {
         // Every new site visit gets a CRM file so follow-ups aren't missed.
         ensureLead(
@@ -164,7 +179,7 @@ export default function SiteVisitEditor({
       return data.id as string;
     })();
     return creating.current;
-  }, [visitId, form.customer_name, form.address, payload, supabase]);
+  }, [visitId, form.customer_name, form.address, form.assigned_to, payload, supabase, notifyAssignee]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {
@@ -182,6 +197,7 @@ export default function SiteVisitEditor({
       setSaveState("saved");
       setSavedAt(new Date());
       setError(null);
+      notifyAssignee(visitId, form.assigned_to);
       if (opts?.audit && visitNumber) {
         logAudit(supabase, {
           eventType: "update",
@@ -191,7 +207,7 @@ export default function SiteVisitEditor({
         });
       }
     },
-    [visitId, ensureVisitId, payload, supabase, visitNumber, form.customer_name]
+    [visitId, ensureVisitId, payload, supabase, visitNumber, form.customer_name, form.assigned_to, notifyAssignee]
   );
 
   // Autosave saved visits ~1.2s after the last change, so nothing is lost if
