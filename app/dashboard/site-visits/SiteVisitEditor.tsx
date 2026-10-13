@@ -145,8 +145,8 @@ export default function SiteVisitEditor({
   const ensureVisitId = useCallback(async (): Promise<string | null> => {
     if (visitId) return visitId;
     if (creating.current) return creating.current;
-    if (!form.customer_name.trim() && !form.address.trim()) {
-      setError("Enter the customer name or address first.");
+    if (!form.customer_name.trim()) {
+      setError(builder ? "Enter the builder / company name first." : "Enter the customer name first.");
       return null;
     }
     creating.current = (async () => {
@@ -433,6 +433,9 @@ export default function SiteVisitEditor({
           </Field>
           <Field label={builder ? "Builder / company" : "Customer name"} className="col-span-2">
             <input className={inputCls} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} autoComplete="off" />
+            {!form.customer_name.trim() && (
+              <p className="mt-1 text-xs font-medium text-amber-700">Add a name so the visit list and alerts show who this is.</p>
+            )}
           </Field>
           <Field label="Existing customer (builders etc.)" className="col-span-2">
             <select className={inputCls} value={form.customer_id} onChange={(e) => pickCustomer(e.target.value)}>
