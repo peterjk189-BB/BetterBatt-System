@@ -226,6 +226,25 @@ export default function WorkOrderEditor({
     }
 
     setSaving(false);
+    // Alert contractors about job dates that are new on this save (fire and forget).
+    try {
+      const before = new Set(lines.filter((l) => l.task_date).map((l) => `${l.subcontractor_id || workOrder?.contractor_id || ""}|${l.task_date}`));
+      const fresh: Record<string, string[]> = {};
+      for (const r of rowsToInsert) {
+        if (!r.task_date || !r.subcontractor_id) continue;
+        if (before.has(`${r.subcontractor_id}|${r.task_date}`)) continue;
+        (fresh[r.subcontractor_id] ||= []).push(r.task_date);
+      }
+      const items = Object.entries(fresh).map(([subcontractor_id, dates]) => ({ subcontractor_id, dates }));
+      if (items.length > 0) {
+        fetch("/api/work-orders/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ work_order_id: workOrderId, items }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {}
     logAudit(supabase, {
       eventType: isNew ? "create" : "update",
       entityType: "work_order",
