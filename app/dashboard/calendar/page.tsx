@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
 import CalendarView from "./CalendarView";
+import LiveRefresh from "./LiveRefresh";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookDueInspections } from "@/lib/inspectionPrefill";
 
@@ -40,6 +41,8 @@ export default async function CalendarPage() {
       : { data: [] };
 
     return (
+      <>
+      <LiveRefresh />
       <CalendarView
         woLines={(woLines ?? []) as any}
         pos={[]}
@@ -50,6 +53,7 @@ export default async function CalendarPage() {
             : "Showing your scheduled jobs only."
         }
       />
+      </>
     );
   }
 
@@ -102,6 +106,8 @@ export default async function CalendarPage() {
   ]);
 
   return (
+    <>
+    <LiveRefresh />
     <CalendarView
       woLines={(woLines ?? []) as any}
       pos={(pos ?? []) as any}
@@ -112,5 +118,6 @@ export default async function CalendarPage() {
       bookingErrors={bookingErrors}
       installerNote={null}
     />
+    </>
   );
 }
