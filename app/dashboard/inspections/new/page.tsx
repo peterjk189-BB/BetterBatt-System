@@ -1,3 +1,4 @@
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
 import { emptySection, reinspectionSection, type InspectionPrefill, type SectionKey } from "@/lib/inspections";
@@ -16,13 +17,15 @@ export default async function NewInspectionPage({
 }) {
   const supabase = await createClient();
   const role = await getEffectiveRole();
+  const { data: staffRows } = await createAdminClient().from("profiles").select("id, full_name").order("full_name");
+  const staff = (staffRows ?? []) as { id: string; full_name: string | null }[];
 
   if (searchParams.manual) {
     const prefill: InspectionPrefill = {
       manual: true,
       source: "Manual inspection — not linked to a work order. Fill in the job details, tick the inspections it covers, and it saves as soon as there's an address or builder.",
     };
-    return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
+    return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} staff={staff} />;
   }
 
   if (searchParams.reinspect) {
@@ -52,13 +55,13 @@ export default async function NewInspectionPage({
         parent_number: parent.inspection_number,
         source: `Re-inspection of INS${parent.inspection_number}. Lines that failed are flagged — re-check those.`,
       };
-      return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
+      return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} staff={staff} />;
     }
   }
 
   if (searchParams.work_order_id) {
     const prefill = await prefillFromWorkOrder(supabase, searchParams.work_order_id);
-    if (prefill) return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
+    if (prefill) return <InspectionEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} staff={staff} />;
   }
 
   const [{ data: workOrders }, { data: swms }, { data: inspections }] = await Promise.all([

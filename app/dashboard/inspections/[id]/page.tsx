@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
 import InspectionEditor from "../InspectionEditor";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export default async function InspectionRecordPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -23,6 +24,7 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
   ]);
 
   if (!record) notFound();
+  const { data: staffRows } = await createAdminClient().from("profiles").select("id, full_name").order("full_name");
 
   let parent: { id: string; inspection_number: number } | null = null;
   if (record.parent_inspection_id) {
@@ -36,6 +38,7 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
       photos={(photos ?? []) as any}
       prefill={null}
       isAdmin={role === "admin"}
+      staff={(staffRows ?? []) as any}
       related={{ parent, children: (children ?? []) as any }}
     />
   );

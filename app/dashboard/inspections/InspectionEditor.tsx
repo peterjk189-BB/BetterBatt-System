@@ -48,11 +48,14 @@ export default function InspectionEditor({
   prefill,
   isAdmin,
   related,
+  staff = [],
 }: {
   record: (InspectionRecord & { work_orders?: { wo_number: string } | null; projects?: { quote_number: number } | null }) | null;
   photos: InspectionPhoto[];
   prefill: InspectionPrefill | null;
   isAdmin: boolean;
+  /** People an inspection can be assigned to (they get an alert). */
+  staff?: { id: string; full_name: string | null }[];
   /** For a saved inspection: the FAILed one it re-inspects, and any re-inspections of it. */
   related?: { parent: { id: string; inspection_number: number } | null; children: { id: string; inspection_number: number; result: string | null }[] };
 }) {
@@ -79,6 +82,7 @@ export default function InspectionEditor({
     rectifications: record?.rectifications || "",
     inspector_name: record?.inspector_name || "",
     installer_name: record?.installer_name || prefill?.installer_name || "",
+    assigned_to: ((record as any)?.assigned_to as string | null) || "",
     inspector_signature: record?.inspector_signature || null as string | null,
     signed_at: record?.signed_at || null as string | null,
     work_order_id: record?.work_order_id || prefill?.work_order_id || "",
@@ -95,6 +99,16 @@ export default function InspectionEditor({
   const [error, setError] = useState<string | null>(null);
 
   const creating = useRef<Promise<string | null> | null>(null);
+  const notifiedTo = useRef<string>(((record as any)?.assigned_to as string | null) || "");
+  const notifyAssignee = useCallback((insId: string, assignedTo: string) => {
+    if (!assignedTo || assignedTo === notifiedTo.current) return;
+    notifiedTo.current = assignedTo;
+    fetch("/api/inspections/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inspection_id: insId }),
+    }).catch(() => {});
+  }, []);
   const firstRender = useRef(true);
 
   const payload = useCallback(
@@ -116,6 +130,8 @@ export default function InspectionEditor({
       rectifications: form.rectifications || null,
       inspector_name: form.inspector_name.trim() || null,
       installer_name: form.installer_name.trim() || null,
+      // Only sent when set (or being cleared) so saving still works before migration 0037 is run.
+      ...(form.assigned_to || (record as any)?.assigned_to ? { assigned_to: form.assigned_to || null } : {}),
       inspector_signature: form.inspector_signature,
       signed_at: form.signed_at,
       work_order_id: form.work_order_id || null,
@@ -162,10 +178,11 @@ export default function InspectionEditor({
       setError(null);
       window.history.replaceState(null, "", `/dashboard/inspections/${data.id}`);
       logAudit(supabase, { eventType: "create", entityType: "Inspection", entityId: data.id, entityLabel: inspectionLabel(data) });
+      notifyAssignee(data.id, form.assigned_to);
       return data.id as string;
     })();
     return creating.current;
-  }, [id, form.work_order_id, form.site_address, form.builder_name, payload, supabase, prefill?.manual]);
+  }, [id, form.work_order_id, form.site_address, form.builder_name, form.assigned_to, notifyAssignee, payload, supabase, prefill?.manual]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {
@@ -183,11 +200,12 @@ export default function InspectionEditor({
       setSaveState("saved");
       setSavedAt(new Date());
       setError(null);
+      notifyAssignee(id, form.assigned_to);
       if (opts?.audit && number) {
         logAudit(supabase, { eventType: "update", entityType: "Inspection", entityId: id, entityLabel: `INS${number}` });
       }
     },
-    [id, ensureId, payload, supabase, number]
+    [id, ensureId, payload, supabase, number, form.assigned_to, notifyAssignee]
   );
 
   useEffect(() => {
@@ -373,6 +391,14 @@ export default function InspectionEditor({
           </Field>
           <Field label="Suburb" className="col-span-2">
             <input className={inputCls} value={form.suburb} onChange={(e) => set("suburb", e.target.value)} />
+          </Field>
+          <Field label="Assigned to (gets an alert)" className="col-span-2">
+            <select className={inputCls} value={form.assigned_to} onChange={(e) => set("assigned_to", e.target.value)}>
+              <option value="">Unassigned</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>{s.full_name || "Unnamed user"}</option>
+              ))}
+            </select>
           </Field>
           <Field label="Contractor" className="col-span-2">
             <input className={inputCls} value={form.contractor} onChange={(e) => set("contractor", e.target.value)} />
