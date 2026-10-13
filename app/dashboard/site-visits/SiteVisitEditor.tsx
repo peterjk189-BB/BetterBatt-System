@@ -93,6 +93,21 @@ export default function SiteVisitEditor({
   const creating = useRef<Promise<string | null> | null>(null);
   // Who has already been emailed about this visit (so autosaves don't email them again).
   const notifiedTo = useRef<string>(visit?.assigned_to || "");
+  // Set once the office team has been told this visit is done.
+  const notifiedVisited = useRef<boolean>(visit?.status === "Visited");
+  const notifyVisited = useCallback((id: string, status: string) => {
+    if (status !== "Visited") {
+      notifiedVisited.current = false; // moved back out of Visited: tell them again next time it's done
+      return;
+    }
+    if (notifiedVisited.current) return;
+    notifiedVisited.current = true;
+    fetch("/api/site-visits/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visit_id: id, event: "visited" }),
+    }).catch(() => {});
+  }, []);
   const notifyAssignee = useCallback(
     (id: string, assignedTo: string) => {
       if (!assignedTo || assignedTo === notifiedTo.current) return;
@@ -159,6 +174,7 @@ export default function SiteVisitEditor({
       window.history.replaceState(null, "", `/dashboard/site-visits/${data.id}`);
       logAudit(supabase, { eventType: "create", entityType: "site visit", entityId: data.id, entityLabel: visitLabel(data) });
       notifyAssignee(data.id, form.assigned_to);
+      notifyVisited(data.id, form.status);
       if (crmEnabled && user?.id) {
         // Every new site visit gets a CRM file so follow-ups aren't missed.
         ensureLead(
@@ -179,7 +195,7 @@ export default function SiteVisitEditor({
       return data.id as string;
     })();
     return creating.current;
-  }, [visitId, form.customer_name, form.address, form.assigned_to, payload, supabase, notifyAssignee]);
+  }, [visitId, form.customer_name, form.address, form.assigned_to, form.status, payload, supabase, notifyAssignee, notifyVisited]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {
@@ -198,6 +214,7 @@ export default function SiteVisitEditor({
       setSavedAt(new Date());
       setError(null);
       notifyAssignee(visitId, form.assigned_to);
+      notifyVisited(visitId, form.status);
       if (opts?.audit && visitNumber) {
         logAudit(supabase, {
           eventType: "update",
@@ -207,7 +224,7 @@ export default function SiteVisitEditor({
         });
       }
     },
-    [visitId, ensureVisitId, payload, supabase, visitNumber, form.customer_name, form.assigned_to, notifyAssignee]
+    [visitId, ensureVisitId, payload, supabase, visitNumber, form.customer_name, form.assigned_to, form.status, notifyAssignee, notifyVisited]
   );
 
   // Autosave saved visits ~1.2s after the last change, so nothing is lost if
