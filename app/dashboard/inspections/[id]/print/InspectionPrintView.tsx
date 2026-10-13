@@ -230,6 +230,8 @@ export default function InspectionPrintView({
                       record.result === r
                         ? r === "PASS"
                           ? "border-[#1f6b35] bg-[#1f6b35] text-white"
+                          : r === "IN PROGRESS"
+                          ? "border-[#b7791f] bg-[#f5b324] text-[#201f1c]"
                           : "border-[#9b1c1c] bg-[#9b1c1c] text-white"
                         : "border-[#e4e1da] bg-white text-[#8a877f]"
                     }`}

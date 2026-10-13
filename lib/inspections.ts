@@ -13,7 +13,7 @@ export const STATUS_STYLES: Record<string, string> = {
   Completed: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
 };
 
-export const RESULTS = ["PASS", "FAIL"] as const;
+export const RESULTS = ["PASS", "IN PROGRESS", "FAIL"] as const;
 export type InspectionResult = (typeof RESULTS)[number];
 
 export const ANSWERS = ["Yes", "No", "NA"] as const;

@@ -37,10 +37,11 @@ type Row = {
   projects: { quote_number: number } | null;
 };
 
-const FILTERS = ["All", "Scheduled", "Draft", "Completed", "PASS", "FAIL"] as const;
+const FILTERS = ["All", "Scheduled", "Draft", "Completed", "PASS", "IN PROGRESS", "FAIL"] as const;
 
 const RESULT_STYLES: Record<string, string> = {
   PASS: "bg-[#e6f4ea] text-[#1f6b35] border-[#b7dfc2]",
+  "IN PROGRESS": "bg-[#fff4d6] text-[#7a5a0f] border-[#f3d48a]",
   FAIL: "bg-[#fde8e8] text-[#9b1c1c] border-[#f5b5b5]",
 };
 

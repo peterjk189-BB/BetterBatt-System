@@ -90,7 +90,7 @@ type Inspection = {
   inspection_date: string | null;
   inspection_time: string | null;
   status: "Scheduled" | "Draft" | "Completed";
-  result: "PASS" | "FAIL" | null;
+  result: "PASS" | "IN PROGRESS" | "FAIL" | null;
   site_address: string | null;
   suburb: string | null;
   builder_name: string | null;
@@ -706,8 +706,8 @@ function InspectionChip({
   onMove: (to: string) => void;
 }) {
   const [moving, setMoving] = useState(false);
-  const done = ev.status === "Completed" || !!ev.result;
-  const label = ev.result ? ev.result : ev.status === "Scheduled" ? "Booked" : "In progress";
+  const done = ev.status === "Completed" || ev.result === "PASS" || ev.result === "FAIL";
+  const label = ev.result === "PASS" || ev.result === "FAIL" ? ev.result : ev.status === "Scheduled" ? "Booked" : "In progress";
 
   return (
     <div

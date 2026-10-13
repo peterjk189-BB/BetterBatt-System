@@ -446,6 +446,8 @@ export default function InspectionEditor({
                     form.result === r
                       ? r === "PASS"
                         ? "border-[#1f6b35] bg-[#1f6b35] text-white"
+                        : r === "IN PROGRESS"
+                        ? "border-[#b7791f] bg-[#f5b324] text-[#201f1c]"
                         : "border-[#9b1c1c] bg-[#9b1c1c] text-white"
                       : "border-[var(--border)] bg-[var(--surface)]"
                   }`}
