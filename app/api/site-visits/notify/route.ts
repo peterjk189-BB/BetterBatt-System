@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     .single();
   if (!v) return NextResponse.json({ error: "Not found" }, { status: 404 });
   // Prefer the name typed on the visit; fall back to the linked customer account, then the phone number.
-  const custName: string = (v.customer_name || v.customers?.name || "").trim();
+  const custName: string = (v.customer_name || (v as any).customers?.name || "").trim();
 
   // The visit has been done (status set to Visited and saved): tell the office team (and admins),
   // except the person who just saved it.
