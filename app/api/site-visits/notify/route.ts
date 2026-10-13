@@ -28,10 +28,12 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data: v } = await admin
     .from("site_visits")
-    .select("id, visit_number, visit_date, visit_time, visit_type, status, customer_name, phone, address, suburb, notes, assigned_to")
+    .select("id, visit_number, visit_date, visit_time, visit_type, status, customer_name, phone, address, suburb, notes, assigned_to, customer_id, customers(name)")
     .eq("id", visitId)
     .single();
   if (!v) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Prefer the name typed on the visit; fall back to the linked customer account, then the phone number.
+  const custName: string = (v.customer_name || v.customers?.name || "").trim();
 
   // The visit has been done (status set to Visited and saved): tell the office team (and admins),
   // except the person who just saved it.
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
     ]);
     const who = byProfile?.full_name || "Someone";
     const siteText = [v.address, v.suburb].filter(Boolean).join(", ");
-    const summary = [v.customer_name, siteText].filter(Boolean).join(" · ") || `SV${v.visit_number}`;
+    const summary = [custName || v.phone, siteText].filter(Boolean).join(" · ") || `SV${v.visit_number}`;
     const link = `${siteUrl()}/dashboard/site-visits/${v.id}`;
     let pushedCount = 0;
     let emailed = 0;
@@ -89,7 +91,7 @@ export async function POST(req: Request) {
   const whenLine = new Date(`${v.visit_date}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
   const pushed = await sendPushToUser(admin, v.assigned_to, {
     title: `Site visit booked for you — ${whenLine}${v.visit_time ? " " + String(v.visit_time).slice(0, 5) : ""}`,
-    body: [v.customer_name, siteLine].filter(Boolean).join(" · ") || `SV${v.visit_number}`,
+    body: [custName || v.phone, siteLine].filter(Boolean).join(" · ") || `SV${v.visit_number}`,
     url: `/dashboard/site-visits/${v.id}`,
     tag: `site-visit-${v.id}`,
   });
@@ -109,7 +111,7 @@ export async function POST(req: Request) {
   const site = [v.address, v.suburb].filter(Boolean).join(", ");
   const rows: [string, string][] = [
     ["When", `${when}${time}`],
-    ["Customer", v.customer_name || "—"],
+    ["Customer", custName || "—"],
     ["Address", site || "—"],
     ["Type", v.visit_type || "—"],
   ];
@@ -123,7 +125,7 @@ export async function POST(req: Request) {
     to,
     subject: `Site visit SV${v.visit_number} booked for you — ${when}${site ? ", " + site : ""}`,
     html: brandedEmailHtml({
-      previewText: `${when}${time} · ${site || v.customer_name || ""}`,
+      previewText: `${when}${time} · ${custName || site}`,
       heading: `Hi ${esc(first)}, a site visit has been booked for you`,
       bodyHtml: `<p style="margin:0 0 12px;">${esc(byProfile?.full_name || "Someone")} booked site visit SV${v.visit_number} for you.</p><table style="font-size:14px;border-collapse:collapse;">${table}</table>`,
       buttonText: "Open site visit",
