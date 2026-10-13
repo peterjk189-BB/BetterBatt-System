@@ -29,6 +29,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [lines, setLines] = useState<InvoiceLine[]>(initialLines);
   const [tier, setTier] = useState<string>("retail");
   const [partSearch, setPartSearch] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
@@ -286,28 +287,44 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         {draft ? (
           <div className="mt-3">
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
-                value=""
-                onChange={(e) => {
-                  const p = parts.find((x) => x.id === e.target.value);
-                  if (p) addItem(p);
-                }}
-              >
-                <option value="">Add an inventory item...</option>
-                {matches.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.code ? `${p.code} · ` : ""}{p.name} — {money(supplyPackPrice(p, tier === "standard" ? null : tier))}
-                  </option>
-                ))}
-              </select>
+              <div className="relative min-w-[14rem] flex-1">
+                <input
+                  className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                  placeholder="Type to search inventory (e.g. R2.5 wall)..."
+                  value={partSearch}
+                  onChange={(e) => { setPartSearch(e.target.value); setPickerOpen(true); }}
+                  onFocus={() => setPickerOpen(true)}
+                  onBlur={() => setTimeout(() => setPickerOpen(false), 150)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && matches[0] && partSearch.trim()) { e.preventDefault(); addItem(matches[0]); setPickerOpen(false); }
+                    if (e.key === "Escape") setPickerOpen(false);
+                  }}
+                />
+                {pickerOpen && (
+                  <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-[var(--border)] bg-white shadow-lg">
+                    {matches.length === 0 && <li className="px-3 py-2 text-sm text-[var(--muted)]">No matching items</li>}
+                    {matches.slice(0, 40).map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => { e.preventDefault(); addItem(p); setPickerOpen(false); }}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-black/5"
+                        >
+                          <span>{p.code ? `${p.code} · ` : ""}{p.name}</span>
+                          <span className="shrink-0 text-xs text-[var(--muted)]">{money(supplyPackPrice(p, tier === "standard" ? null : tier))}</span>
+                        </button>
+                      </li>
+                    ))}
+                    {matches.length > 40 && <li className="px-3 py-2 text-xs text-[var(--muted)]">Showing 40 of {matches.length} - keep typing to narrow</li>}
+                  </ul>
+                )}
+              </div>
               <select className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-sm" value={tier} onChange={(e) => setTier(e.target.value)}>
                 <option value="standard">Standard price</option>
                 {PRICE_TIERS.map((t) => (<option key={t.value} value={t.value}>{t.label} price</option>))}
               </select>
-              <input className="w-40 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" placeholder="Filter list..." value={partSearch} onChange={(e) => setPartSearch(e.target.value)} />
             </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">The price point is picked when you add an item (a price left at $0 on the item falls back to Standard). You can edit the price or quantity on the line.</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">Pick the price point first, then tap an item in the list (or press Enter to add the top match). The price point is applied when you add an item (a price left at $0 on the item falls back to Standard). You can edit the price or quantity on the line.</p>
           </div>
         ) : (
           lines.length === 0 && <p className="mt-2 text-xs text-[var(--muted)]">No items on this invoice.</p>
