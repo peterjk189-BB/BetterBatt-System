@@ -173,7 +173,7 @@ export function staffLabel(s: { full_name: string | null } | null | undefined) {
 
 export type VisitPhoto = {
   id: string;
-  category: "Photo" | "Site plan";
+  category: "Photo" | "Site plan" | "Other document";
   storage_path: string;
   file_name: string | null;
   caption: string | null;

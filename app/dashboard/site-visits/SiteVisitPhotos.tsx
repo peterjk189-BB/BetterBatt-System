@@ -23,6 +23,10 @@ const CAPTION_SUGGESTIONS = [
   "Meter box",
 ];
 
+function isPdfFile(f: File) {
+  return f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+}
+
 /** Phone photos are 3–6 MB; shrink to 1600px JPEG before upload so uploads work on site on 4G. */
 async function compressImage(file: File): Promise<Blob> {
   try {
@@ -95,8 +99,9 @@ export default function SiteVisitPhotos({
   }, [photos]);
 
   async function uploadBlob(visitId: string, blob: Blob, category: VisitPhoto["category"], caption: string, fileName: string) {
-    const path = `site-visits/${visitId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-    const { error: upErr } = await supabase.storage.from("attachments").upload(path, blob, { contentType: "image/jpeg" });
+    const isPdf = category === "Other document";
+    const path = `site-visits/${visitId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${isPdf ? "pdf" : "jpg"}`;
+    const { error: upErr } = await supabase.storage.from("attachments").upload(path, blob, { contentType: isPdf ? "application/pdf" : "image/jpeg" });
     if (upErr) throw new Error(upErr.message);
     const {
       data: { user },
@@ -124,8 +129,12 @@ export default function SiteVisitPhotos({
   }
 
   async function addFiles(list: FileList | null) {
-    const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png|webp)$/i.test(f.name));
-    if (files.length === 0) return;
+    const all = Array.from(list ?? []);
+    const files = all.filter((f) => f.type.startsWith("image/") || f.type === "application/pdf" || /\.(heic|heif|jpe?g|png|webp|pdf)$/i.test(f.name));
+    if (files.length === 0) {
+      if (all.length > 0) setError("Only photos and PDF files can be added here.");
+      return;
+    }
     setError(null);
     const visitId = await ensureVisitId();
     if (!visitId) {
@@ -136,14 +145,19 @@ export default function SiteVisitPhotos({
     for (let i = 0; i < files.length; i++) {
       setProgress(`Uploading ${i + 1} of ${files.length}…`);
       try {
-        const blob = await compressImage(files[i]);
-        await uploadBlob(visitId, blob, "Photo", "", files[i].name);
+        if (isPdfFile(files[i])) {
+          if (files[i].size > 25 * 1024 * 1024) throw new Error("PDF too large (max 25 MB)");
+          await uploadBlob(visitId, files[i], "Other document", "", files[i].name);
+        } else {
+          const blob = await compressImage(files[i]);
+          await uploadBlob(visitId, blob, "Photo", "", files[i].name);
+        }
       } catch {
         failed++;
       }
     }
     setProgress(null);
-    if (failed) setError(`${failed} photo${failed === 1 ? "" : "s"} didn't upload. Check the signal and try those again.`);
+    if (failed) setError(`${failed} file${failed === 1 ? "" : "s"} didn't upload. Check the signal (PDFs can be up to 25 MB) and try again.`);
   }
 
   async function saveCaption(p: VisitPhoto, caption: string) {
@@ -153,7 +167,7 @@ export default function SiteVisitPhotos({
   }
 
   async function removePhoto(p: VisitPhoto) {
-    if (!confirm(`Delete this ${p.category === "Site plan" ? "site plan" : "photo"}${p.caption ? ` (“${p.caption}”)` : ""}?`)) return;
+    if (!confirm(`Delete this ${p.category === "Site plan" ? "site plan" : p.category === "Other document" ? "document" : "photo"}${p.caption ? ` (“${p.caption}”)` : ""}?`)) return;
     await supabase.storage.from("attachments").remove([p.storage_path]);
     const { error: delErr } = await supabase.from("attachments").delete().eq("id", p.id);
     if (delErr) {
@@ -189,7 +203,8 @@ export default function SiteVisitPhotos({
   }
 
   const plans = photos.filter((p) => p.category === "Site plan");
-  const sitePhotos = photos.filter((p) => p.category !== "Site plan");
+  const sitePhotos = photos.filter((p) => p.category !== "Site plan" && p.category !== "Other document");
+  const documents = photos.filter((p) => p.category === "Other document");
 
   return (
     <div className="flex flex-col gap-4">
@@ -206,7 +221,7 @@ export default function SiteVisitPhotos({
           onClick={() => libraryRef.current?.click()}
           className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm font-semibold"
         >
-          Add from library
+          Add from library (photos or PDFs)
         </button>
         <button
           type="button"
@@ -216,7 +231,7 @@ export default function SiteVisitPhotos({
           Draw site plan
         </button>
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
-        <input ref={libraryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        <input ref={libraryRef} type="file" accept="image/*,application/pdf,.pdf" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
         <input
           ref={planUploadRef}
           type="file"
@@ -277,6 +292,17 @@ export default function SiteVisitPhotos({
         </div>
       )}
 
+      {documents.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">PDFs and documents</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {documents.map((p) => (
+              <DocCard key={p.id} doc={p} url={urls[p.storage_path]} onCaption={(c) => saveCaption(p, c)} onDelete={() => removePhoto(p)} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {sitePhotos.length > 0 ? (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {sitePhotos.map((p) => (
@@ -284,7 +310,7 @@ export default function SiteVisitPhotos({
           ))}
         </div>
       ) : (
-        plans.length === 0 && (
+        plans.length === 0 && documents.length === 0 && (
           <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-6 text-center text-sm text-[var(--muted)]">
             No photos yet. Photograph the plans, each area you&apos;re quoting, the access points and anything you
             won&apos;t be installing, then caption each one.
@@ -323,6 +349,48 @@ export default function SiteVisitPhotos({
       )}
 
       {sketch && <SitePlanSketch background={sketch} onCancel={() => setSketch(null)} onSave={saveSketch} />}
+    </div>
+  );
+}
+
+function DocCard({
+  doc,
+  url,
+  onCaption,
+  onDelete,
+}: {
+  doc: VisitPhoto;
+  url: string | undefined;
+  onCaption: (caption: string) => void;
+  onDelete: () => void;
+}) {
+  const [caption, setCaption] = useState(doc.caption || "");
+  return (
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+      <div className="flex items-center gap-3 px-3 py-3">
+        <span className="flex h-12 w-10 shrink-0 items-center justify-center rounded-md bg-red-100 text-xs font-bold text-red-800">PDF</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{doc.file_name || "Document.pdf"}</p>
+          {url ? (
+            <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-accent underline">
+              Open
+            </a>
+          ) : (
+            <span className="text-xs text-[var(--muted)]">Loading…</span>
+          )}
+        </div>
+        <button type="button" onClick={onDelete} className="shrink-0 text-sm text-red-700 underline">
+          Delete
+        </button>
+      </div>
+      <input
+        value={caption}
+        onChange={(e) => setCaption(e.target.value)}
+        onBlur={() => onCaption(caption.trim())}
+        placeholder="What is this? e.g. Architect plans, engineer's details"
+        className="w-full border-t border-[var(--border)] px-2.5 py-2 text-sm outline-none focus:bg-[#fffaf0]"
+        aria-label="Document caption"
+      />
     </div>
   );
 }

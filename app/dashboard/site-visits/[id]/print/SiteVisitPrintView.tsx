@@ -54,7 +54,8 @@ export default function SiteVisitPrintView({
 }) {
   const c = normaliseChecklist(visit.checklist);
   const plans = photos.filter((p) => p.category === "Site plan");
-  const sitePhotos = photos.filter((p) => p.category !== "Site plan");
+  const sitePhotos = photos.filter((p) => p.category !== "Site plan" && p.category !== "Other document");
+  const documents = photos.filter((p) => p.category === "Other document");
   const rooms = c.rooms.filter((r) => r.length || r.width);
   const builder = isBuilderVisit(visit.visit_type);
 
@@ -241,6 +242,11 @@ export default function SiteVisitPrintView({
           </div>
         ))}
 
+        {documents.length > 0 && (
+          <p style={{ marginTop: 8, fontSize: 12 }}>
+            <strong>Attached documents (open in the app):</strong> {documents.map((d) => d.file_name || d.caption || "Document").join(", ")}
+          </p>
+        )}
         {sitePhotos.length > 0 && (
           <div className="mt-6" style={{ breakBefore: plans.length ? "page" : undefined }}>
             <h3 className="border-b border-[#201f1c] pb-1 font-bold">Photos</h3>
