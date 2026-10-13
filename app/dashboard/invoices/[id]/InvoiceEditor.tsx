@@ -30,6 +30,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [tier, setTier] = useState<string>("retail");
   const [partSearch, setPartSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editCust, setEditCust] = useState(false);
+  const [custList, setCustList] = useState<{ id: string; name: string }[]>([]);
+  const [custChoice, setCustChoice] = useState("");
+  const [custName, setCustName] = useState("");
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
@@ -120,6 +124,30 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     );
   }
 
+  async function openEditCustomer() {
+    setCustChoice((inv as any).customer_id ?? "");
+    setCustName(inv.customers?.name ?? "");
+    setEditCust(true);
+    if (custList.length === 0) {
+      const { data } = await supabase.from("customers").select("id, name").eq("archived", false).order("name");
+      setCustList((data ?? []) as any);
+    }
+  }
+
+  async function saveCustomer() {
+    const currentId = (inv as any).customer_id ?? "";
+    if (custChoice && custChoice !== currentId) {
+      await save({ customer_id: custChoice } as any, "Customer changed.");
+    } else if (currentId && custName.trim() && custName.trim() !== (inv.customers?.name ?? "")) {
+      const { error } = await supabase.from("customers").update({ name: custName.trim() }).eq("id", currentId);
+      if (error) return setMsg({ ok: false, text: error.message });
+      logAudit(supabase, { eventType: "update", entityType: "customer", entityId: currentId, entityLabel: custName.trim(), details: "Renamed from invoice " + invNo(inv.invoice_number) });
+      setInv({ ...inv, customers: { ...(inv.customers as any), name: custName.trim() } } as any);
+      setMsg({ ok: true, text: "Customer name updated." });
+    }
+    setEditCust(false);
+  }
+
   async function emailIt() {
     setBusy("email");
     setMsg(null);
@@ -208,6 +236,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         )}
         {inv.status !== "Void" && <button onClick={voidIt} className="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-700">Void</button>}
         {draft && <button onClick={deleteIt} className="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-700">Delete draft</button>}
+        {draft && <button onClick={() => (editCust ? setEditCust(false) : openEditCustomer())} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">{editCust ? "Close edit" : "Edit"}</button>}
       </div>
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -215,6 +244,27 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
           <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
           {(inv as any).customers?.contact_email && <p className="text-[var(--muted)]">{(inv as any).customers.contact_email}</p>}
+          {editCust && (
+            <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
+              <label className="block text-sm">
+                Change customer on this invoice
+                <select className={input} value={custChoice} onChange={(e) => setCustChoice(e.target.value)}>
+                  <option value="">Choose...</option>
+                  {custList.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                </select>
+              </label>
+              {custChoice === ((inv as any).customer_id ?? "") && (
+                <label className="block text-sm">
+                  Customer name <span className="text-xs text-[var(--muted)]">(renaming changes it everywhere this customer appears, not just this invoice)</span>
+                  <input className={input} value={custName} onChange={(e) => setCustName(e.target.value)} />
+                </label>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={saveCustomer} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white">Save customer</button>
+                <button type="button" onClick={() => setEditCust(false)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Cancel</button>
+              </div>
+            </div>
+          )}
           {inv.projects && (
             <p className="text-[var(--muted)]">
               <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">Q{inv.projects.quote_number}</Link>
