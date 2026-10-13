@@ -211,48 +211,36 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
       </div>
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-        <label className="block text-sm">
-          Site address {!inv.site_address && inv.projects && <span className="text-xs text-[var(--muted)]">(blank = uses the quote&apos;s address: {siteAddress(inv.projects)})</span>}
-          <input className={input} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} placeholder="Lot, street, suburb" />
-        </label>
-        <label className="block text-sm">
-          Delivery address <span className="text-xs text-[var(--muted)]">(optional - printed as &quot;Deliver to&quot; on the invoice)</span>
-          <textarea className={input} rows={2} value={inv.delivery_address ?? ""} onChange={(e) => setInv({ ...inv, delivery_address: e.target.value })} placeholder="Street, suburb, state, postcode" />
-        </label>
+        <div className="rounded-lg bg-black/[0.03] p-3 text-sm">
+          <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
+          <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
+          {(inv as any).customers?.contact_email && <p className="text-[var(--muted)]">{(inv as any).customers.contact_email}</p>}
+          {inv.projects && (
+            <p className="text-[var(--muted)]">
+              <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">Q{inv.projects.quote_number}</Link>
+              {siteAddress(inv.projects) ? ` · ${siteAddress(inv.projects)}` : ""}
+            </p>
+          )}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            Site address {!inv.site_address && inv.projects && <span className="text-xs text-[var(--muted)]">(blank = quote&apos;s address)</span>}
+            <textarea className={input} rows={2} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} placeholder="Lot, street, suburb" />
+          </label>
+          <label className="block text-sm">
+            Delivery address <span className="text-xs text-[var(--muted)]">(printed as &quot;Deliver to&quot;)</span>
+            <textarea className={input} rows={2} value={inv.delivery_address ?? ""} onChange={(e) => setInv({ ...inv, delivery_address: e.target.value })} placeholder="Street, suburb, state, postcode" />
+          </label>
+        </div>
         <label className="block text-sm">
           Description
           <input className={input} value={inv.description ?? ""} onChange={(e) => setInv({ ...inv, description: e.target.value })} />
         </label>
         <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block text-sm">
-            Amount ex GST {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items below)</span> : null}
-            <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={inv.amount_ex_gst} onChange={(e) => setAmounts(e.target.value)} />
-          </label>
-          <div className="text-sm">
-            <p>GST</p>
-            <p className="mt-1 py-2">{money(inv.gst)}</p>
-          </div>
-          <div className="text-sm">
-            <p>Total inc GST</p>
-            <p className="mt-1 py-2 font-bold">{money(inv.total)}</p>
-          </div>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">Invoice date<input type="date" className={input} value={inv.invoice_date} onChange={(e) => setInv({ ...inv, invoice_date: e.target.value })} /></label>
           <label className="block text-sm">Due date<input type="date" className={input} value={inv.due_date ?? ""} onChange={(e) => setInv({ ...inv, due_date: e.target.value || null })} /></label>
           <label className="block text-sm">Customer PO<input className={input} value={inv.customer_po ?? ""} onChange={(e) => setInv({ ...inv, customer_po: e.target.value })} /></label>
         </div>
-        <label className="block text-sm">
-          Notes (printed on the invoice)
-          <textarea className={input} rows={2} value={inv.notes ?? ""} onChange={(e) => setInv({ ...inv, notes: e.target.value })} />
-        </label>
-        <label className="block text-sm">
-          QuickBooks reference <span className="text-xs text-[var(--muted)]">(optional, for your own tracking)</span>
-          <input className={input} value={inv.qb_ref ?? ""} onChange={(e) => setInv({ ...inv, qb_ref: e.target.value })} />
-        </label>
-        <button onClick={saveDetails} disabled={busy === "save"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
-          {busy === "save" ? "Saving..." : "Save changes"}
-        </button>
       </div>
 
       <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -329,6 +317,36 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         ) : (
           lines.length === 0 && <p className="mt-2 text-xs text-[var(--muted)]">No items on this invoice.</p>
         )}
+      </div>
+
+      <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <label className="block text-sm">
+            Amount ex GST {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
+            <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={inv.amount_ex_gst} onChange={(e) => setAmounts(e.target.value)} />
+          </label>
+          <div className="text-sm">
+            <p>GST</p>
+            <p className="mt-1 py-2">{money(inv.gst)}</p>
+          </div>
+          <div className="text-sm">
+            <p>Total inc GST</p>
+            <p className="mt-1 py-2 text-lg font-bold">{money(inv.total)}</p>
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block text-sm">
+            Notes (printed on the invoice)
+            <textarea className={input} rows={2} value={inv.notes ?? ""} onChange={(e) => setInv({ ...inv, notes: e.target.value })} />
+          </label>
+          <label className="block text-sm">
+            QuickBooks reference <span className="text-xs text-[var(--muted)]">(optional)</span>
+            <input className={input} value={inv.qb_ref ?? ""} onChange={(e) => setInv({ ...inv, qb_ref: e.target.value })} />
+          </label>
+        </div>
+        <button onClick={saveDetails} disabled={busy === "save"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+          {busy === "save" ? "Saving..." : "Save changes"}
+        </button>
       </div>
 
       {inv.status !== "Void" && (
