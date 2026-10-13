@@ -131,15 +131,6 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
       y += h + 2;
     }
     y += 2;
-    if (inv.description) {
-      doc.setTextColor(110);
-      doc.setFontSize(8.5);
-      const dl = doc.splitTextToSize(inv.description, W - M * 2) as string[];
-      doc.text(dl, M + 2, y);
-      y += dl.length * 4.2 + 2;
-      doc.setTextColor(0);
-      doc.setFontSize(9.5);
-    }
   } else {
     doc.text("Description", M + 2, y);
     doc.text("Amount (ex GST)", W - M - 2, y, { align: "right" });
