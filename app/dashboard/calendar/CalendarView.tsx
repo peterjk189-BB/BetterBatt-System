@@ -221,7 +221,19 @@ export default function CalendarView({
   installerNote?: string | null;
 }) {
   const [centerWeekStart, setCenterWeekStart] = useState(() => mondayOf(new Date()));
-  const [showWeekends, setShowWeekends] = useState(true);
+  // Weekends are hidden by default; the choice is remembered on this device.
+  const [showWeekends, setShowWeekendsState] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("bb-cal-weekends") === "1") setShowWeekendsState(true);
+    } catch {}
+  }, []);
+  const setShowWeekends = (fn: (s: boolean) => boolean) =>
+    setShowWeekendsState((prev) => {
+      const next = fn(prev);
+      try { localStorage.setItem("bb-cal-weekends", next ? "1" : "0"); } catch {}
+      return next;
+    });
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   // Inspection dates moved here, shown straight away while the save happens.
