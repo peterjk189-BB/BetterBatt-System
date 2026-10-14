@@ -432,6 +432,18 @@ export default function CalendarView({
     // Booked inspections sit at the top of each day so they stand out.
     for (const arr of map.values()) arr.sort((a, b) => (a.kind === "inspection" ? 0 : 1) - (b.kind === "inspection" ? 0 : 1));
 
+    // Within each day: all-day items first, then timed items (site visits, inspections) in time order.
+    map.forEach((arr) => {
+      const t = (e: DayEvent) => ((e as { time?: string | null }).time || "");
+      arr.sort((a, b) => {
+        const ta = t(a);
+        const tb = t(b);
+        if (!ta && !tb) return 0;
+        if (!ta) return -1;
+        if (!tb) return 1;
+        return ta < tb ? -1 : ta > tb ? 1 : 0;
+      });
+    });
     return map;
   }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, movedDates]);
 
