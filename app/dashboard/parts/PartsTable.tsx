@@ -1086,6 +1086,12 @@ export default function PartsTable({
             )}
           </div>
           <Link
+            href="/dashboard/parts/count-sheet"
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+          >
+            Count sheet
+          </Link>
+          <Link
             href="/dashboard/parts/price-book"
             className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
           >
