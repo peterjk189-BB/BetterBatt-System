@@ -525,13 +525,35 @@ export default function PartsTable({
   function moveColumn(sourceKey: string, targetKey: string) {
     if (sourceKey === targetKey) return;
     setColOrder((prev) => {
+      const from = prev.indexOf(sourceKey);
+      const to = prev.indexOf(targetKey);
       const next = prev.filter((k) => k !== sourceKey);
-      const targetIdx = next.indexOf(targetKey);
+      let targetIdx = next.indexOf(targetKey);
+      // Dragging to the right drops it after the target; to the left, before it.
+      if (from < to) targetIdx += 1;
       next.splice(targetIdx, 0, sourceKey);
       try {
         localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
       } catch {
         // ignore — persistence is a nice-to-have, not required for the table to work
+      }
+      return next;
+    });
+  }
+
+  // Up/down buttons in the Columns menu: swap with the next visible column in that direction.
+  function shiftColumn(key: string, dir: -1 | 1) {
+    setColOrder((prev) => {
+      const i = prev.indexOf(key);
+      let j = i + dir;
+      while (j >= 0 && j < prev.length && hiddenCols.has(prev[j])) j += dir;
+      if (i < 0 || j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      try {
+        localStorage.setItem(COL_ORDER_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
       }
       return next;
     });
@@ -1064,22 +1086,40 @@ export default function PartsTable({
                 <div className="fixed inset-0 z-10" onClick={() => setColumnsMenuOpen(false)} />
                 <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
                   <p className="px-2 py-1 text-xs font-medium uppercase text-[var(--muted)]">
-                    Show columns
+                    Show / order columns
                   </p>
                   <div className="max-h-72 overflow-y-auto">
-                    {TOGGLEABLE_COLS.map((c) => (
-                      <label
-                        key={c.key}
-                        className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-black/[0.03]"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!hiddenCols.has(c.key)}
-                          onChange={() => toggleColumn(c.key)}
-                        />
-                        {c.label}
-                      </label>
-                    ))}
+                    {colOrder
+                      .map((k) => TOGGLEABLE_COLS.find((c) => c.key === k))
+                      .filter((c): c is (typeof TOGGLEABLE_COLS)[number] => !!c)
+                      .map((c) => (
+                        <div key={c.key} className="flex items-center gap-1 rounded px-2 py-1 text-sm hover:bg-black/[0.03]">
+                          <label className="flex min-w-0 flex-1 items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={!hiddenCols.has(c.key)}
+                              onChange={() => toggleColumn(c.key)}
+                            />
+                            <span className="truncate">{c.label}</span>
+                          </label>
+                          <button
+                            type="button"
+                            title="Move left"
+                            onClick={() => shiftColumn(c.key, -1)}
+                            className="rounded px-1.5 text-[var(--muted)] hover:bg-black/[0.06]"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            title="Move right"
+                            onClick={() => shiftColumn(c.key, 1)}
+                            className="rounded px-1.5 text-[var(--muted)] hover:bg-black/[0.06]"
+                          >
+                            ↓
+                          </button>
+                        </div>
+                      ))}
                   </div>
                   {hiddenCols.size > 0 && (
                     <button
