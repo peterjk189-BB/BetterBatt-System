@@ -244,11 +244,11 @@ const INVENTORY_COLS = [
   { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 130 },
   { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 120 },
   { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
-  { key: "priceRetail", label: "Retail/pack", align: "center" as Align, width: 100 },
+  { key: "priceRetail", label: "Retail ex GST", align: "center" as Align, width: 100 },
   { key: "priceRetailInc", label: "Retail inc GST", align: "center" as Align, width: 100 },
-  { key: "priceTrade", label: "Trade/pack", align: "center" as Align, width: 100 },
+  { key: "priceTrade", label: "Trade ex GST", align: "center" as Align, width: 100 },
   { key: "priceTradeInc", label: "Trade inc GST", align: "center" as Align, width: 100 },
-  { key: "priceRegency", label: "Regency/pack", align: "center" as Align, width: 100 },
+  { key: "priceRegency", label: "Regency ex GST", align: "center" as Align, width: 100 },
   { key: "priceRegencyInc", label: "Regency inc GST", align: "center" as Align, width: 100 },
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
   { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
@@ -1255,7 +1255,7 @@ export default function PartsTable({
             {basis === "margin"
               ? "Margin: the percentage is the profit share of the sell price, so 30% on a $70 cost gives $100."
               : "Markup: the percentage is added on top of cost, so 30% on a $100 cost gives $130."}{" "}
-            Works from the Pack cost ex column and fills Retail/pack, Trade/pack and Regency/pack, rounded to the cent. Leave a box
+            Works from the Pack cost ex column and fills Retail ex GST, Trade ex GST and Regency ex GST, rounded to the cent. Leave a box
             empty to leave that price alone. Items with no pack cost are skipped, and non-stock items are always left alone so you can price them by hand. You can still edit any price by hand afterwards.
           </p>
           {pricerMsg && <p className="mt-2 text-sm font-medium">{pricerMsg}</p>}
