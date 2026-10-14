@@ -133,7 +133,7 @@ export default function CrmHome({
         <Tasks tasks={tasks} setTasks={setTasks} staff={staff} userId={userId} supabase={supabase} setError={setError} leads={leads} customers={customers} />
       )}
       {tab === "calendar" && (
-        <CrmCalendar tasks={tasks} setTasks={setTasks} leads={leads} staff={staff} userId={userId} supabase={supabase} setError={setError} />
+        <CrmCalendar tasks={tasks} setTasks={setTasks} leads={leads} customers={customers} staff={staff} userId={userId} supabase={supabase} setError={setError} />
       )}
       {tab === "accounts" && <Accounts customers={customers} staff={staff} today={today} />}
     </div>
