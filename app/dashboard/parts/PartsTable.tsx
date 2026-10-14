@@ -926,7 +926,8 @@ export default function PartsTable({
     }
   }
 
-  const priceTargets = priceScope === "shown" ? visible : parts.filter((p) => !p.archived);
+  // Non-stock items (Delivery, Retro fit...) are priced by hand, so the % tool never touches them.
+  const priceTargets = (priceScope === "shown" ? visible : parts.filter((p) => !p.archived)).filter((p) => p.is_stock_item);
   const sampleCost = priceTargets.find((p) => p.pack_cost_ex_gst > 0)?.pack_cost_ex_gst ?? 0;
 
   async function applySellPrices() {
@@ -1215,7 +1216,7 @@ export default function PartsTable({
               ? "Margin: the percentage is the profit share of the sell price, so 30% on a $70 cost gives $100."
               : "Markup: the percentage is added on top of cost, so 30% on a $100 cost gives $130."}{" "}
             Works from the Pack cost ex column and fills Retail/pack, Trade/pack and Regency/pack, rounded to the cent. Leave a box
-            empty to leave that price alone. Items with no pack cost are skipped. You can still edit any price by hand afterwards.
+            empty to leave that price alone. Items with no pack cost are skipped, and non-stock items are always left alone so you can price them by hand. You can still edit any price by hand afterwards.
           </p>
           {pricerMsg && <p className="mt-2 text-sm font-medium">{pricerMsg}</p>}
         </div>
