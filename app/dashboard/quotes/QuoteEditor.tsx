@@ -766,6 +766,11 @@ export default function QuoteEditor({
                         {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
                       </div>
                     )}
+                    {!isSupplyOnly && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (
+                      <div className="text-xs font-normal text-amber-700">
+                        $0 — set Coverage/pack and Supply+install/m² for this item in Inventory
+                      </div>
+                    )}
                     {l.tierMissing && (
                       <div className="text-xs font-normal text-amber-700">
                         No {tierLabel(form.price_tier).toLowerCase()} price set — using standard
