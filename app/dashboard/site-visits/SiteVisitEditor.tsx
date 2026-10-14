@@ -49,6 +49,23 @@ function todayLocal() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function formFromRow(v: any) {
+  return {
+    visit_date: v.visit_date || todayLocal(),
+    visit_time: v.visit_time?.slice(0, 5) || "",
+    status: v.status || "Booked",
+    visit_type: v.visit_type || "Retro fit",
+    customer_id: v.customer_id || "",
+    customer_name: v.customer_name || "",
+    phone: v.phone || "",
+    email: v.email || "",
+    address: v.address || "",
+    suburb: v.suburb || "",
+    notes: v.notes || "",
+    assigned_to: v.assigned_to || "",
+  };
+}
+
 export default function SiteVisitEditor({
   visit,
   photos,
@@ -121,6 +138,13 @@ export default function SiteVisitEditor({
     []
   );
   const firstRender = useRef(true);
+  // What the server last held, so we can tell which fields this user has edited since.
+  const baseline = useRef<{ form: ReturnType<typeof formFromRow>; checklist: Checklist } | null>(
+    visit ? { form: formFromRow(visit), checklist: normaliseChecklist(visit.checklist) } : null
+  );
+  const [liveNote, setLiveNote] = useState<string | null>(null);
+  const formRef = useRef<typeof form | null>(null);
+  const checklistRef = useRef<Checklist | null>(null);
 
   const payload = useCallback(
     () => ({
@@ -165,6 +189,7 @@ export default function SiteVisitEditor({
         creating.current = null;
         return null;
       }
+      baseline.current = { form, checklist };
       setVisitId(data.id);
       setVisitNumber(data.visit_number);
       setSaveState("saved");
@@ -195,7 +220,7 @@ export default function SiteVisitEditor({
       return data.id as string;
     })();
     return creating.current;
-  }, [visitId, form.customer_name, form.address, form.assigned_to, form.status, payload, supabase, notifyAssignee, notifyVisited]);
+  }, [visitId, form, checklist, payload, supabase, notifyAssignee, notifyVisited]);
 
   const saveNow = useCallback(
     async (opts?: { audit?: boolean }) => {
@@ -210,6 +235,7 @@ export default function SiteVisitEditor({
         setError(upErr.message);
         return;
       }
+      baseline.current = { form, checklist };
       setSaveState("saved");
       setSavedAt(new Date());
       setError(null);
@@ -224,8 +250,87 @@ export default function SiteVisitEditor({
         });
       }
     },
-    [visitId, ensureVisitId, payload, supabase, visitNumber, form.customer_name, form.assigned_to, form.status, notifyAssignee, notifyVisited]
+    [visitId, ensureVisitId, payload, supabase, visitNumber, form, checklist, form.customer_name, form.assigned_to, form.status, notifyAssignee, notifyVisited]
   );
+
+  formRef.current = form;
+  checklistRef.current = checklist;
+
+  // Live updates: when someone else changes this visit, pull their changes in without
+  // overwriting anything this user is in the middle of editing (merged field by field).
+  useEffect(() => {
+    if (!visitId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let noteTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+    async function pull() {
+      const { data } = await supabase.from("site_visits").select("*").eq("id", visitId).single();
+      if (!data || cancelled) return;
+      const remoteForm = formFromRow(data);
+      const remoteCl = normaliseChecklist((data as any).checklist);
+      const base = baseline.current;
+      const curForm = formRef.current!;
+      const curCl = checklistRef.current!;
+      if (!base) {
+        baseline.current = { form: remoteForm, checklist: remoteCl };
+        return;
+      }
+      const changedForm = (Object.keys(remoteForm) as (keyof typeof remoteForm)[]).filter((k) => remoteForm[k] !== base.form[k]);
+      const changedCl = (Object.keys(remoteCl) as (keyof Checklist)[]).filter(
+        (k) => JSON.stringify(remoteCl[k]) !== JSON.stringify(base.checklist[k])
+      );
+      baseline.current = { form: remoteForm, checklist: remoteCl };
+      // Only take remote values for fields this user hasn't touched since the last sync.
+      const takeForm = changedForm.filter((k) => curForm[k] === base.form[k] && curForm[k] !== remoteForm[k]);
+      const takeCl = changedCl.filter(
+        (k) => JSON.stringify(curCl[k]) === JSON.stringify(base.checklist[k]) && JSON.stringify(curCl[k]) !== JSON.stringify(remoteCl[k])
+      );
+      if (takeForm.length === 0 && takeCl.length === 0) return;
+      if (takeForm.length) {
+        setForm((f) => {
+          const n = { ...f };
+          for (const k of takeForm) (n as any)[k] = remoteForm[k];
+          return n;
+        });
+      }
+      if (takeCl.length) {
+        setChecklist((c) => {
+          const n = { ...c };
+          for (const k of takeCl) (n as any)[k] = remoteCl[k];
+          return n;
+        });
+      }
+      // Keep "notify" bookkeeping in step so we don't re-alert on someone else's change.
+      notifiedTo.current = remoteForm.assigned_to || notifiedTo.current;
+      if (remoteForm.status === "Visited") notifiedVisited.current = true;
+      setLiveNote("Updated just now with a change from a colleague");
+      if (noteTimer) clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => setLiveNote(null), 6000);
+    }
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(pull, 600);
+    };
+    const channel = supabase
+      .channel(`sv-live-${visitId}`)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "site_visits", filter: `id=eq.${visitId}` }, soon)
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    const poll = setInterval(onVisible, 30000);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      if (noteTimer) clearTimeout(noteTimer);
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      supabase.removeChannel(channel);
+    };
+  }, [visitId, supabase]);
 
   // Autosave saved visits ~1.2s after the last change, so nothing is lost if
   // the phone locks or loses signal under the house. New visits wait for the
@@ -834,7 +939,7 @@ export default function SiteVisitEditor({
 
       {/* Photos */}
       <Section title="Photos & site plan">
-        <SiteVisitPhotos initial={photos} ensureVisitId={ensureVisitId} />
+        <SiteVisitPhotos initial={photos} visitId={visitId} ensureVisitId={ensureVisitId} />
       </Section>
 
       {/* Sticky save bar */}
@@ -849,7 +954,7 @@ export default function SiteVisitEditor({
             }`}
             aria-live="polite"
           >
-            {statusLine}
+            {liveNote ? <span className="font-medium text-blue-700">{liveNote}</span> : statusLine}
           </span>
           <button
             onClick={() => saveNow({ audit: true })}

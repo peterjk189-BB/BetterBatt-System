@@ -65,9 +65,12 @@ async function compressImage(file: File): Promise<Blob> {
 
 export default function SiteVisitPhotos({
   initial,
+  visitId,
   ensureVisitId,
 }: {
   initial: VisitPhoto[];
+  /** Used to keep the list in step with photos other people add or remove. */
+  visitId?: string | null;
   /** Saves the visit first if it's new, then returns its id. Null if it couldn't be saved. */
   ensureVisitId: () => Promise<string | null>;
 }) {
@@ -82,6 +85,41 @@ export default function SiteVisitPhotos({
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   const planUploadRef = useRef<HTMLInputElement>(null);
+
+  // Pick up photos/plans added, captioned or removed by someone else while this is open.
+  useEffect(() => {
+    if (!visitId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    async function reload() {
+      const { data } = await supabase
+        .from("attachments")
+        .select("id, category, storage_path, file_name, caption, sort_order, created_at")
+        .eq("site_visit_id", visitId)
+        .order("sort_order")
+        .order("created_at");
+      if (data) setPhotos(data as any);
+    }
+    const soon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(reload, 800);
+    };
+    const channel = supabase
+      .channel(`sv-photos-${visitId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "attachments", filter: `site_visit_id=eq.${visitId}` }, soon)
+      .subscribe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    const poll = setInterval(onVisible, 60000);
+    return () => {
+      if (timer) clearTimeout(timer);
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visitId]);
 
   // Signed URLs for any photo we don't have one for yet (the bucket is private).
   useEffect(() => {
