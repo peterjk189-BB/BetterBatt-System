@@ -47,6 +47,7 @@ type WoEvent = {
   qty: number;
   tasks: string[];
   time: string | null;
+  subIds: string[];
 };
 
 type PoEvent = {
@@ -243,6 +244,12 @@ export default function CalendarView({
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropDate, setDropDate] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
+  // Work order dates moved here ("from|workOrderId" -> new date), shown straight away while the save happens.
+  const [movedWo, setMovedWo] = useState<Record<string, string>>({});
+  const [woDrag, setWoDrag] = useState<{ woId: string; from: string; label: string } | null>(null);
+  useEffect(() => {
+    setMovedWo({});
+  }, [woLines]);
 
   // Which kinds of entry are hidden, remembered on this device so the calendar stays how you left it.
   const [hiddenKinds, setHiddenKinds] = useState<string[]>([]);
@@ -276,6 +283,31 @@ export default function CalendarView({
     router.refresh();
   }
 
+  async function moveWorkOrder(woId: string, label: string, from: string, to: string, subIds: string[]) {
+    if (!to || to === from) return;
+    setMoveError(null);
+    setMovedWo((m) => ({ ...m, [`${from}|${woId}`]: to }));
+    const { error } = await supabase.from("work_order_lines").update({ task_date: to }).eq("work_order_id", woId).eq("task_date", from);
+    if (error) {
+      setMovedWo((m) => {
+        const n = { ...m };
+        delete n[`${from}|${woId}`];
+        return n;
+      });
+      setMoveError(`Couldn't move ${label}: ${error.message}`);
+      return;
+    }
+    logAudit(supabase, { eventType: "update", entityType: "work_order", entityId: woId, entityLabel: label, details: `Job date moved from ${from} to ${to}` });
+    if (subIds.length > 0) {
+      fetch("/api/work-orders/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ work_order_id: woId, items: subIds.map((id) => ({ subcontractor_id: id, dates: [to] })) }),
+      }).catch(() => {});
+    }
+    router.refresh();
+  }
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, DayEvent[]>();
     const push = (date: string, ev: DayEvent) => {
@@ -298,6 +330,7 @@ export default function CalendarView({
         contractorNames: Set<string>;
         tasks: string[];
         time: string | null;
+        subIds: Set<string>;
       }
     >();
 
@@ -309,16 +342,19 @@ export default function CalendarView({
       const address = project ? [project.address, project.suburb].filter(Boolean).join(", ") || "—" : "—";
       const task = l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task";
 
-      const key = `${l.task_date}|${l.work_order_id}`;
+      const shownDate = movedWo[`${l.task_date}|${l.work_order_id}`] || l.task_date;
+      const sid = l.subcontractor_id || l.work_orders.contractor_id;
+      const key = `${shownDate}|${l.work_order_id}`;
       const existing = woGroups.get(key);
       if (existing) {
         existing.qty += Number(l.qty) || 0;
         existing.contractorNames.add(contractorName);
         existing.tasks.push(task);
+        if (sid) existing.subIds.add(sid);
         if (l.task_time && (!existing.time || l.task_time < existing.time)) existing.time = l.task_time;
       } else {
         woGroups.set(key, {
-          date: l.task_date,
+          date: shownDate,
           workOrderId: l.work_order_id,
           woNumber: l.work_orders.wo_number,
           builderName,
@@ -327,6 +363,7 @@ export default function CalendarView({
           contractorNames: new Set([contractorName]),
           tasks: [task],
           time: l.task_time || null,
+          subIds: new Set(sid ? [sid] : []),
         });
       }
     }
@@ -344,6 +381,7 @@ export default function CalendarView({
         qty: g.qty,
         tasks: g.tasks,
         time: g.time,
+        subIds: Array.from(g.subIds),
       });
     }
 
@@ -451,7 +489,7 @@ export default function CalendarView({
       });
     });
     return map;
-  }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, movedDates]);
+  }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, movedDates, movedWo]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -590,16 +628,24 @@ export default function CalendarView({
                     <div
                       key={dateStr}
                       className={`min-h-[110px] p-2 ${isToday ? "bg-amber-50" : ""} ${
-                        dragId && dropDate === dateStr ? "bg-blue-50 ring-2 ring-inset ring-[#1e3a8a]" : ""
+                        (dragId || woDrag) && dropDate === dateStr ? "bg-blue-50 ring-2 ring-inset ring-[#1e3a8a]" : ""
                       }`}
                       onDragOver={(e) => {
-                        if (!dragId) return;
+                        if (!dragId && !woDrag) return;
                         e.preventDefault();
                         if (dropDate !== dateStr) setDropDate(dateStr);
                       }}
                       onDragLeave={() => setDropDate((d) => (d === dateStr ? null : d))}
                       onDrop={(e) => {
                         e.preventDefault();
+                        if (woDrag) {
+                          const w = woDrag;
+                          const evs = (eventsByDate.get(w.from) || []).find((x) => x.kind === "wo" && x.workOrderId === w.woId) as WoEvent | undefined;
+                          setWoDrag(null);
+                          setDropDate(null);
+                          moveWorkOrder(w.woId, w.label, w.from, dateStr, evs?.subIds ?? []);
+                          return;
+                        }
                         const id = e.dataTransfer.getData("text/inspection-id") || dragId;
                         const ins = inspections.find((x) => x.id === id);
                         setDragId(null);
@@ -637,8 +683,17 @@ export default function CalendarView({
                               <Link
                                 key={`wo-${ev.id}`}
                                 href={`/dashboard/work-orders/${ev.workOrderId}`}
-                                title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})`}
-                                className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
+                                title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})${installerNote ? "" : " — drag to another day to reschedule"}`}
+                                draggable={!installerNote}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.effectAllowed = "move";
+                                  setWoDrag({ woId: ev.workOrderId, from: ev.date, label: ev.woNumber });
+                                }}
+                                onDragEnd={() => {
+                                  setWoDrag(null);
+                                  setDropDate(null);
+                                }}
+                                className={`block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200 ${installerNote ? "" : "cursor-grab active:cursor-grabbing"}`}
                               >
                                 <div className="truncate font-medium">
                                   {ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
