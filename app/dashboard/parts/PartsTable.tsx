@@ -728,10 +728,24 @@ export default function PartsTable({
         return (
           <div className="flex w-full items-center gap-1.5 px-2">
             <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
-            {!p.is_stock_item && (
-              <span className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)]">
-                Non-stock
-              </span>
+            {p.is_stock_item ? (
+              <button
+                type="button"
+                title="Make this a non-stock item (no stock counting, ordering or picking)"
+                onClick={() => patch(p, "is_stock_item", false)}
+                className="shrink-0 rounded px-1.5 py-0.5 text-xs text-[var(--muted)] opacity-0 hover:bg-[#f2f0ec] hover:underline focus:opacity-100 group-hover:opacity-100"
+              >
+                Make non-stock
+              </button>
+            ) : (
+              <button
+                type="button"
+                title="Click to make this a normal stock item"
+                onClick={() => patch(p, "is_stock_item", true)}
+                className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)] hover:underline"
+              >
+                Non-stock · make stock
+              </button>
             )}
           </div>
         );
@@ -1359,9 +1373,7 @@ export default function PartsTable({
             {visible.map((p) => (
               <tr
                 key={p.id}
-                className={`border-t border-[var(--border)] hover:bg-black/[0.02] ${
-                  !p.is_stock_item ? "opacity-60" : ""
-                }`}
+                className="group border-t border-[var(--border)] hover:bg-black/[0.02]"
               >
                 {visibleColOrder.map((key) => (
                   <td
