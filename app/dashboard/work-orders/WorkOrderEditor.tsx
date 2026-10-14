@@ -40,6 +40,7 @@ type Line = {
   id?: string;
   part_id: string | null;
   task_date?: string | null;
+  task_time?: string | null;
   completed?: boolean;
   labour_item_id?: string | null;
   qty: number;
@@ -207,6 +208,8 @@ export default function WorkOrderEditor({
       work_order_id: workOrderId,
       part_id: l.part_id || null,
       task_date: l.task_date || null,
+      // Only sent when set, so saving still works before migration 0039 is run.
+      ...(l.task_time ? { task_time: l.task_time } : {}),
       completed: !!l.completed,
       labour_item_id: l.labour_item_id || null,
       qty: Number(l.qty) || 0,
@@ -500,6 +503,7 @@ export default function WorkOrderEditor({
                 <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">Contractor</th>
                 <th className="px-3 py-2">Date</th>
+                <th className="px-3 py-2">Time</th>
                 <th className="px-3 py-2">Compl.</th>
                 <th className="px-3 py-2">Note</th>
                 <th className="px-3 py-2 text-right">Qty</th>
@@ -549,6 +553,14 @@ export default function WorkOrderEditor({
                         className="w-36 rounded-lg border border-[var(--border)] px-2 py-1.5"
                         value={l.task_date || ""}
                         onChange={(e) => updateLine(idx, { task_date: e.target.value })}
+                      />
+                    </td>
+                    <td className="px-3 py-2">
+                      <input
+                        type="time"
+                        className="w-28 rounded-lg border border-[var(--border)] px-2 py-1.5"
+                        value={(l.task_time || "").slice(0, 5)}
+                        onChange={(e) => updateLine(idx, { task_time: e.target.value })}
                       />
                     </td>
                     <td className="px-3 py-2 text-center">

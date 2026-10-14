@@ -9,6 +9,7 @@ import { logAudit } from "@/lib/audit";
 type WoLine = {
   id: string;
   task_date: string | null;
+  task_time?: string | null;
   note: string | null;
   qty: number;
   work_order_id: string;
@@ -45,6 +46,7 @@ type WoEvent = {
   address: string;
   qty: number;
   tasks: string[];
+  time: string | null;
 };
 
 type PoEvent = {
@@ -295,6 +297,7 @@ export default function CalendarView({
         qty: number;
         contractorNames: Set<string>;
         tasks: string[];
+        time: string | null;
       }
     >();
 
@@ -312,6 +315,7 @@ export default function CalendarView({
         existing.qty += Number(l.qty) || 0;
         existing.contractorNames.add(contractorName);
         existing.tasks.push(task);
+        if (l.task_time && (!existing.time || l.task_time < existing.time)) existing.time = l.task_time;
       } else {
         woGroups.set(key, {
           date: l.task_date,
@@ -322,6 +326,7 @@ export default function CalendarView({
           qty: Number(l.qty) || 0,
           contractorNames: new Set([contractorName]),
           tasks: [task],
+          time: l.task_time || null,
         });
       }
     }
@@ -338,6 +343,7 @@ export default function CalendarView({
         address: g.address,
         qty: g.qty,
         tasks: g.tasks,
+        time: g.time,
       });
     }
 
@@ -635,7 +641,7 @@ export default function CalendarView({
                                 className="block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200"
                               >
                                 <div className="truncate font-medium">
-                                  {ev.woNumber} · {ev.contractorNames}
+                                  {ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
                                 </div>
                                 <div className="truncate text-orange-800">
                                   {ev.builderName} — {ev.address}

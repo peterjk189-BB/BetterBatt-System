@@ -8,6 +8,16 @@ import { bookDueInspections } from "@/lib/inspectionPrefill";
 const WO_LINE_SELECT =
   "id, task_date, note, qty, work_order_id, subcontractor_id, work_orders(wo_number, archived, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description)";
 
+// Start times live in a newer column; fetched separately so the calendar still loads if migration 0039 hasn't been run.
+async function withTimes(supabase: Awaited<ReturnType<typeof createClient>>, lines: any[] | null) {
+  const list = lines ?? [];
+  if (list.length === 0) return list;
+  const { data, error } = await supabase.from("work_order_lines").select("id, task_time").not("task_time", "is", null);
+  if (error || !data) return list;
+  const t = new Map((data as any[]).map((r) => [r.id, r.task_time as string]));
+  return list.map((l) => ({ ...l, task_time: t.get(l.id) ?? null }));
+}
+
 export default async function CalendarPage() {
   const supabase = await createClient();
   const role = await getEffectiveRole();
@@ -44,7 +54,7 @@ export default async function CalendarPage() {
       <>
       <LiveRefresh />
       <CalendarView
-        woLines={(woLines ?? []) as any}
+        woLines={(await withTimes(supabase, woLines as any)) as any}
         pos={[]}
         visits={[]}
         installerNote={
@@ -109,7 +119,7 @@ export default async function CalendarPage() {
     <>
     <LiveRefresh />
     <CalendarView
-      woLines={(woLines ?? []) as any}
+      woLines={(await withTimes(supabase, woLines as any)) as any}
       pos={(pos ?? []) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
