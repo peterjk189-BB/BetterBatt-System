@@ -41,7 +41,7 @@ export async function prefillFromWorkOrder(supabase: any, workOrderId: string): 
     suburb: project?.suburb || "",
     builder_name: project?.customers?.name || "",
     contractor: sub?.company_name || sub?.name || "",
-    installer_name: installerFromSwms || sub?.name || "",
+    installer_name: sub?.name || installerFromSwms || "",
     sales_order: wo.po_number || wo.wo_number || "",
     ...(fromSwms ? fromSwms.include : {}),
     sections,

@@ -49,6 +49,7 @@ export default function InspectionEditor({
   isAdmin,
   related,
   staff = [],
+  subcontractors = [],
 }: {
   record: (InspectionRecord & { work_orders?: { wo_number: string } | null; projects?: { quote_number: number } | null }) | null;
   photos: InspectionPhoto[];
@@ -56,6 +57,8 @@ export default function InspectionEditor({
   isAdmin: boolean;
   /** People an inspection can be assigned to (they get an alert). */
   staff?: { id: string; full_name: string | null }[];
+  /** The subcontractor list the installer is picked from. */
+  subcontractors?: { id: string; name: string }[];
   /** For a saved inspection: the FAILed one it re-inspects, and any re-inspections of it. */
   related?: { parent: { id: string; inspection_number: number } | null; children: { id: string; inspection_number: number; result: string | null }[] };
 }) {
@@ -496,7 +499,17 @@ export default function InspectionEditor({
             <input className={inputCls} value={form.inspector_name} onChange={(e) => set("inspector_name", e.target.value)} />
           </Field>
           <Field label="Installer / rectified by">
-            <input className={inputCls} value={form.installer_name} onChange={(e) => set("installer_name", e.target.value)} />
+            <select className={inputCls} value={form.installer_name} onChange={(e) => set("installer_name", e.target.value)}>
+              <option value="">Select installer...</option>
+              {subcontractors.map((c) => (
+                <option key={c.id} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+              {form.installer_name && !subcontractors.some((c) => c.name === form.installer_name) && (
+                <option value={form.installer_name}>{form.installer_name}</option>
+              )}
+            </select>
           </Field>
         </div>
         <div className="mt-4">

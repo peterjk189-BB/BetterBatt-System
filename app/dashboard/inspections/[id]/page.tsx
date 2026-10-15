@@ -24,6 +24,7 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
   ]);
 
   if (!record) notFound();
+  const { data: subRows } = await supabase.from("subcontractors").select("id, name").eq("archived", false).order("name");
   const { data: staffRows } = await createAdminClient().from("profiles").select("id, full_name").order("full_name");
 
   let parent: { id: string; inspection_number: number } | null = null;
@@ -39,6 +40,7 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
       prefill={null}
       isAdmin={role === "admin"}
       staff={(staffRows ?? []) as any}
+      subcontractors={(subRows ?? []) as any}
       related={{ parent, children: (children ?? []) as any }}
     />
   );
