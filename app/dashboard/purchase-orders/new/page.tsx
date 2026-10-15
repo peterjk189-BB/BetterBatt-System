@@ -30,7 +30,7 @@ export default async function NewPurchaseOrderPage({
       lines={[]}
       suppliers={suppliers ?? []}
       parts={parts ?? []}
-      isAdmin={role === "admin"}
+      isAdmin={role === "admin" || role === "office"}
       initial={initial}
     />
   );

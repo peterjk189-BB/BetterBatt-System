@@ -26,7 +26,7 @@ export default async function PurchaseOrderPage({ params }: { params: { id: stri
       lines={lines ?? []}
       suppliers={suppliers ?? []}
       parts={parts ?? []}
-      isAdmin={role === "admin"}
+      isAdmin={role === "admin" || role === "office"}
       woNumbers={woNumbers}
     />
   );
