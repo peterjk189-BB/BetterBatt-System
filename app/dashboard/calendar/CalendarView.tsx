@@ -763,6 +763,15 @@ export default function CalendarView({
                               </div>
                               <div className="truncate text-[#365314]">{ev.address}</div>
                               {ev.assignedToName && <div className="truncate text-[#365314]">{ev.assignedToName}</div>}
+                              {(ev.status === "Visited" || ev.status === "Quoted") && (
+                                <span
+                                  className={`mt-0.5 inline-block rounded px-1 text-[10px] font-bold uppercase ${
+                                    ev.status === "Quoted" ? "bg-[#1f6b35] text-white" : "bg-[#1e4fbf] text-white"
+                                  }`}
+                                >
+                                  {ev.status}
+                                </span>
+                              )}
                             </Link>
                           );
                         })}
