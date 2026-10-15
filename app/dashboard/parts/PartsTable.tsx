@@ -482,6 +482,9 @@ export default function PartsTable({
         if (Array.isArray(parsed)) {
           setHiddenCols(new Set(parsed.filter((k: string) => DEFAULT_COL_ORDER.includes(k))));
         }
+      } else {
+        // Supply/pack is the old single supply price; Retail / Trade / Regency replaced it, so it starts hidden.
+        setHiddenCols(new Set(["supplyPack"]));
       }
     } catch {
       // no saved hidden-columns yet, or storage unavailable — fall back to showing everything

@@ -196,7 +196,7 @@ export default function QuoteEditor({
     notes: project?.notes || "",
     quote_markup: project?.quote_markup ?? 0,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
-    price_tier: project?.price_tier || "",
+    price_tier: project ? project.price_tier || "" : "retail", // new supply-only quotes price from Retail by default
   });
 
   // The discount/markup can be entered as a flat $ amount or as a % of the line-items
@@ -596,7 +596,7 @@ export default function QuoteEditor({
               value={form.price_tier}
               onChange={(e) => setForm({ ...form, price_tier: e.target.value })}
             >
-              <option value="">Standard (supply/pack)</option>
+              {project && !project.price_tier && <option value="">Standard (old supply/pack price)</option>}
               {PRICE_TIERS.map((t) => (
                 <option key={t.value} value={t.value}>
                   {t.label}
