@@ -11,6 +11,7 @@ export const VISIT_TYPES = ["Retro fit", "Building site"] as const;
 export const ROOF_TYPES = ["Tile roof", "Tin roof", "Pitched roof", "Flat roof"];
 export const STOREYS = ["Single storey", "Double storey"];
 export const TRUSS_SIZES = ["450", "600", "900", "Mixed"];
+export const CEILING_METHODS = ["Contents", "Coverage"];
 export const CEILING_EXISTING = ["Ceiling empty", "Blow-in installed", "Batts installed"];
 export const ACCESS_LEVELS = ["Excellent", "Good", "Hard", "Limited", "Can't do"];
 // Building-site (builder) visits

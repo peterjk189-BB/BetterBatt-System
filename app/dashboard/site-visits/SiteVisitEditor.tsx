@@ -16,6 +16,7 @@ import {
   isBuilderVisit,
   ACCESS_LEVELS,
   CEILING_EXISTING,
+  CEILING_METHODS,
   CEILING_SUITABILITY,
   EMPTY_CHECKLIST,
   ROOF_TYPES,
@@ -851,7 +852,17 @@ export default function SiteVisitEditor({
             <input className={inputCls} placeholder="e.g. R6.0" value={checklist.ceiling_r_rating} onChange={(e) => setC("ceiling_r_rating", e.target.value)} />
           </Field>
           <Field label="Method">
-            <input className={inputCls} placeholder="e.g. Coverage" value={checklist.ceiling_method} onChange={(e) => setC("ceiling_method", e.target.value)} />
+            <select className={inputCls} value={checklist.ceiling_method} onChange={(e) => setC("ceiling_method", e.target.value)}>
+              <option value="">Select...</option>
+              {CEILING_METHODS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+              {checklist.ceiling_method && !CEILING_METHODS.includes(checklist.ceiling_method) && (
+                <option value={checklist.ceiling_method}>{checklist.ceiling_method}</option>
+              )}
+            </select>
           </Field>
         </div>
         <div className="mt-4 flex flex-col gap-4">
