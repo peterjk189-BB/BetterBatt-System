@@ -15,6 +15,7 @@ type Part = {
   pack_cost_ex_gst: number;
   supplier_id: string | null;
   stock_on_hand: number;
+  pack_per_multi: number;
 };
 
 type Line = {
@@ -28,6 +29,9 @@ type Line = {
   picked_at: string | null;
   multi_picked: number | null;
   packs_picked: number | null;
+  multi_returned: number;
+  packs_returned: number;
+  returned_at: string | null;
   parts: Part;
 };
 
@@ -50,6 +54,8 @@ export default function PickingSlip({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pickMulti, setPickMulti] = useState<Record<string, string>>({});
   const [pickPks, setPickPks] = useState<Record<string, string>>({});
+  const [retMulti, setRetMulti] = useState<Record<string, string>>({});
+  const [retPks, setRetPks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState(workOrder.deliveryDate || "");
   const [dateStatus, setDateStatus] = useState<"" | "saving" | "saved">("");
@@ -102,6 +108,24 @@ export default function PickingSlip({
     run(l.id, "Released allocation", async () => await supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
+  const returnStock = (l: Line) => {
+    const multi = Math.round(Number(retMulti[l.id] || 0)) || 0;
+    const pks = Math.round(Number(retPks[l.id] || 0)) || 0;
+    if (multi <= 0 && pks <= 0) {
+      setError("Enter how many multis and/or packs came back.");
+      return;
+    }
+    return run(l.id, `Returned ${fmtSplit(multi, pks)} to stock`, async () => {
+      const r = await supabase.rpc("return_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+      if (!r.error) {
+        setRetMulti((prev) => ({ ...prev, [l.id]: "" }));
+        setRetPks((prev) => ({ ...prev, [l.id]: "" }));
+      }
+      return r;
+    });
+  };
+  const unreturn = (l: Line) =>
+    run(l.id, "Undid return", async () => await supabase.rpc("unreturn_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
     const multi = Math.round(Number(pickMulti[l.id] || 0)) || 0;
     const pks = Math.round(Number(pickPks[l.id] || 0)) || 0;
@@ -113,6 +137,23 @@ export default function PickingSlip({
       await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks })
     );
   };
+
+  const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
+  const costRows = lines.map((l) => {
+    const ppm = Number(l.parts.pack_per_multi) || 0;
+    const cost = Number(l.parts.pack_cost_ex_gst) || 0;
+    const pickedPacks = (Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0);
+    const returnedPacks = (Number(l.multi_returned) || 0) * ppm + (Number(l.packs_returned) || 0);
+    return {
+      picked: l.picked,
+      quoted: packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0) * cost,
+      pickedCost: l.picked ? pickedPacks * cost : 0,
+      returnedCost: l.picked ? returnedPacks * cost : 0,
+    };
+  });
+  const quotedCost = costRows.reduce((s, r) => s + r.quoted, 0);
+  const pickedCost = costRows.reduce((s, r) => s + r.pickedCost, 0);
+  const returnedCost = costRows.reduce((s, r) => s + r.returnedCost, 0);
 
   return (
     <div>
@@ -152,6 +193,34 @@ export default function PickingSlip({
       {lines.length === 0 && (
         <div className="mt-6 rounded-xl border border-dashed border-[var(--border)] px-4 py-10 text-center text-sm text-[var(--muted)]">
           This work order has no material (product) lines to pick — only labour lines.
+        </div>
+      )}
+
+      {costRows.some((r) => r.picked) && (
+        <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Real material cost (ex GST)</h2>
+          <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <div className="text-xs text-[var(--muted)]">Quoted</div>
+              <div className="text-lg font-semibold tabular-nums">{money(quotedCost)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--muted)]">Picked</div>
+              <div className="text-lg font-semibold tabular-nums">{money(pickedCost)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--muted)]">Returned to stock</div>
+              <div className="text-lg font-semibold tabular-nums">− {money(returnedCost)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-[var(--muted)]">Real cost of the job</div>
+              <div className="text-lg font-semibold tabular-nums text-accent">{money(pickedCost - returnedCost)}</div>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Real cost = packs picked minus packs returned, at each item&apos;s pack cost. Enter what came back in the “Back” boxes
+            against each picked line.
+          </p>
         </div>
       )}
 
@@ -200,6 +269,12 @@ export default function PickingSlip({
                     {status === "picked" && l.picked_at && (
                       <div className="mt-1 text-xs text-[var(--muted)]">
                         {fmtSplit(l.multi_picked || 0, l.packs_picked || 0)} · {fmtDateTime(l.picked_at)}
+                      </div>
+                    )}
+                    {status === "picked" && (l.multi_returned > 0 || l.packs_returned > 0) && (
+                      <div className="mt-1 text-xs text-[#1f6b35]">
+                        Returned {fmtSplit(l.multi_returned, l.packs_returned)}
+                        {l.returned_at ? ` · ${fmtDateTime(l.returned_at)}` : ""}
                       </div>
                     )}
                   </td>
@@ -255,9 +330,49 @@ export default function PickingSlip({
                         </>
                       )}
                       {status === "picked" && (
-                        <button onClick={() => unpick(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
-                          Undo pick
-                        </button>
+                        <>
+                          <div className="flex items-end gap-1.5">
+                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                              Back: Multi
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0"
+                                value={retMulti[l.id] ?? ""}
+                                onChange={(e) => setRetMulti((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                              />
+                            </label>
+                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
+                              Pks
+                              <input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="0"
+                                value={retPks[l.id] ?? ""}
+                                onChange={(e) => setRetPks((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                                className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                              />
+                            </label>
+                            <button
+                              onClick={() => returnStock(l)}
+                              disabled={busy}
+                              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:border-accent disabled:opacity-60"
+                            >
+                              Return to stock
+                            </button>
+                          </div>
+                          {(l.multi_returned > 0 || l.packs_returned > 0) && (
+                            <button onClick={() => unreturn(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
+                              Undo return
+                            </button>
+                          )}
+                          <button onClick={() => unpick(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
+                            Undo pick
+                          </button>
+                        </>
                       )}
                       {shortfall > 0 && status !== "picked" && (
                         <Link

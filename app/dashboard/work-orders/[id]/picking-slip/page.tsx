@@ -15,7 +15,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     supabase
       .from("work_order_lines")
       .select(
-        "id, qty, note, part_id, allocated, allocated_at, picked, picked_at, multi_picked, packs_picked, parts(id, name, code, coverage_m2, pack_cost_ex_gst, supplier_id, stock_on_hand, is_stock_item)"
+        "id, qty, note, part_id, allocated, allocated_at, picked, picked_at, multi_picked, packs_picked, parts(id, name, code, coverage_m2, pack_cost_ex_gst, supplier_id, stock_on_hand, pack_per_multi, is_stock_item)"
       )
       .eq("work_order_id", params.id)
       .order("sort_order"),
@@ -23,7 +23,21 @@ export default async function PickingSlipPage({ params }: { params: { id: string
 
   if (!workOrder) notFound();
 
-  const materialLines = (lines ?? []).filter((l: any) => l.part_id && l.parts?.is_stock_item !== false);
+  // Returned-stock columns come from migration 0041; fetched separately so this page still works before it's run.
+  const { data: returns } = await supabase
+    .from("work_order_lines")
+    .select("id, multi_returned, packs_returned, returned_at")
+    .eq("work_order_id", params.id);
+  const returnById: Record<string, any> = {};
+  for (const r of (returns ?? []) as any[]) returnById[r.id] = r;
+  const materialLines = (lines ?? [])
+    .filter((l: any) => l.part_id && l.parts?.is_stock_item !== false)
+    .map((l: any) => ({
+      ...l,
+      multi_returned: Number(returnById[l.id]?.multi_returned) || 0,
+      packs_returned: Number(returnById[l.id]?.packs_returned) || 0,
+      returned_at: returnById[l.id]?.returned_at ?? null,
+    }));
   const partIds = Array.from(new Set(materialLines.map((l: any) => l.part_id as string)));
 
   // What's reserved by OTHER jobs' picking slips, per part — so "available"
