@@ -554,7 +554,7 @@ export default function CalendarView({
               ["wo", "Work orders", "bg-orange-500"],
               ["po", "PO deliveries", "bg-blue-500"],
               ["delivery", "Stock deliveries", "bg-red-500"],
-              ["visit", "Site visits", "bg-green-500"],
+              ["visit", "Site visits", "bg-lime-400"],
               ["inspection", "Inspections", "bg-[#1e3a8a]"],
               ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
             ] as string[][]
@@ -755,14 +755,14 @@ export default function CalendarView({
                               title={`Site visit #${ev.visitNumber} — ${ev.customerName} (${ev.address}) — ${ev.status}${
                                 ev.assignedToName ? ` — ${ev.assignedToName}` : ""
                               }`}
-                              className="block rounded bg-green-100 px-1.5 py-1 text-[11px] leading-tight text-green-900 hover:bg-green-200"
+                              className="block rounded bg-lime-300 px-1.5 py-1 text-[11px] leading-tight text-[#1a2e05] hover:bg-lime-400"
                             >
                               <div className="truncate font-medium">
                                 {ev.time ? `${fmtTime(ev.time)} · ` : ""}
                                 {ev.customerName}
                               </div>
-                              <div className="truncate text-green-800">{ev.address}</div>
-                              {ev.assignedToName && <div className="truncate text-green-800">{ev.assignedToName}</div>}
+                              <div className="truncate text-[#365314]">{ev.address}</div>
+                              {ev.assignedToName && <div className="truncate text-[#365314]">{ev.assignedToName}</div>}
                             </Link>
                           );
                         })}
