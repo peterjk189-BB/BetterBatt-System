@@ -44,16 +44,21 @@ export default function PickingSlip({
   workOrder,
   lines,
   reservedByPart,
+  onDraft = {},
 }: {
   workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
+  /** Shortfalls already on a draft purchase order for this job, by part. */
+  onDraft?: Record<string, { poId: string; poNumber: string; qty: number }>;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pickMulti, setPickMulti] = useState<Record<string, string>>({});
   const [pickPks, setPickPks] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState(onDraft);
+  const [orderMsg, setOrderMsg] = useState<{ poId: string; text: string } | null>(null);
   const [retMulti, setRetMulti] = useState<Record<string, string>>({});
   const [retPks, setRetPks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +113,97 @@ export default function PickingSlip({
     run(l.id, "Released allocation", async () => await supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
+  /** One click: add this shortfall to the open draft PO for the supplier (or start one), without leaving the slip. */
+  async function orderShortfall(l: Line, shortfall: number) {
+    setBusyId(l.id);
+    setError(null);
+    setOrderMsg(null);
+    try {
+      const supplierId = l.parts.supplier_id || null;
+      const cost = Number(l.parts.pack_cost_ex_gst) || 0;
+      const jobNote = `Shortfall for WO${workOrder.wo_number}${workOrder.customerName ? " — " + workOrder.customerName : ""}`;
+
+      // The draft this job already has for this part, otherwise the newest open draft for the supplier.
+      let poId = drafts[l.part_id]?.poId ?? null;
+      let poNumber = drafts[l.part_id]?.poNumber ?? "";
+      if (!poId) {
+        let q = supabase.from("purchase_orders").select("id, po_number, notes").eq("status", "Draft").eq("archived", false);
+        q = supplierId ? q.eq("supplier_id", supplierId) : q.is("supplier_id", null);
+        const { data: found } = await q.order("created_at", { ascending: false }).limit(1);
+        const existing = (found ?? [])[0] as any;
+        if (existing) {
+          poId = existing.id;
+          poNumber = existing.po_number || "PO";
+          if (!(existing.notes || "").includes(`WO${workOrder.wo_number}`)) {
+            await supabase
+              .from("purchase_orders")
+              .update({ notes: [existing.notes, jobNote].filter(Boolean).join("\n") })
+              .eq("id", existing.id);
+          }
+        } else {
+          const { data: created, error: createErr } = await supabase
+            .from("purchase_orders")
+            .insert({
+              supplier_id: supplierId,
+              status: "Draft",
+              delivery_address: workOrder.address || null,
+              notes: jobNote,
+            })
+            .select("id, po_number")
+            .single();
+          if (createErr || !created) throw new Error(createErr?.message || "Couldn't create the purchase order.");
+          poId = created.id;
+          poNumber = created.po_number || "PO";
+          logAudit(supabase, {
+            eventType: "create",
+            entityType: "purchase_order",
+            entityId: created.id,
+            entityLabel: poNumber,
+            details: `Drafted from picking slip WO${workOrder.wo_number}`,
+          });
+        }
+      }
+
+      // Same part + same job already on this PO: update the quantity instead of adding a second line.
+      const { data: sameLine } = await supabase
+        .from("purchase_order_lines")
+        .select("id")
+        .eq("purchase_order_id", poId)
+        .eq("part_id", l.part_id)
+        .eq("work_order_id", workOrder.id)
+        .limit(1);
+      if (sameLine && sameLine.length > 0) {
+        const { error: updErr } = await supabase
+          .from("purchase_order_lines")
+          .update({ qty_pks: shortfall })
+          .eq("id", sameLine[0].id);
+        if (updErr) throw new Error(updErr.message);
+      } else {
+        const { error: insErr } = await supabase.from("purchase_order_lines").insert({
+          purchase_order_id: poId,
+          part_id: l.part_id,
+          work_order_id: workOrder.id,
+          qty_multi: 0,
+          qty_pks: shortfall,
+          received_multi: 0,
+          received_pks: 0,
+          unit_cost: cost,
+        });
+        if (insErr) {
+          throw new Error(
+            insErr.message.includes("work_order_id") ? "Couldn't save the line — run migration 0029 in Supabase first." : insErr.message
+          );
+        }
+      }
+      setDrafts((d) => ({ ...d, [l.part_id]: { poId: poId!, poNumber, qty: shortfall } }));
+      setOrderMsg({ poId: poId!, text: `Added ${fmtPacks(shortfall)} of ${l.parts.name} to draft ${poNumber}.` });
+    } catch (e: any) {
+      setError(e?.message || "Couldn't add to a purchase order.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const returnStock = (l: Line) => {
     const multi = Math.round(Number(retMulti[l.id] || 0)) || 0;
     const pks = Math.round(Number(retPks[l.id] || 0)) || 0;
@@ -188,6 +284,14 @@ export default function PickingSlip({
         </span>
       </label>
 
+      {orderMsg && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900">
+          <span>{orderMsg.text}</span>
+          <Link href={`/dashboard/purchase-orders/${orderMsg.poId}`} className="font-medium underline">
+            Open the draft PO
+          </Link>
+        </div>
+      )}
       {error && <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>}
 
       {lines.length === 0 && (
@@ -375,16 +479,24 @@ export default function PickingSlip({
                         </>
                       )}
                       {shortfall > 0 && status !== "picked" && (
-                        <Link
-                          href={`/dashboard/purchase-orders/new?part_id=${l.part_id}&qty=${shortfall}&supplier_id=${
-                            l.parts.supplier_id || ""
-                          }&address=${encodeURIComponent(workOrder.address || "")}&note=${encodeURIComponent(
-                            `Shortfall for WO${workOrder.wo_number}${workOrder.customerName ? " — " + workOrder.customerName : ""}`
-                          )}`}
-                          className="text-xs font-medium text-red-700 hover:underline"
-                        >
-                          Order shortfall ({fmtPacks(shortfall)})
-                        </Link>
+                        <>
+                          <button
+                            onClick={() => orderShortfall(l, shortfall)}
+                            disabled={busy}
+                            className="text-xs font-medium text-red-700 hover:underline disabled:opacity-60"
+                          >
+                            {drafts[l.part_id]
+                              ? drafts[l.part_id].qty === shortfall
+                                ? `On draft ${drafts[l.part_id].poNumber} · ${fmtPacks(shortfall)}`
+                                : `Update draft ${drafts[l.part_id].poNumber} to ${fmtPacks(shortfall)}`
+                              : `Order shortfall (${fmtPacks(shortfall)})`}
+                          </button>
+                          {drafts[l.part_id] && (
+                            <Link href={`/dashboard/purchase-orders/${drafts[l.part_id].poId}`} className="text-xs text-[var(--muted)] hover:underline">
+                              Open draft {drafts[l.part_id].poNumber}
+                            </Link>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>

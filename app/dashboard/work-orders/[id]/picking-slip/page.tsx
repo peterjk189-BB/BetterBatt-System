@@ -60,6 +60,20 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     reservedByPart[row.part_id] = (reservedByPart[row.part_id] || 0) + packsNeeded(Number(row.qty) || 0, coverage);
   }
 
+  // Shortfalls already sitting on a draft purchase order for this job.
+  const onDraft: Record<string, { poId: string; poNumber: string; qty: number }> = {};
+  {
+    const { data: poLines } = await supabase
+      .from("purchase_order_lines")
+      .select("part_id, qty_pks, purchase_order_id, purchase_orders!inner(id, po_number, status, archived)")
+      .eq("work_order_id", params.id);
+    for (const r of (poLines ?? []) as any[]) {
+      const po = Array.isArray(r.purchase_orders) ? r.purchase_orders[0] : r.purchase_orders;
+      if (!po || po.status !== "Draft" || po.archived || !r.part_id) continue;
+      onDraft[r.part_id] = { poId: po.id, poNumber: po.po_number || "PO", qty: Number(r.qty_pks) || 0 };
+    }
+  }
+
   const project = (workOrder as any).projects;
 
   return (
@@ -74,6 +88,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
       }}
       lines={materialLines as any}
       reservedByPart={reservedByPart}
+      onDraft={onDraft}
     />
   );
 }
