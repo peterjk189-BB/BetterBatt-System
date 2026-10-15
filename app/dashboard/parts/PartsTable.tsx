@@ -392,7 +392,6 @@ export default function PartsTable({
   const [parts, setParts] = useState(initial);
   const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
-  const [hideNonStock, setHideNonStock] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
   const [fullScreen, setFullScreen] = useState(false);
   useEffect(() => {
@@ -753,25 +752,18 @@ export default function PartsTable({
         return (
           <div className="flex w-full items-center gap-1.5 px-2">
             <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
-            {p.is_stock_item ? (
-              <button
-                type="button"
-                title="Make this a non-stock item (no stock counting, ordering or picking)"
-                onClick={() => patch(p, "is_stock_item", false)}
-                className="shrink-0 rounded px-1.5 py-0.5 text-xs text-[var(--muted)] opacity-0 hover:bg-[#f2f0ec] hover:underline focus:opacity-100 group-hover:opacity-100"
-              >
-                Make non-stock
-              </button>
-            ) : (
-              <button
-                type="button"
-                title="Click to make this a normal stock item"
-                onClick={() => patch(p, "is_stock_item", true)}
-                className="shrink-0 rounded bg-[#f2f0ec] px-1.5 py-0.5 text-xs text-[var(--muted)] hover:underline"
-              >
-                Non-stock · make stock
-              </button>
-            )}
+            <select
+              value={p.is_stock_item ? "stock" : "non"}
+              disabled={lockEdits}
+              onChange={(e) => patch(p, "is_stock_item", e.target.value === "stock")}
+              title="Stock items are counted, ordered and picked. Non-stock items (Delivery, Retro fit...) are priced by hand."
+              className={`shrink-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none disabled:opacity-100 ${
+                p.is_stock_item ? "text-[var(--muted)]" : "bg-[#f2f0ec] font-medium text-[var(--fg,#111)]"
+              }`}
+            >
+              <option value="stock">Stock</option>
+              <option value="non">Non-stock</option>
+            </select>
           </div>
         );
       case "type":
@@ -914,10 +906,9 @@ export default function PartsTable({
     return parts
       .filter((p) => p.archived === showArchived)
       .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
-      .filter((p) => !hideNonStock || p.is_stock_item)
       .filter((p) => supplierFilter === null || (p.supplier_id ? supplierById[p.supplier_id] || "Unassigned" : "Unassigned") === supplierFilter)
       .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
-  }, [parts, showArchived, search, hideNonStock, supplierFilter, supplierById]);
+  }, [parts, showArchived, search, supplierFilter, supplierById]);
 
   // ---- Sell price calculator: percentages -> Retail / Trade / Regency prices -------------------
   const [pricerOpen, setPricerOpen] = useState(false);
@@ -1321,10 +1312,6 @@ export default function PartsTable({
             Supplier: {supplierFilter} ✕
           </button>
         )}
-        <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
-          <input type="checkbox" checked={hideNonStock} onChange={(e) => setHideNonStock(e.target.checked)} />
-          Hide non-stock items
-        </label>
         <label className="flex items-center gap-2 text-sm font-medium">
           <input type="checkbox" checked={lockEdits} onChange={(e) => changeLock(e.target.checked)} />
           Lock editing (Pks and Multi stay editable)
