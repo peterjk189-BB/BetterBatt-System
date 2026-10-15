@@ -804,7 +804,7 @@ export default function SiteVisitEditor({
               </Toggle>
             ))}
             <Toggle on={checklist.remove_batts} onClick={() => setC("remove_batts", !checklist.remove_batts)}>
-              Remove batts
+              Insulation removal
             </Toggle>
           </Group>
           <Group label="Tile lift">
@@ -823,6 +823,16 @@ export default function SiteVisitEditor({
               </label>
             )}
           </Group>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium">Notes</span>
+            <textarea
+              rows={3}
+              className={inputCls}
+              placeholder="Anything else about the job specifics..."
+              value={checklist.job_notes}
+              onChange={(e) => setC("job_notes", e.target.value)}
+            />
+          </label>
         </div>
       </Section>
       </>

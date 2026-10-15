@@ -33,6 +33,8 @@ export type Checklist = {
   remove_batts: boolean;
   tile_lift: boolean;
   tile_lift_qty: string;
+  /** Free-text notes for the job specifics section. */
+  job_notes: string;
   quote_ceiling: boolean;
   quote_underfloor: boolean;
 
@@ -93,6 +95,7 @@ export const EMPTY_CHECKLIST: Checklist = {
   remove_batts: false,
   tile_lift: false,
   tile_lift_qty: "",
+  job_notes: "",
   quote_ceiling: false,
   quote_underfloor: false,
 

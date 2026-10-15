@@ -273,11 +273,14 @@ export default function SiteVisitPrintView({
             </Group>
             <Group label="Existing ceiling insulation">
               {CEILING_EXISTING.map((o) => <Pill key={o} on={c.existing.includes(o)}>{o}</Pill>)}
-              <Pill on={c.remove_batts}>Remove batts</Pill>
+              <Pill on={c.remove_batts}>Insulation removal</Pill>
             </Group>
             <Group label="Tile lift">
               <Pill on={c.tile_lift}>Tile lift{c.tile_lift && c.tile_lift_qty ? ` · ${c.tile_lift_qty}` : ""}</Pill>
             </Group>
+            <Grid cols={6}>
+              <Field span={6} label="Notes" value={c.job_notes} />
+            </Grid>
           </Card>
         )}
 
