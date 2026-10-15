@@ -60,6 +60,7 @@ const emptyForm = {
 const COLUMN_TO_CSV_FIELD: Record<string, string | null> = {
   code: "code",
   name: "name",
+  stockType: null,
   supplier: "supplier",
   type: "type",
   coverage: "coverage_m2",
@@ -235,6 +236,7 @@ function InlineCell({
 const INVENTORY_COLS = [
   { key: "code", label: "Code", align: "center" as Align, width: 90 },
   { key: "name", label: "Item", align: "left" as Align, width: 220 },
+  { key: "stockType", label: "Stock / Non-stock", align: "center" as Align, width: 120 },
   { key: "supplier", label: "Supplier", align: "center" as Align, width: 110 },
   { key: "type", label: "Type", align: "center" as Align, width: 100 },
   { key: "coverage", label: "Coverage/pack", align: "center" as Align, width: 110 },
@@ -752,19 +754,22 @@ export default function PartsTable({
         return (
           <div className="flex w-full items-center gap-1.5 px-2">
             <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
-            <select
+          </div>
+        );
+      case "stockType":
+        return (
+          <select
               value={p.is_stock_item ? "stock" : "non"}
               disabled={lockEdits}
               onChange={(e) => patch(p, "is_stock_item", e.target.value === "stock")}
               title="Stock items are counted, ordered and picked. Non-stock items (Delivery, Retro fit...) are priced by hand."
-              className={`shrink-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none disabled:opacity-100 ${
+              className={`w-full rounded border border-transparent bg-transparent px-1 py-1 text-sm hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none disabled:opacity-100 ${
                 p.is_stock_item ? "text-[var(--muted)]" : "bg-[#f2f0ec] font-medium text-[var(--fg,#111)]"
               }`}
             >
               <option value="stock">Stock</option>
               <option value="non">Non-stock</option>
-            </select>
-          </div>
+          </select>
         );
       case "type":
         return <InlineCell value={p.type || ""} onCommit={(v) => patch(p, "type", v)} align="center" />;
