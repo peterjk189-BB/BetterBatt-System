@@ -52,8 +52,8 @@ export default function QuotePrintView({
 }) {
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
-  // Retro fits etc: hide each line's price and show only Subtotal / GST / Total. Applies to Print and PDF.
-  const [hidePrices, setHidePrices] = useState(false);
+  // Line prices are hidden by default: only Subtotal / GST / Total show. The button turns them on. Applies to Print and PDF.
+  const [hidePrices, setHidePrices] = useState(true);
 
   async function downloadPdf() {
     if (!printableRef.current) return;
