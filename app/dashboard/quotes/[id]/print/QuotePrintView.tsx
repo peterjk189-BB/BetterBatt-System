@@ -52,6 +52,8 @@ export default function QuotePrintView({
 }) {
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
+  // Retro fits etc: hide each line's price and show only Subtotal / GST / Total. Applies to Print and PDF.
+  const [hidePrices, setHidePrices] = useState(false);
 
   async function downloadPdf() {
     if (!printableRef.current) return;
@@ -91,6 +93,8 @@ export default function QuotePrintView({
   }
 
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
+  const showPrices = !hidePrices;
+  const colCount = 1 + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
 
   // Delivery fee items still count toward the total (the customer is still paying for
   // it), but the quote shouldn't show its price broken out as its own line.
@@ -133,6 +137,14 @@ export default function QuotePrintView({
           className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
         >
           {downloading ? "Preparing PDF..." : "Download PDF"}
+        </button>
+        <button
+          onClick={() => setHidePrices((v) => !v)}
+          className={`rounded-lg border px-4 py-2 text-sm font-medium ${
+            hidePrices ? "border-accent bg-blue-50 text-accent" : "border-[var(--border)] hover:border-accent"
+          }`}
+        >
+          {hidePrices ? "Show line prices" : "Hide line prices"}
         </button>
         <span className="text-xs text-[var(--muted)]">
           Downloads a PDF file you can attach to an email in Outlook.
@@ -217,9 +229,9 @@ export default function QuotePrintView({
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
-              <th className="rounded-l-lg px-2.5 py-2 font-semibold">Product</th>
-              {project.show_qty_on_quote && <th className="px-2.5 py-2 text-right font-semibold">Qty</th>}
-              <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>
+              <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${colCount === 1 ? "rounded-r-lg" : ""}`}>Product</th>
+              {project.show_qty_on_quote && <th className={`px-2.5 py-2 text-right font-semibold ${showPrices ? "" : "rounded-r-lg"}`}>Qty</th>}
+              {showPrices && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>}
             </tr>
           </thead>
           <tbody>
@@ -228,14 +240,16 @@ export default function QuotePrintView({
                 <tr className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
                   <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
                   {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-                  <td className="px-2.5 py-1.5 text-right font-medium">
-                    {l.isDelivery ? "" : fmtCurrency(l.charge)}
-                  </td>
+                  {showPrices && (
+                    <td className="px-2.5 py-1.5 text-right font-medium">
+                      {l.isDelivery ? "" : fmtCurrency(l.charge)}
+                    </td>
+                  )}
                 </tr>
                 {l.note && (
                   <tr className="quote-note border-b border-gray-300">
                     <td
-                      colSpan={project.show_qty_on_quote ? 3 : 2}
+                      colSpan={colCount}
                       className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]"
                     >
                       {l.note}
@@ -246,7 +260,7 @@ export default function QuotePrintView({
             ))}
             {computed.length === 0 && (
               <tr>
-                <td colSpan={project.show_qty_on_quote ? 3 : 2} className="py-6 text-center text-gray-500">
+                <td colSpan={colCount} className="py-6 text-center text-gray-500">
                   No line items.
                 </td>
               </tr>
