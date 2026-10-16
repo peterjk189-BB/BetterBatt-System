@@ -719,6 +719,7 @@ export default function QuoteEditor({
                 <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">Qty (m²)</th>
                 <th className="px-3 py-2">Packs</th>
+                <th className="px-3 py-2 text-right">Price</th>
                 <th className="px-3 py-2">Note</th>
                 <th className="px-3 py-2 text-right">Charge</th>
                 <th className="px-3 py-2 text-right">Cust. discount</th>
@@ -752,6 +753,20 @@ export default function QuoteEditor({
                     />
                   </td>
                   <td className="px-3 py-2 font-mono text-[var(--muted)]">{l.packs}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {l.part_id && partById[l.part_id] ? (
+                      <>
+                        {fmtCurrency(
+                          isSupplyOnly
+                            ? supplyPackPrice(partById[l.part_id], form.price_tier || null)
+                            : Number(partById[l.part_id].supply_install_rate_per_m2) || 0
+                        )}
+                        <span className="text-xs text-[var(--muted)]">{isSupplyOnly ? " /pack" : " /m²"}</span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <input
                       className="w-[28rem] max-w-full rounded-lg border border-[var(--border)] px-2 py-1.5"
