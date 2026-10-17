@@ -9,13 +9,19 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "Better Batt", statusBarStyle: "default" },
 };
 
+// Sets light/dark before the page paints so there is no white flash. "auto" follows the device.
+const THEME_SCRIPT = `(function(){try{var p=localStorage.getItem("bb-theme")||"auto";var d=p==="dark"||(p==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.setAttribute("data-theme",d?"dark":"light")}catch(e){}})()`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

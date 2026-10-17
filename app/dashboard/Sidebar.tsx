@@ -19,7 +19,7 @@ export default function Sidebar({ links }: { links: NavLink[] }) {
   return (
     <nav className="hidden w-48 shrink-0 border-r border-[var(--border)] bg-[#f2f0ec] px-3 py-6 sm:block print:hidden">
       <div className="mb-6 px-2.5">
-        <Image src="/logo.png" alt="Better Batt Insulation" width={140} height={70} className="h-8 w-auto" />
+        <Image src="/logo.png" alt="Better Batt Insulation" width={140} height={70} className="logo-on-light h-8 w-auto" />
       </div>
       {groups.map((g) => {
         const accent = GROUP_ACCENTS[g] ?? "#2563eb";
