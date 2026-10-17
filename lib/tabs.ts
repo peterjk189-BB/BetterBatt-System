@@ -111,6 +111,14 @@ export const ALL_TABS = [
     adminOnly: false,
     group: "Insights",
   },
+  {
+    key: "business",
+    href: "/dashboard/business",
+    label: "Business Dashboard",
+    desc: "Sales, profit, cash owed, quote win rate and jobs needing attention",
+    adminOnly: true,
+    group: "Insights",
+  },
   { key: "users", href: "/dashboard/users", label: "Users", desc: "Invite and manage app users", adminOnly: true, group: "Admin" },
   { key: "audit-log", href: "/dashboard/audit-log", label: "Audit Log", desc: "Sign-ins and record changes", adminOnly: true, group: "Admin" },
   {
