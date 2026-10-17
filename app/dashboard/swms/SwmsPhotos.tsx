@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { SwmsPhoto } from "@/lib/swms";
+import type { PhotoSection, SwmsPhoto } from "@/lib/swms";
 
 /** Phone photos are 3–6 MB; shrink to 1600px JPEG before upload so uploads work on site on 4G. */
 async function compressImage(file: File): Promise<Blob> {
@@ -43,8 +43,13 @@ async function compressImage(file: File): Promise<Blob> {
 export default function SwmsPhotos({
   initial,
   ensureSwmsId,
+  section,
+  emptyText,
 }: {
   initial: SwmsPhoto[];
+  /** Which photo area this is: omit for the general site photos. */
+  section?: PhotoSection;
+  emptyText?: string;
   /** Saves the SWMS first if it's new, then returns its id. Null if it couldn't be saved. */
   ensureSwmsId: () => Promise<string | null>;
 }) {
@@ -91,17 +96,19 @@ export default function SwmsPhotos({
         const {
           data: { user },
         } = await supabase.auth.getUser();
+        const cols: string = "id, category, storage_path, file_name, caption, sort_order, created_at" + (section ? ", swms_section" : "");
         const { data, error: rowErr } = await supabase
           .from("attachments")
           .insert({
             swms_id: swmsId,
             category: "SWMS",
+            ...(section ? { swms_section: section } : {}),
             storage_path: path,
             file_name: files[i].name,
             sort_order: photos.length + i,
             uploaded_by: user?.id ?? null,
           })
-          .select("id, category, storage_path, file_name, caption, sort_order, created_at")
+          .select(cols)
           .single();
         if (rowErr || !data) {
           await supabase.storage.from("attachments").remove([path]);
@@ -109,7 +116,7 @@ export default function SwmsPhotos({
         }
         const objectUrl = URL.createObjectURL(blob);
         setUrls((u) => ({ ...u, [path]: objectUrl }));
-        setPhotos((p) => [...p, data as SwmsPhoto]);
+        setPhotos((p) => [...p, data as unknown as SwmsPhoto]);
       } catch {
         failed++;
       }
@@ -190,7 +197,7 @@ export default function SwmsPhotos({
         </div>
       ) : (
         <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-6 text-center text-sm text-[var(--muted)]">
-          No photos yet. Photograph before/after and any hazards found.
+          {emptyText ?? "No photos yet. Photograph before/after and any hazards found."}
         </p>
       )}
 

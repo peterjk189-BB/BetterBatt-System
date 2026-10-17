@@ -18,5 +18,13 @@ export default async function SwmsRecordPage({ params }: { params: { id: string 
 
   if (!record) notFound();
 
-  return <SwmsEditor record={record as any} photos={(photos ?? []) as any} prefill={null} isAdmin={role === "admin"} />;
+  // swms_section only exists once migration 0042 is run, so it's fetched on its own.
+  const sectionById: Record<string, string | null> = {};
+  {
+    const { data: secs } = await supabase.from("attachments").select("id, swms_section").eq("swms_id", params.id);
+    for (const r of (secs ?? []) as any[]) sectionById[r.id] = r.swms_section ?? null;
+  }
+  const photosWithSection = (photos ?? []).map((p: any) => ({ ...p, swms_section: sectionById[p.id] ?? null }));
+
+  return <SwmsEditor record={record as any} photos={photosWithSection as any} prefill={null} isAdmin={role === "admin"} />;
 }

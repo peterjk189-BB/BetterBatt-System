@@ -7,10 +7,12 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import {
   EMPTY_HAZARDS,
+  EMPTY_REMOVAL,
   EMPTY_SITE_REPORT,
   FOILING_JOB_TYPES,
   JOB_TYPES,
   PHOTO_ITEMS,
+  REMOVAL_ACCESS_ITEMS,
   SCOPE_ITEMS,
   SITE_REPORT_COLUMNS,
   SWMS_STATUSES,
@@ -18,12 +20,14 @@ import {
   normaliseHazards,
   normaliseInstallers,
   normalisePhotosChecklist,
+  normaliseRemoval,
   normaliseScope,
   normaliseSiteReport,
   swmsLabel,
   type HazardRow,
   type Installer,
   type JobType,
+  type Removal,
   type Scope,
   type SiteReport,
   type SwmsPhoto,
@@ -80,6 +84,10 @@ export default function SwmsEditor({
   const [photosChecklist, setPhotosChecklist] = useState<Record<string, boolean>>(
     record ? normalisePhotosChecklist(record.photos_checklist) : normalisePhotosChecklist({})
   );
+  const [removal, setRemoval] = useState<Removal>(record ? normaliseRemoval(record.removal) : EMPTY_REMOVAL);
+  // The removal column only exists once migration 0042 is run, so only send it
+  // when this record already has it or the section has been switched on.
+  const removalSent = useRef<boolean>(!!record && "removal" in record);
   const [installers, setInstallers] = useState<Installer[]>(record ? normaliseInstallers(record.installers) : []);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -113,8 +121,9 @@ export default function SwmsEditor({
     setForm((f) => ({ ...f, job_type: jt }));
   }
 
-  const payload = useCallback(
-    () => ({
+  const payload = useCallback(() => {
+    if (removal.enabled) removalSent.current = true;
+    return {
       job_date: form.job_date,
       time_in: form.time_in || null,
       time_out: form.time_out || null,
@@ -130,9 +139,10 @@ export default function SwmsEditor({
       hazards,
       site_report: siteReport,
       photos_checklist: photosChecklist,
+      ...(removalSent.current || removal.enabled ? { removal } : {}),
       installers,
-    }),
-    [form, scope, hazards, siteReport, photosChecklist, installers]
+    };
+  }, [form, scope, hazards, siteReport, photosChecklist, removal, installers]
   );
 
   const ensureId = useCallback(async (): Promise<string | null> => {
@@ -205,7 +215,7 @@ export default function SwmsEditor({
     const t = setTimeout(() => saveNow(), 1200);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form, scope, hazards, siteReport, photosChecklist, installers]);
+  }, [form, scope, hazards, siteReport, photosChecklist, removal, installers]);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -386,7 +396,59 @@ export default function SwmsEditor({
         <Field label="Repair" className="mt-3 max-w-sm">
           <input className={inputCls} value={scope.repair_note} onChange={(e) => setScope((s) => ({ ...s, repair_note: e.target.value }))} />
         </Field>
+        <div className="mt-4">
+          <Toggle on={removal.enabled} onClick={() => setRemoval((r) => ({ ...r, enabled: !r.enabled }))}>
+            Insulation removal
+          </Toggle>
+        </div>
       </Section>
+
+      {removal.enabled && (
+        <Section title="Insulation removal" hint="Tick how the ceiling space is accessed, then photograph the area before removal and again once complete.">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Access</h3>
+          <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-4">
+            {REMOVAL_ACCESS_ITEMS.map((item) => (
+              <label key={item} className="flex items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#b1841f]"
+                  checked={!!removal.items[item]}
+                  onChange={(e) => setRemoval((r) => ({ ...r, items: { ...r.items, [item]: e.target.checked } }))}
+                />
+                {item}
+              </label>
+            ))}
+          </div>
+          <Field label="Other / notes" className="mt-2">
+            <input
+              className={inputCls}
+              value={removal.other_note}
+              onChange={(e) => setRemoval((r) => ({ ...r, other_note: e.target.value }))}
+              placeholder="Anything else about access or the removal"
+            />
+          </Field>
+
+          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Area for removal — photos</h3>
+          <div className="mt-2">
+            <SwmsPhotos
+              initial={photos.filter((p) => p.swms_section === "removal_before")}
+              ensureSwmsId={ensureId}
+              section="removal_before"
+              emptyText="No photos yet. Photograph the area before any insulation is removed."
+            />
+          </div>
+
+          <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Completion photos</h3>
+          <div className="mt-2">
+            <SwmsPhotos
+              initial={photos.filter((p) => p.swms_section === "removal_after")}
+              ensureSwmsId={ensureId}
+              section="removal_after"
+              emptyText="No photos yet. Photograph the cleared area once the removal is finished."
+            />
+          </div>
+        </Section>
+      )}
 
       <Section title="Site report" hint="Tick anything that applies, checked before installers start work.">
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
@@ -533,7 +595,7 @@ export default function SwmsEditor({
           ))}
         </div>
         <div className="mt-4">
-          <SwmsPhotos initial={photos} ensureSwmsId={ensureId} />
+          <SwmsPhotos initial={photos.filter((p) => !p.swms_section)} ensureSwmsId={ensureId} />
         </div>
       </Section>
 

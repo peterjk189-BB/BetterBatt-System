@@ -134,6 +134,23 @@ export const PHOTO_ITEMS = [
   "Polyester infills",
 ];
 
+/** Insulation removal — ticked on a SWMS when the job includes removing old insulation; opens its own section. */
+export const REMOVAL_ACCESS_ITEMS: string[] = ["Access ceiling", "Manhole", "Tile lift"];
+export type Removal = { enabled: boolean; items: Record<string, boolean>; other_note: string };
+export const EMPTY_REMOVAL: Removal = {
+  enabled: false,
+  items: Object.fromEntries(REMOVAL_ACCESS_ITEMS.map((i) => [i, false])),
+  other_note: "",
+};
+export function normaliseRemoval(raw: unknown): Removal {
+  const src = (raw && typeof raw === "object" ? raw : {}) as Partial<Removal>;
+  const items = { ...EMPTY_REMOVAL.items, ...(src.items || {}) };
+  return { enabled: !!src.enabled, items, other_note: src.other_note || "" };
+}
+
+/** Where a SWMS photo belongs: the general site photos, or the insulation-removal before / after areas. */
+export type PhotoSection = "removal_before" | "removal_after";
+
 export type Installer = { name: string; signed_name: string; signed_at: string | null };
 
 export function normaliseHazards(raw: unknown): HazardRow[] {
@@ -198,6 +215,8 @@ export type SwmsRecord = {
   hazards: HazardRow[];
   site_report: SiteReport;
   photos_checklist: Record<string, boolean>;
+  /** Insulation removal section (needs migration 0042); undefined/empty on older records. */
+  removal?: Removal;
   installers: Installer[];
   comments: string | null;
   archived: boolean;
@@ -213,6 +232,8 @@ export type SwmsPhoto = {
   caption: string | null;
   sort_order: number;
   created_at: string;
+  /** null/undefined = general site photo (needs migration 0042 for the removal sections). */
+  swms_section?: PhotoSection | null;
 };
 
 export function swmsLabel(s: { swms_number: number; site_address?: string | null }) {

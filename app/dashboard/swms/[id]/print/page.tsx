@@ -16,6 +16,14 @@ export default async function SwmsPrintPage({ params }: { params: { id: string }
 
   if (!record) notFound();
 
+  // swms_section only exists once migration 0042 is run, so it's fetched on its own.
+  const sectionById: Record<string, string | null> = {};
+  {
+    const { data: secs } = await supabase.from("attachments").select("id, swms_section").eq("swms_id", params.id);
+    for (const r of (secs ?? []) as any[]) sectionById[r.id] = r.swms_section ?? null;
+  }
+  const photosWithSection = (photos ?? []).map((p: any) => ({ ...p, swms_section: sectionById[p.id] ?? null }));
+
   const signed: Record<string, string> = {};
   if (photos && photos.length > 0) {
     const { data } = await supabase.storage.from("attachments").createSignedUrls(
@@ -25,5 +33,5 @@ export default async function SwmsPrintPage({ params }: { params: { id: string }
     for (const s of data ?? []) if (s.path && s.signedUrl) signed[s.path] = s.signedUrl;
   }
 
-  return <SwmsPrintView record={record as any} photos={(photos ?? []) as any} urls={signed} />;
+  return <SwmsPrintView record={record as any} photos={photosWithSection as any} urls={signed} />;
 }

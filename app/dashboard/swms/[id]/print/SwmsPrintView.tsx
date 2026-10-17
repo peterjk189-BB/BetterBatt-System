@@ -4,11 +4,13 @@ import Link from "next/link";
 import {
   FOILING_JOB_TYPES,
   PHOTO_ITEMS,
+  REMOVAL_ACCESS_ITEMS,
   SCOPE_ITEMS,
   SITE_REPORT_COLUMNS,
   normaliseHazards,
   normaliseInstallers,
   normalisePhotosChecklist,
+  normaliseRemoval,
   normaliseScope,
   normaliseSiteReport,
   type SwmsPhoto,
@@ -53,6 +55,10 @@ export default function SwmsPrintView({
   const siteReport = normaliseSiteReport(record.site_report);
   const photosChecklist = normalisePhotosChecklist(record.photos_checklist);
   const installers = normaliseInstallers(record.installers);
+  const removal = normaliseRemoval(record.removal);
+  const generalPhotos = photos.filter((p) => !p.swms_section);
+  const removalBefore = photos.filter((p) => p.swms_section === "removal_before");
+  const removalAfter = photos.filter((p) => p.swms_section === "removal_after");
 
   return (
     <div>
@@ -105,6 +111,42 @@ export default function SwmsPrintView({
           ))}
         </div>
         {scope.repair_note && <p className="mt-2">Repair: {scope.repair_note}</p>}
+
+        {removal.enabled && (
+          <>
+            <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Insulation removal</h3>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1.5">
+              {REMOVAL_ACCESS_ITEMS.map((item) => (
+                <Box key={item} on={!!removal.items[item]}>
+                  {item}
+                </Box>
+              ))}
+            </div>
+            {removal.other_note && <p className="mt-2">Notes: {removal.other_note}</p>}
+            <h4 className="mt-4 text-xs font-bold uppercase tracking-wide">Area for removal</h4>
+            {removalBefore.length > 0 ? (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {removalBefore.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={p.id} src={urls[p.storage_path]} alt="Area for removal" className="aspect-square w-full rounded border border-[#e4e1da] object-cover" />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-[#8a877f]">No photos taken.</p>
+            )}
+            <h4 className="mt-4 text-xs font-bold uppercase tracking-wide">Completion photos</h4>
+            {removalAfter.length > 0 ? (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {removalAfter.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={p.id} src={urls[p.storage_path]} alt="Completion" className="aspect-square w-full rounded border border-[#e4e1da] object-cover" />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-[#8a877f]">No photos taken.</p>
+            )}
+          </>
+        )}
 
         <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Site report</h3>
         <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-1.5 text-[12px]">
@@ -197,11 +239,11 @@ export default function SwmsPrintView({
           ))}
         </div>
 
-        {photos.length > 0 && (
+        {generalPhotos.length > 0 && (
           <>
             <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Site photos</h3>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              {photos.map((p) => (
+              {generalPhotos.map((p) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img key={p.id} src={urls[p.storage_path]} alt="Site photo" className="aspect-square w-full rounded border border-[#e4e1da] object-cover" />
               ))}
