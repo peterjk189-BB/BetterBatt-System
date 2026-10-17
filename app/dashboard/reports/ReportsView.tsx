@@ -1,5 +1,6 @@
 "use client";
 
+import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlPayment } from "./ProfitLossReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { useMemo, useState } from "react";
@@ -516,7 +517,7 @@ function SupplierReport({ poLines }: { poLines: PoLine[] }) {
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "customers" | "suppliers" | "jobs";
+type Tab = "inventory" | "customers" | "suppliers" | "jobs" | "pnl";
 
 export default function ReportsView({
   parts,
@@ -528,6 +529,7 @@ export default function ReportsView({
   jobSwms,
   jobInspections,
   jobLines,
+  pl,
 }: {
   parts: Part[];
   poLines: PoLine[];
@@ -538,6 +540,16 @@ export default function ReportsView({
   jobSwms: JobSwms[];
   jobInspections: JobInspection[];
   jobLines: JobLine[];
+  pl: {
+    projects: PlProject[];
+    projectLines: PlProjectLine[];
+    workOrders: PlWorkOrder[];
+    woLines: PlWoLine[];
+    labourItems: PlLabour[];
+    invoices: PlInvoice[];
+    payments: PlPayment[];
+    invoicesAvailable: boolean;
+  };
 }) {
   const [tab, setTab] = useState<Tab>("inventory");
 
@@ -559,12 +571,14 @@ export default function ReportsView({
         {tabBtn("inventory", "Inventory movement")}
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
+        {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
       </div>
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
       {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
       {tab === "suppliers" && <SupplierReport poLines={poLines} />}
+      {tab === "pnl" && <ProfitLossReport {...pl} />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
   );

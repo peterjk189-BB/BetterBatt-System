@@ -14,6 +14,10 @@ export default async function ReportsPage() {
     { data: jobSwms },
     { data: jobInspections },
     { data: jobLines },
+    { data: plWoLines },
+    { data: labourItems },
+    { data: plInvoices, error: invErr },
+    { data: plPayments },
   ] = await Promise.all([
     supabase
       .from("parts")
@@ -31,7 +35,7 @@ export default async function ReportsPage() {
     supabase
       .from("projects")
       .select(
-        "id, quote_number, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, customers(name, discount_pct)"
+        "id, quote_number, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, address, suburb, customers(name, discount_pct)"
       )
       .order("entry_date", { ascending: false }),
     supabase
@@ -42,7 +46,7 @@ export default async function ReportsPage() {
     supabase
       .from("work_orders")
       .select(
-        "id, wo_number, completed_date, entry_date, archived, jsa_received, projects(quote_number, address, suburb, customers(name)), subcontractors(name)"
+        "id, wo_number, project_id, completed_date, entry_date, archived, jsa_received, projects(quote_number, address, suburb, customers(name)), subcontractors(name)"
       )
       .order("wo_number", { ascending: false }),
     supabase.from("swms").select("id, status, archived, swms_number, work_order_id").not("work_order_id", "is", null),
@@ -51,6 +55,16 @@ export default async function ReportsPage() {
       .select("id, inspection_number, status, result, parent_inspection_id, archived, work_order_id")
       .not("work_order_id", "is", null),
     supabase.from("work_order_lines").select("work_order_id, task_date"),
+    supabase
+      .from("work_order_lines")
+      .select(
+        "work_order_id, qty, labour_item_id, part_id, picked, multi_picked, packs_picked, multi_returned, packs_returned, parts(coverage_m2, pack_cost_ex_gst, pack_per_multi)"
+      ),
+    supabase.from("labour_items").select("id, contractor_rate"),
+    supabase
+      .from("invoices")
+      .select("id, project_id, customer_id, kind, amount_ex_gst, total, status, invoice_date, customers(name)"),
+    supabase.from("invoice_payments").select("invoice_id, amount"),
   ]);
 
   return (
@@ -64,6 +78,16 @@ export default async function ReportsPage() {
       jobSwms={(jobSwms ?? []) as any}
       jobInspections={(jobInspections ?? []) as any}
       jobLines={(jobLines ?? []) as any}
+      pl={{
+        projects: (projects ?? []) as any,
+        projectLines: (projectLines ?? []) as any,
+        workOrders: (jobWorkOrders ?? []) as any,
+        woLines: (plWoLines ?? []) as any,
+        labourItems: (labourItems ?? []) as any,
+        invoices: (plInvoices ?? []) as any,
+        payments: (plPayments ?? []) as any,
+        invoicesAvailable: !invErr,
+      }}
     />
   );
 }
