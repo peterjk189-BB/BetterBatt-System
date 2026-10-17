@@ -1,5 +1,6 @@
 "use client";
 
+import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { useMemo, useState } from "react";
 
@@ -515,7 +516,7 @@ function SupplierReport({ poLines }: { poLines: PoLine[] }) {
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "customers" | "suppliers";
+type Tab = "inventory" | "customers" | "suppliers" | "jobs";
 
 export default function ReportsView({
   parts,
@@ -523,12 +524,20 @@ export default function ReportsView({
   woLines,
   projects,
   projectLines,
+  jobWorkOrders,
+  jobSwms,
+  jobInspections,
+  jobLines,
 }: {
   parts: Part[];
   poLines: PoLine[];
   woLines: WoLine[];
   projects: Project[];
   projectLines: ProjectLine[];
+  jobWorkOrders: JobRow[];
+  jobSwms: JobSwms[];
+  jobInspections: JobInspection[];
+  jobLines: JobLine[];
 }) {
   const [tab, setTab] = useState<Tab>("inventory");
 
@@ -546,15 +555,17 @@ export default function ReportsView({
   return (
     <div>
       <h1 className="text-2xl font-bold">Reports</h1>
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex flex-wrap gap-2">
         {tabBtn("inventory", "Inventory movement")}
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
+        {tabBtn("jobs", "Jobs & SWMS")}
       </div>
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
       {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
       {tab === "suppliers" && <SupplierReport poLines={poLines} />}
+      {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
   );
 }
