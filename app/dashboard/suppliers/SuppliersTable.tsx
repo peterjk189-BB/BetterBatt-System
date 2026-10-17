@@ -11,9 +11,53 @@ type Supplier = {
   email: string | null;
   notes: string | null;
   archived: boolean;
+  // Added by migration 0043 — absent until it's been run.
+  accounts_contact_name?: string | null;
+  accounts_contact_email?: string | null;
+  accounts_contact_phone?: string | null;
+  rep_name?: string | null;
+  rep_phone?: string | null;
+  rep_email?: string | null;
+  po_email?: string | null;
+  po_cc_email?: string | null;
+  po_bulk_email?: boolean | null;
 };
 
-const emptyForm = { name: "", phone: "", email: "", notes: "" };
+const emptyForm = {
+  name: "",
+  phone: "",
+  email: "",
+  notes: "",
+  accounts_contact_name: "",
+  accounts_contact_email: "",
+  accounts_contact_phone: "",
+  rep_name: "",
+  rep_phone: "",
+  rep_email: "",
+  po_email: "",
+  po_cc_email: "",
+  po_bulk_email: false,
+};
+
+const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2";
+
+/** Only the base columns exist until migration 0043 is run, so the new ones are sent only when they hold something or the table already has them. */
+function buildPayload(form: typeof emptyForm, columnsExist: boolean) {
+  const base = { name: form.name, phone: form.phone, email: form.email, notes: form.notes };
+  const extras = {
+    accounts_contact_name: form.accounts_contact_name.trim() || null,
+    accounts_contact_email: form.accounts_contact_email.trim() || null,
+    accounts_contact_phone: form.accounts_contact_phone.trim() || null,
+    rep_name: form.rep_name.trim() || null,
+    rep_phone: form.rep_phone.trim() || null,
+    rep_email: form.rep_email.trim() || null,
+    po_email: form.po_email.trim() || null,
+    po_cc_email: form.po_cc_email.trim() || null,
+    po_bulk_email: form.po_bulk_email,
+  };
+  const anySet = Object.values(extras).some((v) => v !== null && v !== false);
+  return columnsExist || anySet ? { ...base, ...extras } : base;
+}
 
 export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier[]; isAdmin: boolean }) {
   const supabase = createClient();
@@ -23,6 +67,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
   const [form, setForm] = useState(emptyForm);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const columnsExist = suppliers.length > 0 && "rep_name" in suppliers[0];
 
   function openNew() {
     setEditing(null);
@@ -32,7 +77,21 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
 
   function openEdit(s: Supplier) {
     setEditing(s);
-    setForm({ name: s.name, phone: s.phone || "", email: s.email || "", notes: s.notes || "" });
+    setForm({
+      name: s.name,
+      phone: s.phone || "",
+      email: s.email || "",
+      notes: s.notes || "",
+      accounts_contact_name: s.accounts_contact_name || "",
+      accounts_contact_email: s.accounts_contact_email || "",
+      accounts_contact_phone: s.accounts_contact_phone || "",
+      rep_name: s.rep_name || "",
+      rep_phone: s.rep_phone || "",
+      rep_email: s.rep_email || "",
+      po_email: s.po_email || "",
+      po_cc_email: s.po_cc_email || "",
+      po_bulk_email: !!s.po_bulk_email,
+    });
     setModalOpen(true);
   }
 
@@ -41,7 +100,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
     if (editing) {
       const { data, error } = await supabase
         .from("suppliers")
-        .update(form)
+        .update(buildPayload(form, columnsExist))
         .eq("id", editing.id)
         .select()
         .single();
@@ -51,7 +110,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
         logAudit(supabase, { eventType: "update", entityType: "supplier", entityId: data.id, entityLabel: data.name });
       } else if (error) alert(error.message);
     } else {
-      const { data, error } = await supabase.from("suppliers").insert(form).select().single();
+      const { data, error } = await supabase.from("suppliers").insert(buildPayload(form, columnsExist)).select().single();
       if (!error && data) {
         setSuppliers((prev) => [data as Supplier, ...prev]);
         setModalOpen(false);
@@ -106,6 +165,9 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Phone</th>
               <th className="px-4 py-2">Email</th>
+              <th className="px-4 py-2">Accounts</th>
+              <th className="px-4 py-2">Sales rep</th>
+              <th className="px-4 py-2">PO email</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -115,6 +177,17 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
                 <td className="px-4 py-2 font-medium">{s.name}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
                 <td className="px-4 py-2">{s.email || "—"}</td>
+                <td className="px-4 py-2">
+                  <Contact name={s.accounts_contact_name} email={s.accounts_contact_email} phone={s.accounts_contact_phone} />
+                </td>
+                <td className="px-4 py-2">
+                  <Contact name={s.rep_name} email={s.rep_email} phone={s.rep_phone} />
+                </td>
+                <td className="px-4 py-2">
+                  {s.po_email || "—"}
+                  {s.po_cc_email && <div className="text-xs text-[var(--muted)]">cc {s.po_cc_email}</div>}
+                  {s.po_bulk_email && <div className="text-xs text-[var(--muted)]">Bulk PO emails</div>}
+                </td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => openEdit(s)} className="text-accent hover:underline">
                     Edit
@@ -132,7 +205,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
                   No suppliers found.
                 </td>
               </tr>
@@ -143,42 +216,55 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-xl bg-[var(--surface)]">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h2 className="text-lg font-bold">{editing ? "Edit supplier" : "Add supplier"}</h2>
             </div>
-            <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-              <label className="flex flex-col gap-1 text-sm">
-                Name
-                <input
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Phone
-                <input
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Email
-                <input
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </label>
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Txt label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} className="sm:col-span-2" />
+                <Txt label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+                <Txt label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Accounts contact</h3>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Txt label="Contact name" value={form.accounts_contact_name} onChange={(v) => setForm({ ...form, accounts_contact_name: v })} className="sm:col-span-2" />
+                  <Txt label="Email" value={form.accounts_contact_email} onChange={(v) => setForm({ ...form, accounts_contact_email: v })} />
+                  <Txt label="Phone" value={form.accounts_contact_phone} onChange={(v) => setForm({ ...form, accounts_contact_phone: v })} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Sales rep</h3>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Txt label="Rep name" value={form.rep_name} onChange={(v) => setForm({ ...form, rep_name: v })} className="sm:col-span-2" />
+                  <Txt label="Phone" value={form.rep_phone} onChange={(v) => setForm({ ...form, rep_phone: v })} />
+                  <Txt label="Email" value={form.rep_email} onChange={(v) => setForm({ ...form, rep_email: v })} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Purchase orders</h3>
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Txt label="Email POs to" value={form.po_email} onChange={(v) => setForm({ ...form, po_email: v })} />
+                  <Txt label="Accounts email for POs (copy)" value={form.po_cc_email} onChange={(v) => setForm({ ...form, po_cc_email: v })} />
+                </div>
+                <label className="mt-3 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={form.po_bulk_email}
+                    onChange={(e) => setForm({ ...form, po_bulk_email: e.target.checked })}
+                  />
+                  Include this supplier when POs are emailed in bulk
+                </label>
+              </div>
+
               <label className="flex flex-col gap-1 text-sm">
                 Notes
-                <textarea
-                  className="rounded-lg border border-[var(--border)] px-3 py-2"
-                  value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                />
+                <textarea className={inputCls} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </label>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
@@ -196,6 +282,26 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Txt({ label, value, onChange, className = "" }: { label: string; value: string; onChange: (v: string) => void; className?: string }) {
+  return (
+    <label className={`flex flex-col gap-1 text-sm ${className}`}>
+      {label}
+      <input className={inputCls} value={value} onChange={(e) => onChange(e.target.value)} />
+    </label>
+  );
+}
+
+function Contact({ name, email, phone }: { name?: string | null; email?: string | null; phone?: string | null }) {
+  if (!name && !email && !phone) return <>—</>;
+  return (
+    <div>
+      {name && <div className="font-medium">{name}</div>}
+      {phone && <div className="text-xs text-[var(--muted)]">{phone}</div>}
+      {email && <div className="text-xs text-[var(--muted)]">{email}</div>}
     </div>
   );
 }
