@@ -13,10 +13,10 @@ function apply(pref: Pref) {
 
 /** Header button: cycle Auto → Light → Dark. Remembered on this device. */
 export default function ThemeToggle() {
-  const [pref, setPref] = useState<Pref>("auto");
+  const [pref, setPref] = useState<Pref>("light");
 
   useEffect(() => {
-    let p: Pref = "auto";
+    let p: Pref = "light";
     try {
       const s = localStorage.getItem("bb-theme");
       if (s === "light" || s === "dark" || s === "auto") p = s;
@@ -25,11 +25,11 @@ export default function ThemeToggle() {
     apply(p);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = () => {
-      let cur: string | null = "auto";
+      let cur: string | null = "light";
       try {
         cur = localStorage.getItem("bb-theme");
       } catch {}
-      if (!cur || cur === "auto") apply("auto");
+      if (cur === "auto") apply("auto");
     };
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
