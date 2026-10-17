@@ -39,7 +39,7 @@ const emptyForm = {
   po_bulk_email: false,
 };
 
-const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2";
+const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2.5 text-base sm:py-2 sm:text-sm";
 
 /** Only the base columns exist until migration 0043 is run, so the new ones are sent only when they hold something or the table already has them. */
 function buildPayload(form: typeof emptyForm, columnsExist: boolean) {
@@ -158,7 +158,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
         {showArchived ? "View active" : "View archived"}
       </button>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
+      <div className="mt-4 hidden overflow-x-auto rounded-xl border border-[var(--border)] md:block">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-[var(--muted)]">
             <tr>
@@ -214,9 +214,49 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
         </table>
       </div>
 
+      {/* Phones and small tablets: one card per supplier instead of a wide table. */}
+      <div className="mt-4 flex flex-col gap-3 md:hidden">
+        {visible.map((s) => (
+          <div key={s.id} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="min-w-0 break-words text-base font-bold">{s.name}</h2>
+              <div className="flex shrink-0 items-center gap-3 text-sm">
+                <button onClick={() => openEdit(s)} className="min-h-[44px] px-1 font-medium text-accent">
+                  Edit
+                </button>
+                {isAdmin && (
+                  <button onClick={() => toggleArchive(s)} className="min-h-[44px] px-1 text-[var(--muted)]">
+                    {s.archived ? "Restore" : "Archive"}
+                  </button>
+                )}
+              </div>
+            </div>
+            <CardRow label="Main" name={null} phone={s.phone} email={s.email} />
+            <CardRow label="Accounts" name={s.accounts_contact_name} phone={s.accounts_contact_phone} email={s.accounts_contact_email} />
+            <CardRow label="Sales rep" name={s.rep_name} phone={s.rep_phone} email={s.rep_email} />
+            {(s.po_email || s.po_cc_email || s.po_bulk_email) && (
+              <div className="mt-3 border-t border-[var(--border)] pt-3 text-sm">
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Purchase orders</div>
+                {s.po_email && (
+                  <div className="mt-1 break-all">
+                    <a href={`mailto:${s.po_email}`} className="text-accent">
+                      {s.po_email}
+                    </a>
+                  </div>
+                )}
+                {s.po_cc_email && <div className="break-all text-[var(--muted)]">cc {s.po_cc_email}</div>}
+                {s.po_bulk_email && <div className="text-[var(--muted)]">Included in bulk PO emails</div>}
+              </div>
+            )}
+            {s.notes && <p className="mt-3 whitespace-pre-wrap border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">{s.notes}</p>}
+          </div>
+        ))}
+        {visible.length === 0 && <p className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">No suppliers found.</p>}
+      </div>
+
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[var(--surface)]">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-t-xl bg-[var(--surface)] sm:max-h-[85vh] sm:rounded-xl">
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h2 className="text-lg font-bold">{editing ? "Edit supplier" : "Add supplier"}</h2>
             </div>
@@ -302,6 +342,28 @@ function Contact({ name, email, phone }: { name?: string | null; email?: string 
       {name && <div className="font-medium">{name}</div>}
       {phone && <div className="text-xs text-[var(--muted)]">{phone}</div>}
       {email && <div className="text-xs text-[var(--muted)]">{email}</div>}
+    </div>
+  );
+}
+
+function CardRow({ label, name, phone, email }: { label: string; name?: string | null; phone?: string | null; email?: string | null }) {
+  if (!name && !phone && !email) return null;
+  return (
+    <div className="mt-3 border-t border-[var(--border)] pt-3 text-sm">
+      <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">{label}</div>
+      {name && <div className="mt-1 font-medium">{name}</div>}
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        {phone && (
+          <a href={`tel:${phone.replace(/\s+/g, "")}`} className="min-h-[32px] text-accent">
+            {phone}
+          </a>
+        )}
+        {email && (
+          <a href={`mailto:${email}`} className="min-h-[32px] break-all text-accent">
+            {email}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
