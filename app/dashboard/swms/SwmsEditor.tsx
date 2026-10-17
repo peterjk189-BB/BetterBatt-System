@@ -13,6 +13,10 @@ import {
   JOB_TYPES,
   PHOTO_ITEMS,
   REMOVAL_ACCESS_ITEMS,
+  REMOVAL_ASBESTOS_STOP,
+  REMOVAL_COMPLETION_ITEMS,
+  REMOVAL_HAZARDS,
+  REMOVAL_SAFETY_ITEMS,
   SCOPE_ITEMS,
   SITE_REPORT_COLUMNS,
   SWMS_STATUSES,
@@ -232,6 +236,18 @@ export default function SwmsEditor({
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  // Switching Insulation removal on adds the removal hazard rows; switching it
+  // off takes back any that haven't been ticked, so nothing marked on site is lost.
+  function toggleRemoval() {
+    const turningOn = !removal.enabled;
+    setRemoval((r) => ({ ...r, enabled: turningOn }));
+    setHazards((rows) =>
+      turningOn
+        ? [...rows, ...REMOVAL_HAZARDS.filter((h) => !rows.some((r) => r.id === h.id)).map((h) => ({ ...h }))]
+        : rows.filter((r) => !(r.id.startsWith("rmh") && !r.present && !r.controlled))
+    );
+  }
+
   function updateHazard(hid: string, patch: Partial<HazardRow>) {
     setHazards((rows) => rows.map((r) => (r.id === hid ? { ...r, ...patch } : r)));
   }
@@ -397,7 +413,7 @@ export default function SwmsEditor({
           <input className={inputCls} value={scope.repair_note} onChange={(e) => setScope((s) => ({ ...s, repair_note: e.target.value }))} />
         </Field>
         <div className="mt-4">
-          <Toggle on={removal.enabled} onClick={() => setRemoval((r) => ({ ...r, enabled: !r.enabled }))}>
+          <Toggle on={removal.enabled} onClick={toggleRemoval}>
             Insulation removal
           </Toggle>
         </div>
@@ -428,6 +444,26 @@ export default function SwmsEditor({
             />
           </Field>
 
+          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Before starting</h3>
+          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+            {REMOVAL_SAFETY_ITEMS.map((item) => (
+              <label key={item} className="flex items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#b1841f]"
+                  checked={!!removal.items[item]}
+                  onChange={(e) => setRemoval((r) => ({ ...r, items: { ...r.items, [item]: e.target.checked } }))}
+                />
+                {item}
+              </label>
+            ))}
+          </div>
+          {removal.items[REMOVAL_ASBESTOS_STOP] && (
+            <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-900">
+              Suspected asbestos: do not disturb it. Stop work and call the office. Asbestos removal must be done by a licensed removalist.
+            </p>
+          )}
+
           <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Area for removal — photos</h3>
           <div className="mt-2">
             <SwmsPhotos
@@ -447,6 +483,29 @@ export default function SwmsEditor({
               emptyText="No photos yet. Photograph the cleared area once the removal is finished."
             />
           </div>
+
+          <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">When finished</h3>
+          <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+            {REMOVAL_COMPLETION_ITEMS.map((item) => (
+              <label key={item} className="flex items-start gap-2.5 rounded-lg px-1 py-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0 accent-[#b1841f]"
+                  checked={!!removal.items[item]}
+                  onChange={(e) => setRemoval((r) => ({ ...r, items: { ...r.items, [item]: e.target.checked } }))}
+                />
+                {item}
+              </label>
+            ))}
+          </div>
+          <Field label="Waste disposal" className="mt-2">
+            <input
+              className={inputCls}
+              value={removal.waste_note}
+              onChange={(e) => setRemoval((r) => ({ ...r, waste_note: e.target.value }))}
+              placeholder="Where the waste was taken or how it was disposed of"
+            />
+          </Field>
         </Section>
       )}
 

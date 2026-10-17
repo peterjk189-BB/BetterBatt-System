@@ -5,6 +5,8 @@ import {
   FOILING_JOB_TYPES,
   PHOTO_ITEMS,
   REMOVAL_ACCESS_ITEMS,
+  REMOVAL_COMPLETION_ITEMS,
+  REMOVAL_SAFETY_ITEMS,
   SCOPE_ITEMS,
   SITE_REPORT_COLUMNS,
   normaliseHazards,
@@ -123,6 +125,14 @@ export default function SwmsPrintView({
               ))}
             </div>
             {removal.other_note && <p className="mt-2">Notes: {removal.other_note}</p>}
+            <h4 className="mt-4 text-xs font-bold uppercase tracking-wide">Before starting</h4>
+            <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5">
+              {REMOVAL_SAFETY_ITEMS.map((item) => (
+                <Box key={item} on={!!removal.items[item]}>
+                  {item}
+                </Box>
+              ))}
+            </div>
             <h4 className="mt-4 text-xs font-bold uppercase tracking-wide">Area for removal</h4>
             {removalBefore.length > 0 ? (
               <div className="mt-2 grid grid-cols-3 gap-2">
@@ -145,6 +155,15 @@ export default function SwmsPrintView({
             ) : (
               <p className="mt-1 text-[#8a877f]">No photos taken.</p>
             )}
+            <h4 className="mt-4 text-xs font-bold uppercase tracking-wide">When finished</h4>
+            <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1.5">
+              {REMOVAL_COMPLETION_ITEMS.map((item) => (
+                <Box key={item} on={!!removal.items[item]}>
+                  {item}
+                </Box>
+              ))}
+            </div>
+            {removal.waste_note && <p className="mt-2">Waste disposal: {removal.waste_note}</p>}
           </>
         )}
 

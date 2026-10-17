@@ -136,17 +136,77 @@ export const PHOTO_ITEMS = [
 
 /** Insulation removal — ticked on a SWMS when the job includes removing old insulation; opens its own section. */
 export const REMOVAL_ACCESS_ITEMS: string[] = ["Access ceiling", "Manhole", "Tile lift"];
-export type Removal = { enabled: boolean; items: Record<string, boolean>; other_note: string };
+/** Checked before removal starts. */
+export const REMOVAL_SAFETY_ITEMS: string[] = [
+  "Asbestos checked - none suspected",
+  "Suspected asbestos found - work stopped",
+  "Power isolated, locked out and tested dead",
+  "Solar / battery supply isolated",
+];
+/** Ticked when the removal is finished. */
+export const REMOVAL_COMPLETION_ITEMS: string[] = ["Waste bagged and removed", "Customer confirmed area cleared"];
+export const REMOVAL_ASBESTOS_STOP = "Suspected asbestos found - work stopped";
+export const REMOVAL_ALL_ITEMS: string[] = [...REMOVAL_ACCESS_ITEMS, ...REMOVAL_SAFETY_ITEMS, ...REMOVAL_COMPLETION_ITEMS];
+
+export type Removal = { enabled: boolean; items: Record<string, boolean>; other_note: string; waste_note: string };
 export const EMPTY_REMOVAL: Removal = {
   enabled: false,
-  items: Object.fromEntries(REMOVAL_ACCESS_ITEMS.map((i) => [i, false])),
+  items: Object.fromEntries(REMOVAL_ALL_ITEMS.map((i) => [i, false])),
   other_note: "",
+  waste_note: "",
 };
 export function normaliseRemoval(raw: unknown): Removal {
   const src = (raw && typeof raw === "object" ? raw : {}) as Partial<Removal>;
   const items = { ...EMPTY_REMOVAL.items, ...(src.items || {}) };
-  return { enabled: !!src.enabled, items, other_note: src.other_note || "" };
+  return { enabled: !!src.enabled, items, other_note: src.other_note || "", waste_note: src.waste_note || "" };
 }
+
+/** Hazard rows added to the SWMS when Insulation removal is ticked (ids start "rmh"; fully editable per job). */
+export const REMOVAL_HAZARDS: HazardRow[] = [
+  {
+    id: "rmh1",
+    task: "Removing old insulation",
+    hazards: "Dust and fibres, vermin droppings, mould, and lead dust or ash in the roof space",
+    present: false,
+    controls:
+      "Wear a P2 mask (AS/NZS 1716), gloves, safety glasses, long sleeves and enclosed footwear; do not use a household vacuum; seal waste in thick plastic bags; wash exposed skin and launder clothing separately",
+    controlled: false,
+  },
+  {
+    id: "rmh2",
+    task: "Possible asbestos in the roof space (homes built before 1990)",
+    hazards: "Asbestos cement in eaves, flues and ceiling hole covers; loose-fill asbestos in older roof spaces",
+    present: false,
+    controls:
+      "Check before starting; if asbestos is suspected stop work, do not disturb it and call the office; asbestos removal must be done by a licensed removalist",
+    controlled: false,
+  },
+  {
+    id: "rmh3",
+    task: "Working near wiring while removing insulation",
+    hazards: "Electric shock from damaged or brittle cabling, and from solar or battery supplies",
+    present: false,
+    controls:
+      "Isolate at the switchboard, lock out, tag out and test for voltage before starting (tape or cable ties on a breaker are not isolation); use battery-powered lights and tools; stop and call a licensed electrician if a cable is damaged",
+    controlled: false,
+  },
+  {
+    id: "rmh4",
+    task: "Heat, falls and debris in the roof space during removal",
+    hazards: "Heat exhaustion, falls through the ceiling, tripping on debris or trusses",
+    present: false,
+    controls: "Walk only on joists/trusses, take regular breaks and drink water, avoid working in extreme heat, keep the work area clear of debris",
+    controlled: false,
+  },
+  {
+    id: "rmh5",
+    task: "Waste handling and disposal",
+    hazards: "Contaminated waste and dust spread from handling old insulation",
+    present: false,
+    controls: "Seal waste in thick plastic bags, dispose of it as the council advises, leave the area clean",
+    controlled: false,
+  },
+];
 
 /** Where a SWMS photo belongs: the general site photos, or the insulation-removal before / after areas. */
 export type PhotoSection = "removal_before" | "removal_after";
