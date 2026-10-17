@@ -21,7 +21,22 @@ type Supplier = {
   po_email?: string | null;
   po_cc_email?: string | null;
   po_bulk_email?: boolean | null;
+  // Added by migration 0044.
+  email_contacts?: EmailContact[] | null;
 };
+
+type EmailContact = { label: string; email: string; po: boolean };
+
+/** The extra email addresses for a supplier. Falls back to the single PO email / accounts copy saved before the list existed. */
+function contactsOf(s: Supplier): EmailContact[] {
+  if (Array.isArray(s.email_contacts) && s.email_contacts.length > 0) {
+    return s.email_contacts.map((c) => ({ label: c?.label || "", email: c?.email || "", po: !!c?.po }));
+  }
+  const out: EmailContact[] = [];
+  if (s.po_email) out.push({ label: "Orders", email: s.po_email, po: true });
+  if (s.po_cc_email) out.push({ label: "Accounts (copy)", email: s.po_cc_email, po: true });
+  return out;
+}
 
 const emptyForm = {
   name: "",
@@ -34,15 +49,13 @@ const emptyForm = {
   rep_name: "",
   rep_phone: "",
   rep_email: "",
-  po_email: "",
-  po_cc_email: "",
-  po_bulk_email: false,
+  email_contacts: [] as EmailContact[],
 };
 
 const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2.5 text-base sm:py-2 sm:text-sm";
 
 /** Only the base columns exist until migration 0043 is run, so the new ones are sent only when they hold something or the table already has them. */
-function buildPayload(form: typeof emptyForm, columnsExist: boolean) {
+function buildPayload(form: typeof emptyForm, columnsExist: boolean, emailColumnExists: boolean) {
   const base = { name: form.name, phone: form.phone, email: form.email, notes: form.notes };
   const extras = {
     accounts_contact_name: form.accounts_contact_name.trim() || null,
@@ -51,12 +64,14 @@ function buildPayload(form: typeof emptyForm, columnsExist: boolean) {
     rep_name: form.rep_name.trim() || null,
     rep_phone: form.rep_phone.trim() || null,
     rep_email: form.rep_email.trim() || null,
-    po_email: form.po_email.trim() || null,
-    po_cc_email: form.po_cc_email.trim() || null,
-    po_bulk_email: form.po_bulk_email,
   };
-  const anySet = Object.values(extras).some((v) => v !== null && v !== false);
-  return columnsExist || anySet ? { ...base, ...extras } : base;
+  const anySet = Object.values(extras).some((v) => v !== null);
+  const contacts = form.email_contacts.map((c) => ({ label: c.label.trim(), email: c.email.trim(), po: c.po })).filter((c) => c.email);
+  return {
+    ...base,
+    ...(columnsExist || anySet ? extras : {}),
+    ...(emailColumnExists || contacts.length > 0 ? { email_contacts: contacts } : {}),
+  };
 }
 
 export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier[]; isAdmin: boolean }) {
@@ -68,6 +83,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const columnsExist = suppliers.length > 0 && "rep_name" in suppliers[0];
+  const emailColumnExists = suppliers.length > 0 && "email_contacts" in suppliers[0];
 
   function openNew() {
     setEditing(null);
@@ -88,11 +104,19 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
       rep_name: s.rep_name || "",
       rep_phone: s.rep_phone || "",
       rep_email: s.rep_email || "",
-      po_email: s.po_email || "",
-      po_cc_email: s.po_cc_email || "",
-      po_bulk_email: !!s.po_bulk_email,
+      email_contacts: contactsOf(s),
     });
     setModalOpen(true);
+  }
+
+  function updateContact(i: number, patch: Partial<EmailContact>) {
+    setForm((f) => ({ ...f, email_contacts: f.email_contacts.map((c, idx) => (idx === i ? { ...c, ...patch } : c)) }));
+  }
+  function addContact() {
+    setForm((f) => ({ ...f, email_contacts: [...f.email_contacts, { label: "", email: "", po: true }] }));
+  }
+  function removeContact(i: number) {
+    setForm((f) => ({ ...f, email_contacts: f.email_contacts.filter((_, idx) => idx !== i) }));
   }
 
   async function save() {
@@ -100,7 +124,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
     if (editing) {
       const { data, error } = await supabase
         .from("suppliers")
-        .update(buildPayload(form, columnsExist))
+        .update(buildPayload(form, columnsExist, emailColumnExists))
         .eq("id", editing.id)
         .select()
         .single();
@@ -110,7 +134,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
         logAudit(supabase, { eventType: "update", entityType: "supplier", entityId: data.id, entityLabel: data.name });
       } else if (error) alert(error.message);
     } else {
-      const { data, error } = await supabase.from("suppliers").insert(buildPayload(form, columnsExist)).select().single();
+      const { data, error } = await supabase.from("suppliers").insert(buildPayload(form, columnsExist, emailColumnExists)).select().single();
       if (!error && data) {
         setSuppliers((prev) => [data as Supplier, ...prev]);
         setModalOpen(false);
@@ -167,7 +191,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Accounts</th>
               <th className="px-4 py-2">Sales rep</th>
-              <th className="px-4 py-2">PO email</th>
+              <th className="px-4 py-2">Other emails</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -184,9 +208,13 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
                   <Contact name={s.rep_name} email={s.rep_email} phone={s.rep_phone} />
                 </td>
                 <td className="px-4 py-2">
-                  {s.po_email || "—"}
-                  {s.po_cc_email && <div className="text-xs text-[var(--muted)]">cc {s.po_cc_email}</div>}
-                  {s.po_bulk_email && <div className="text-xs text-[var(--muted)]">Bulk PO emails</div>}
+                  {contactsOf(s).length === 0 && "—"}
+                  {contactsOf(s).map((c, i) => (
+                    <div key={i} className="text-xs">
+                      <span className="text-[var(--muted)]">{c.label || "Email"}:</span> {c.email}
+                      {c.po && <span className="ml-1 text-[var(--muted)]">(POs)</span>}
+                    </div>
+                  ))}
                 </td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => openEdit(s)} className="text-accent hover:underline">
@@ -234,18 +262,18 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
             <CardRow label="Main" name={null} phone={s.phone} email={s.email} />
             <CardRow label="Accounts" name={s.accounts_contact_name} phone={s.accounts_contact_phone} email={s.accounts_contact_email} />
             <CardRow label="Sales rep" name={s.rep_name} phone={s.rep_phone} email={s.rep_email} />
-            {(s.po_email || s.po_cc_email || s.po_bulk_email) && (
+            {contactsOf(s).length > 0 && (
               <div className="mt-3 border-t border-[var(--border)] pt-3 text-sm">
-                <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Purchase orders</div>
-                {s.po_email && (
-                  <div className="mt-1 break-all">
-                    <a href={`mailto:${s.po_email}`} className="text-accent">
-                      {s.po_email}
+                <div className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Other emails</div>
+                {contactsOf(s).map((c, i) => (
+                  <div key={i} className="mt-1 break-all">
+                    <span className="text-[var(--muted)]">{c.label || "Email"}:</span>{" "}
+                    <a href={`mailto:${c.email}`} className="text-accent">
+                      {c.email}
                     </a>
+                    {c.po && <span className="ml-1 text-xs text-[var(--muted)]">(POs)</span>}
                   </div>
-                )}
-                {s.po_cc_email && <div className="break-all text-[var(--muted)]">cc {s.po_cc_email}</div>}
-                {s.po_bulk_email && <div className="text-[var(--muted)]">Included in bulk PO emails</div>}
+                ))}
               </div>
             )}
             {s.notes && <p className="mt-3 whitespace-pre-wrap border-t border-[var(--border)] pt-3 text-sm text-[var(--muted)]">{s.notes}</p>}
@@ -286,20 +314,44 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
               </div>
 
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Purchase orders</h3>
-                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Txt label="Email POs to" value={form.po_email} onChange={(v) => setForm({ ...form, po_email: v })} />
-                  <Txt label="Accounts email for POs (copy)" value={form.po_cc_email} onChange={(v) => setForm({ ...form, po_cc_email: v })} />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Email addresses</h3>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  Add as many addresses as this supplier needs (orders, accounts, warehouse…). Tick &quot;POs&quot; on the ones that should receive purchase orders.
+                </p>
+                <div className="mt-2 flex flex-col gap-2">
+                  {form.email_contacts.map((c, i) => (
+                    <div key={i} className="rounded-lg border border-[var(--border)] bg-[#f8f7f4] p-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[10rem_1fr]">
+                        <input
+                          className={inputCls}
+                          placeholder="Label (e.g. Orders)"
+                          value={c.label}
+                          onChange={(e) => updateContact(i, { label: e.target.value })}
+                        />
+                        <input
+                          className={inputCls}
+                          type="email"
+                          inputMode="email"
+                          placeholder="email@supplier.com.au"
+                          value={c.email}
+                          onChange={(e) => updateContact(i, { email: e.target.value })}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input type="checkbox" className="h-5 w-5" checked={c.po} onChange={(e) => updateContact(i, { po: e.target.checked })} />
+                          Send POs to this address
+                        </label>
+                        <button type="button" onClick={() => removeContact(i)} className="min-h-[44px] px-2 text-sm text-[var(--muted)] hover:text-red-700">
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={addContact} className="self-start text-sm font-medium text-accent hover:underline">
+                    + Add email address
+                  </button>
                 </div>
-                <label className="mt-3 flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={form.po_bulk_email}
-                    onChange={(e) => setForm({ ...form, po_bulk_email: e.target.checked })}
-                  />
-                  Include this supplier when POs are emailed in bulk
-                </label>
               </div>
 
               <label className="flex flex-col gap-1 text-sm">
