@@ -327,7 +327,6 @@ export default function SwmsEditor({
             )}
             <Link
               href={`/dashboard/swms/${id}/print`}
-              target="_blank"
               className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
             >
               Print / PDF

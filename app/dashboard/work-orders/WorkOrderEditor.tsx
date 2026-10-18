@@ -567,7 +567,6 @@ export default function WorkOrderEditor({
           {!isNew && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/picking-slip/print`}
-              target="_blank"
               className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
             >
               Print picking slip
@@ -576,7 +575,6 @@ export default function WorkOrderEditor({
           {!isNew && distinctLineContractorIds.length <= 1 && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/print`}
-              target="_blank"
               className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
             >
               Print preview
@@ -589,7 +587,6 @@ export default function WorkOrderEditor({
                 <Link
                   key={id}
                   href={`/dashboard/work-orders/${workOrder!.id}/print?contractor_id=${id}`}
-                  target="_blank"
                   className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-accent"
                 >
                   {subById[id]?.name || "—"}
