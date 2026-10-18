@@ -328,7 +328,7 @@ export default function WorkOrderEditor({
   /** Office sign-off: from now on the contractor is alerted about this work order's job dates. */
   async function authorise() {
     if (!workOrder) return;
-    if (!confirm("Authorise this work order? The contractor(s) will be alerted about the job dates now.")) return;
+    if (!confirm("Authorise this work order? The contractor(s) will be emailed the job dates and the job will appear on their schedule.")) return;
     setAuthorising(true);
     setError(null);
     while (autoBusy.current) await new Promise((r) => setTimeout(r, 100));
@@ -368,7 +368,7 @@ export default function WorkOrderEditor({
       entityType: "work_order",
       entityId: workOrder.id,
       entityLabel: f.wo_number.trim(),
-      details: "Authorised — contractor alerted",
+      details: "Authorised — contractor emailed",
     });
     setAuthorising(false);
   }
@@ -609,9 +609,9 @@ export default function WorkOrderEditor({
               onClick={authorise}
               disabled={authorising}
               className="rounded-lg bg-[#1f6b35] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              title="Until you authorise, the contractor is not alerted about the job dates."
+              title="Until you authorise, the contractor is not emailed and the job is not on their schedule."
             >
-              {authorising ? "Authorising..." : "Authorise & notify contractor"}
+              {authorising ? "Authorising..." : "Authorise & email contractor"}
             </button>
           )}
           {!isNew && authColumn && authorisedAt && (
