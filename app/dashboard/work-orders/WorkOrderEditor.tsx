@@ -496,143 +496,140 @@ export default function WorkOrderEditor({
           </button>
         </div>
 
-        <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
-          <table className="w-full whitespace-nowrap text-sm">
-            <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
-              <tr>
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2">Contractor</th>
-                <th className="px-3 py-2">Date</th>
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Compl.</th>
-                <th className="px-3 py-2">Note</th>
-                <th className="px-3 py-2 text-right">Qty</th>
-                <th className="px-3 py-2">Paid</th>
-                <th className="px-3 py-2 text-right">Contractor $</th>
-                <th className="px-3 py-2">Task</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((l, idx) => {
-                const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
-                const cost = (Number(l.qty) || 0) * rate;
-                return (
-                  <tr key={idx} className="border-t border-[var(--border)]">
-                    <td className="px-3 py-2">
-                      <select
-                        className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
-                        value={l.part_id || ""}
-                        onChange={(e) => updateLine(idx, { part_id: e.target.value || null })}
-                      >
-                        <option value="">Select product...</option>
-                        {selectableParts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <select
-                        className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
-                        value={l.subcontractor_id || ""}
-                        onChange={(e) => updateLine(idx, { subcontractor_id: e.target.value || null })}
-                      >
-                        <option value="">(use WO contractor)</option>
-                        {subs.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="date"
-                        className="w-36 rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={l.task_date || ""}
-                        onChange={(e) => updateLine(idx, { task_date: e.target.value })}
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="time"
-                        className="w-28 rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={(l.task_time || "").slice(0, 5)}
-                        onChange={(e) => updateLine(idx, { task_time: e.target.value })}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center">
+        <div className="mt-3 flex flex-col gap-3">
+          {lineItems.map((l, idx) => {
+            const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
+            const cost = (Number(l.qty) || 0) * rate;
+            const inp = "mt-1 w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm";
+            const lab = "block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]";
+            return (
+              <div key={idx} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold uppercase text-[var(--muted)]">Task {idx + 1}</span>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="font-medium">Contractor {fmtCurrency(cost)}</span>
+                    <button
+                      onClick={() => duplicateLine(idx)}
+                      className="text-accent hover:underline"
+                      title="Duplicate this line to split it across another contractor"
+                    >
+                      Duplicate
+                    </button>
+                    <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <label className="sm:col-span-2">
+                    <span className={lab}>Product</span>
+                    <select
+                      className={inp}
+                      value={l.part_id || ""}
+                      onChange={(e) => updateLine(idx, { part_id: e.target.value || null })}
+                    >
+                      <option value="">Select product...</option>
+                      {selectableParts.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="sm:col-span-2">
+                    <span className={lab}>Task</span>
+                    <select
+                      className={inp}
+                      value={l.labour_item_id || ""}
+                      onChange={(e) => updateLine(idx, { labour_item_id: e.target.value })}
+                    >
+                      <option value="">Select task...</option>
+                      {labourItems.map((li) => (
+                        <option key={li.id} value={li.id}>
+                          {li.code} — {li.description}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className={lab}>Contractor</span>
+                    <select
+                      className={inp}
+                      value={l.subcontractor_id || ""}
+                      onChange={(e) => updateLine(idx, { subcontractor_id: e.target.value || null })}
+                    >
+                      <option value="">(use WO contractor)</option>
+                      {subs.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className={lab}>Date</span>
+                    <input
+                      type="date"
+                      className={inp}
+                      value={l.task_date || ""}
+                      onChange={(e) => updateLine(idx, { task_date: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span className={lab}>Time</span>
+                    <input
+                      type="time"
+                      className={inp}
+                      value={(l.task_time || "").slice(0, 5)}
+                      onChange={(e) => updateLine(idx, { task_time: e.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span className={lab}>Qty</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className={inp + " text-right"}
+                      value={l.qty}
+                      onChange={(e) => updateLine(idx, { qty: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label className="sm:col-span-2 lg:col-span-3">
+                    <span className={lab}>Note</span>
+                    <input
+                      className={inp}
+                      value={l.note || ""}
+                      onChange={(e) => updateLine(idx, { note: e.target.value })}
+                      placeholder="Site instructions, access, etc."
+                    />
+                  </label>
+                  <div className="flex items-end gap-6 pb-2 text-sm">
+                    <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={!!l.completed}
                         onChange={(e) => updateLine(idx, { completed: e.target.checked })}
                       />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        className="w-40 rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={l.note || ""}
-                        onChange={(e) => updateLine(idx, { note: e.target.value })}
-                        placeholder="Site instructions, access, etc."
-                      />
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="w-20 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right"
-                        value={l.qty}
-                        onChange={(e) => updateLine(idx, { qty: Number(e.target.value) })}
-                      />
-                    </td>
-                    <td className="px-3 py-2 text-center">
+                      Completed
+                    </label>
+                    <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
                         checked={!!l.paid}
                         onChange={(e) => updateLine(idx, { paid: e.target.checked })}
                       />
-                    </td>
-                    <td className="px-3 py-2 text-right font-medium">{fmtCurrency(cost)}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        className="rounded-lg border border-[var(--border)] px-2 py-1.5"
-                        value={l.labour_item_id || ""}
-                        onChange={(e) => updateLine(idx, { labour_item_id: e.target.value })}
-                      >
-                        <option value="">Select task...</option>
-                        {labourItems.map((li) => (
-                          <option key={li.id} value={li.id}>
-                            {li.code} — {li.description}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => duplicateLine(idx)}
-                        className="mr-2 text-accent hover:underline"
-                        title="Duplicate this line to split it across another contractor"
-                      >
-                        Duplicate
-                      </button>
-                      <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-              {lineItems.length === 0 && (
-                <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
-                    No task lines yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      Paid
+                    </label>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {lineItems.length === 0 && (
+            <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">
+              No task lines yet.
+            </div>
+          )}
         </div>
 
         <div className="mt-3 flex items-center justify-between rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-3 text-sm">
