@@ -23,6 +23,7 @@ type WoLine = {
   } | null;
   subcontractors: { name: string } | null;
   labour_items: { code: string; description: string } | null;
+  parts?: { name: string } | null;
 };
 
 type Po = {
@@ -340,7 +341,7 @@ export default function CalendarView({
       const project = l.work_orders.projects;
       const builderName = project?.customers?.name || "—";
       const address = project ? [project.address, project.suburb].filter(Boolean).join(", ") || "—" : "—";
-      const task = l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task";
+      const task = l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task");
 
       const shownDate = movedWo[`${l.task_date}|${l.work_order_id}`] || l.task_date;
       const sid = l.subcontractor_id || l.work_orders.contractor_id;

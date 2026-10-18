@@ -1,5 +1,6 @@
 "use client";
 
+import { lineRate } from "@/lib/woRate";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { STAGE_LABEL, STAGE_STYLE, jobProgress, type ProgressInspection, type ProgressSwms } from "@/lib/jobProgress";
@@ -17,7 +18,13 @@ type WorkOrder = {
   subcontractors: { name: string } | null;
 };
 
-type Line = { work_order_id: string; labour_item_id: string | null; qty: number };
+type Line = {
+  work_order_id: string;
+  labour_item_id: string | null;
+  qty: number;
+  rate?: number | null;
+  parts?: { installer_rate_per_m2: number } | null;
+};
 type LabourItem = { id: string; contractor_rate: number };
 
 function fmtCurrency(n: number) {
@@ -45,7 +52,7 @@ export default function WorkOrdersList({
   const stats = useMemo(() => {
     const map: Record<string, { count: number; cost: number }> = {};
     for (const l of lines) {
-      const rate = l.labour_item_id ? rateById[l.labour_item_id] || 0 : 0;
+      const rate = lineRate(l.rate, l.labour_item_id ? rateById[l.labour_item_id] : null, l.parts?.installer_rate_per_m2);
       if (!map[l.work_order_id]) map[l.work_order_id] = { count: 0, cost: 0 };
       map[l.work_order_id].count += 1;
       map[l.work_order_id].cost += rate * l.qty;

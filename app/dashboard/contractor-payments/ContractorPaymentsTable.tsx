@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { lineRate } from "@/lib/woRate";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
@@ -28,6 +29,8 @@ type Line = {
     } | null;
   } | null;
   labour_items: { code: string; description: string; contractor_rate: number } | null;
+  rate?: number | null;
+  parts?: { name: string; installer_rate_per_m2: number } | null;
 };
 
 type StatusFilter = "all" | "unpaid" | "paid";
@@ -61,7 +64,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       lines
         .filter((l) => l.work_orders && !l.work_orders.archived)
         .map((l) => {
-          const rate = l.labour_items?.contractor_rate || 0;
+          const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
           const cost = (Number(l.qty) || 0) * rate;
           const contractorId = l.subcontractor_id || l.work_orders?.contractor_id || null;
           const paid = paidOverrides[l.id] ?? l.paid;
@@ -175,7 +178,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       "Date",
       "Work order",
       "Customer",
-      "Task",
+      "Product",
       "Qty",
       "Amount",
       "GST",
@@ -198,7 +201,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                 ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
                 : "—"
             ),
-            csvCell(l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"),
+            csvCell(l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")),
             csvCell(l.qty),
             csvCell(l.cost.toFixed(2)),
             csvCell(lineGst.toFixed(2)),
@@ -417,7 +420,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                       <th className="px-4 py-2">Date</th>
                       <th className="px-4 py-2">Work order</th>
                       <th className="px-4 py-2">Customer</th>
-                      <th className="px-4 py-2">Task</th>
+                      <th className="px-4 py-2">Product</th>
                       <th className="px-4 py-2 text-right">Qty</th>
                       <th className="px-4 py-2 text-right">$</th>
                       <th className="px-4 py-2">Note</th>
@@ -446,7 +449,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                             : "—"}
                         </td>
                         <td className="px-4 py-2">
-                          {l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—"}
+                          {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
                         </td>
                         <td className="px-4 py-2 text-right">{l.qty}</td>
                         <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>

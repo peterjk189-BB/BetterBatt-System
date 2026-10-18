@@ -58,7 +58,7 @@ export default async function ReportsPage() {
     supabase
       .from("work_order_lines")
       .select(
-        "work_order_id, qty, labour_item_id, part_id, picked, multi_picked, packs_picked, multi_returned, packs_returned, parts(coverage_m2, pack_cost_ex_gst, pack_per_multi)"
+        "*, parts(coverage_m2, pack_cost_ex_gst, pack_per_multi, installer_rate_per_m2)"
       ),
     supabase.from("labour_items").select("id, contractor_rate"),
     supabase

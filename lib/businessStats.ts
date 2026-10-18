@@ -1,3 +1,4 @@
+import { lineRate } from "@/lib/woRate";
 // Business dashboard maths. Pure functions over the rows the page loads, so
 // the numbers can be tested without a browser or a database.
 import { quoteTotals } from "@/lib/quoteTotals";
@@ -31,6 +32,7 @@ export type BWoLine = {
   work_order_id: string;
   qty: number | null;
   labour_item_id: string | null;
+  rate?: number | null;
   part_id: string | null;
   task_date: string | null;
   completed: boolean | null;
@@ -41,7 +43,7 @@ export type BWoLine = {
   packs_picked: number | null;
   multi_returned: number | null;
   packs_returned: number | null;
-  parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number } | null;
+  parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
 export type BInvoice = {
   id: string;
@@ -118,6 +120,11 @@ const inR = (d: string | null | undefined, s: string, e: string) => !!d && d >= 
 const daysBetween = (a: string, b: string) =>
   Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000);
 
+/** Contractor pay per unit for a work order line: its saved rate, else the old Task rate, else the product's installer rate. */
+function woRate(l: BWoLine, labour: Map<string, number>): number {
+  return lineRate(l.rate, l.labour_item_id ? labour.get(l.labour_item_id) : null, l.parts?.installer_rate_per_m2);
+}
+
 type JobCost = { materials: number; contractors: number };
 
 /** Cost of one job: real figures from work orders and picking slips when they exist, otherwise the quote's own estimate. */
@@ -126,7 +133,7 @@ export function jobCost(project: BProject, projectLines: BProjectLine[], woLines
   let contractors = 0;
   if (woLines.length) {
     for (const l of woLines) {
-      contractors += (Number(l.qty) || 0) * (l.labour_item_id ? rate.get(l.labour_item_id) ?? 0 : 0);
+      contractors += (Number(l.qty) || 0) * woRate(l, rate);
       if (!l.parts) continue;
       const cost = Number(l.parts.pack_cost_ex_gst) || 0;
       if (l.picked) {
@@ -175,7 +182,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
   const costInPeriod = (s: string, e: string) => {
     let c = 0;
     for (const l of data.woLines) {
-      if (l.task_date && inR(l.task_date, s, e)) c += (Number(l.qty) || 0) * (l.labour_item_id ? rate.get(l.labour_item_id) ?? 0 : 0);
+      if (l.task_date && inR(l.task_date, s, e)) c += (Number(l.qty) || 0) * woRate(l, rate);
       if (l.picked && l.picked_at && l.parts && inR(l.picked_at.slice(0, 10), s, e)) {
         const ppm = Number(l.parts.pack_per_multi) || 0;
         const picked = (Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0);
@@ -304,7 +311,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
   const insuranceSoon = data.subs.filter((s) => !s.archived && s.insurance_expiry && s.insurance_expiry <= in30).length;
   let contractorsOwed = 0;
   for (const l of data.woLines) {
-    if (l.completed && !l.paid) contractorsOwed += (Number(l.qty) || 0) * (l.labour_item_id ? rate.get(l.labour_item_id) ?? 0 : 0);
+    if (l.completed && !l.paid) contractorsOwed += (Number(l.qty) || 0) * woRate(l, rate);
   }
 
   // ---- stock and cash out ---------------------------------------------------------

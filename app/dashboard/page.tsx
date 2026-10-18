@@ -1,3 +1,4 @@
+import { lineRate } from "@/lib/woRate";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
@@ -74,14 +75,15 @@ export default async function DashboardHome() {
     showContractorPaymentsKpi
       ? supabase
           .from("work_order_lines")
-          .select("qty, paid, labour_items(contractor_rate), work_orders!inner(archived)")
+          .select("*, labour_items(contractor_rate), parts(installer_rate_per_m2), work_orders!inner(archived)")
           .eq("paid", false)
           .eq("work_orders.archived", false)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
   const contractorPaymentsDue = ((unpaidLinesRes as any).data ?? []).reduce(
-    (sum: number, l: any) => sum + (Number(l.qty) || 0) * (l.labour_items?.contractor_rate || 0),
+    (sum: number, l: any) =>
+      sum + (Number(l.qty) || 0) * lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2),
     0
   );
 

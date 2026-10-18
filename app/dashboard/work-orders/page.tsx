@@ -10,7 +10,7 @@ export default async function WorkOrdersPage() {
         "id, wo_number, project_id, contractor_id, po_number, po_value, jsa_received, archived, projects(quote_number, address, suburb, customers(name)), subcontractors(name)"
       )
       .order("created_at", { ascending: false }),
-    supabase.from("work_order_lines").select("work_order_id, labour_item_id, qty"),
+    supabase.from("work_order_lines").select("*, parts(installer_rate_per_m2)"),
     supabase.from("labour_items").select("id, contractor_rate"),
     supabase.from("swms").select("id, status, archived, work_order_id").not("work_order_id", "is", null),
     supabase

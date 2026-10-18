@@ -1,5 +1,6 @@
 "use client";
 
+import { lineRate } from "@/lib/woRate";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { quoteTotals } from "@/lib/quoteTotals";
@@ -34,13 +35,14 @@ export type PlWoLine = {
   work_order_id: string;
   qty: number | null;
   labour_item_id: string | null;
+  rate?: number | null;
   part_id: string | null;
   picked: boolean | null;
   multi_picked: number | null;
   packs_picked: number | null;
   multi_returned: number | null;
   packs_returned: number | null;
-  parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number } | null;
+  parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
 export type PlLabour = { id: string; contractor_rate: number };
 export type PlInvoice = {
@@ -146,7 +148,9 @@ export default function ProfitLossReport({
       if (wl.length) {
         actual = true;
         for (const l of wl) {
-          contractors += (Number(l.qty) || 0) * (l.labour_item_id ? rate.get(l.labour_item_id) ?? 0 : 0);
+          contractors +=
+            (Number(l.qty) || 0) *
+            lineRate(l.rate, l.labour_item_id ? rate.get(l.labour_item_id) : null, l.parts?.installer_rate_per_m2);
           if (!l.parts) continue;
           const cost = Number(l.parts.pack_cost_ex_gst) || 0;
           if (l.picked) {

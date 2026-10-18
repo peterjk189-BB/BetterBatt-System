@@ -22,7 +22,7 @@ export default async function WorkOrderPrintPage({
     supabase
       .from("work_order_lines")
       .select(
-        "task_date, qty, note, subcontractor_id, parts(name), labour_items(code, description, contractor_rate), subcontractors(id, name, phone, email)"
+        "*, parts(name, installer_rate_per_m2), labour_items(code, description, contractor_rate), subcontractors(id, name, phone, email)"
       )
       .eq("work_order_id", params.id)
       .order("sort_order"),

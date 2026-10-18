@@ -20,7 +20,8 @@ type Project = {
 
 type Sub = { id: string; name: string; phone: string | null; email: string | null };
 type LabourItem = { id: string; code: string; description: string; contractor_rate: number };
-type Part = { id: string; name: string };
+type Part = { id: string; name: string; installer_rate_per_m2?: number };
+import { lineRate } from "@/lib/woRate";
 
 type WorkOrder = {
   id: string;
@@ -43,6 +44,8 @@ type Line = {
   task_time?: string | null;
   completed?: boolean;
   labour_item_id?: string | null;
+  /** Contractor pay per unit of qty. Defaults from the product's installer rate. */
+  rate?: number | null;
   qty: number;
   subcontractor_id?: string | null;
   paid?: boolean;
@@ -103,7 +106,16 @@ export default function WorkOrderEditor({
     lines.length > 0
       ? lines
           .filter((l) => !isDeliveryItem(l.part_id ? partById[l.part_id]?.name : undefined))
-          .map((l) => ({ ...l, completed: l.completed ?? false, paid: l.paid ?? false }))
+          .map((l) => ({
+            ...l,
+            completed: l.completed ?? false,
+            paid: l.paid ?? false,
+            rate: lineRate(
+              l.rate,
+              l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate : null,
+              l.part_id ? partById[l.part_id]?.installer_rate_per_m2 : null
+            ),
+          }))
       : []
   );
 
@@ -117,7 +129,8 @@ export default function WorkOrderEditor({
         part_id: null,
         task_date: "",
         completed: false,
-        labour_item_id: labourItems[0]?.id || null,
+        labour_item_id: null,
+        rate: 0,
         qty: 0,
         subcontractor_id: form.contractor_id || null,
         paid: false,
@@ -159,10 +172,7 @@ export default function WorkOrderEditor({
     new Set(lineItems.map((l) => l.subcontractor_id || form.contractor_id).filter((id): id is string => !!id))
   );
 
-  const contractorCost = lineItems.reduce((s, l) => {
-    const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
-    return s + (Number(l.qty) || 0) * rate;
-  }, 0);
+  const contractorCost = lineItems.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
 
   async function save() {
     if (!form.wo_number.trim()) {
@@ -212,6 +222,7 @@ export default function WorkOrderEditor({
       ...(l.task_time ? { task_time: l.task_time } : {}),
       completed: !!l.completed,
       labour_item_id: l.labour_item_id || null,
+      rate: Number(l.rate) || 0,
       qty: Number(l.qty) || 0,
       subcontractor_id: l.subcontractor_id || form.contractor_id || null,
       paid: !!l.paid,
@@ -220,7 +231,13 @@ export default function WorkOrderEditor({
     }));
 
     if (rowsToInsert.length > 0) {
-      const { error: linesErr } = await supabase.from("work_order_lines").insert(rowsToInsert);
+      let { error: linesErr } = await supabase.from("work_order_lines").insert(rowsToInsert);
+      // Before migration 0045 is run there is no rate column: save without it (pay then follows the product's rate).
+      if (linesErr && /\brate\b/i.test(linesErr.message)) {
+        ({ error: linesErr } = await supabase
+          .from("work_order_lines")
+          .insert(rowsToInsert.map(({ rate: _r, ...rest }) => rest)));
+      }
       if (linesErr) {
         setError(linesErr.message);
         setSaving(false);
@@ -498,8 +515,7 @@ export default function WorkOrderEditor({
 
         <div className="mt-3 flex flex-col gap-3">
           {lineItems.map((l, idx) => {
-            const rate = l.labour_item_id ? labourItemById[l.labour_item_id]?.contractor_rate || 0 : 0;
-            const cost = (Number(l.qty) || 0) * rate;
+            const cost = (Number(l.qty) || 0) * (Number(l.rate) || 0);
             const inp = "mt-1 w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm";
             const lab = "block text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]";
             return (
@@ -526,7 +542,14 @@ export default function WorkOrderEditor({
                     <select
                       className={inp}
                       value={l.part_id || ""}
-                      onChange={(e) => updateLine(idx, { part_id: e.target.value || null })}
+                      onChange={(e) => {
+                        const id = e.target.value || null;
+                        updateLine(idx, {
+                          part_id: id,
+                          rate: id ? partById[id]?.installer_rate_per_m2 ?? 0 : 0,
+                          labour_item_id: null,
+                        });
+                      }}
                     >
                       <option value="">Select product...</option>
                       {selectableParts.map((p) => (
@@ -536,21 +559,22 @@ export default function WorkOrderEditor({
                       ))}
                     </select>
                   </label>
-                  <label className="sm:col-span-2">
-                    <span className={lab}>Task</span>
-                    <select
-                      className={inp}
-                      value={l.labour_item_id || ""}
-                      onChange={(e) => updateLine(idx, { labour_item_id: e.target.value })}
-                    >
-                      <option value="">Select task...</option>
-                      {labourItems.map((li) => (
-                        <option key={li.id} value={li.id}>
-                          {li.code} — {li.description}
-                        </option>
-                      ))}
-                    </select>
+                  <label>
+                    <span className={lab}>Rate $ per unit</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className={inp + " text-right"}
+                      value={l.rate ?? 0}
+                      onChange={(e) => updateLine(idx, { rate: Number(e.target.value) })}
+                      title="Contractor pay per m² (or per unit). Comes from the product's installer rate; change it here for this line only."
+                    />
                   </label>
+                  {l.labour_item_id && labourItemById[l.labour_item_id] && (
+                    <div className="text-xs text-[var(--muted)] sm:col-span-1">
+                      Old task: {labourItemById[l.labour_item_id].code} — {labourItemById[l.labour_item_id].description}
+                    </div>
+                  )}
                   <label>
                     <span className={lab}>Contractor</span>
                     <select

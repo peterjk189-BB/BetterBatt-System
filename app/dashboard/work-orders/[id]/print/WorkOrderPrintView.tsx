@@ -2,12 +2,14 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { lineRate } from "@/lib/woRate";
 
 type Line = {
   task_date: string | null;
   qty: number;
   note: string | null;
-  parts: { name: string } | null;
+  rate?: number | null;
+  parts: { name: string; installer_rate_per_m2?: number } | null;
   labour_items: { code: string; description: string; contractor_rate: number } | null;
   subcontractors: { name: string } | null;
 };
@@ -84,7 +86,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
   const computed = lines
     .filter((l) => !isDeliveryItem(l.parts?.name))
     .map((l) => {
-      const rate = l.labour_items?.contractor_rate || 0;
+      const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
       const cost = (Number(l.qty) || 0) * rate;
       return { ...l, cost };
     });

@@ -25,7 +25,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       .order("quote_number", { ascending: false }),
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
-    supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
+    supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2, installer_rate_per_m2"),
     supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
     supabase
       .from("inspections")
