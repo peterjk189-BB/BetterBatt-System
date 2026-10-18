@@ -173,8 +173,6 @@ export default function WorkOrderEditor({
     new Set(lineItems.map((l) => l.subcontractor_id || form.contractor_id).filter((id): id is string => !!id))
   );
 
-  const contractorCost = lineItems.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
-
   async function save() {
     if (!form.wo_number.trim()) {
       setError("Please enter a work order number.");
@@ -505,7 +503,7 @@ export default function WorkOrderEditor({
           <div>
             <h2 className="text-lg font-bold">Task lines</h2>
             <p className="text-xs text-[var(--muted)]">
-              Need more than one contractor on the same product? Use "Duplicate" on that line, split the qty
+              Need more than one contractor on the same product? Use "Duplicate" on that line, split the m²
               between the copies, and set each one's Contractor.
             </p>
           </div>
@@ -516,27 +514,24 @@ export default function WorkOrderEditor({
 
         {(() => {
           const COLS =
-            "lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.5fr)_8.5rem_5.5rem_4.5rem_5rem_5.5rem_3.25rem_2.75rem_auto]";
+            "lg:grid-cols-[minmax(0,2.6fr)_minmax(0,1.6fr)_8.5rem_5.5rem_5rem_3.5rem_3.5rem_9rem]";
           const inp = "w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs";
           const lab = "mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] lg:hidden";
           return (
             <div className="mt-3 rounded-xl border border-[var(--border)]">
               <div
-                className={`hidden gap-2 rounded-t-xl bg-[#f2f0ec] px-3 py-2 text-[11px] font-semibold uppercase text-[var(--muted)] lg:grid ${COLS}`}
+                className={`hidden gap-2 rounded-t-xl bg-[#f2f0ec] px-3 py-2 text-center text-[11px] font-semibold uppercase text-[var(--muted)] lg:grid ${COLS}`}
               >
-                <span>Product</span>
-                <span>Contractor</span>
-                <span>Date</span>
-                <span>Time</span>
-                <span className="text-right">Qty</span>
-                <span className="text-right">Rate $</span>
-                <span className="text-right">Pay $</span>
+                <span className="text-center">Product</span>
+                <span className="text-center">Contractor</span>
+                <span className="text-center">Date</span>
+                <span className="text-center">Time</span>
+                <span className="text-center">m²</span>
                 <span className="text-center">Done</span>
                 <span className="text-center">Paid</span>
                 <span />
               </div>
               {lineItems.map((l, idx) => {
-                const cost = (Number(l.qty) || 0) * (Number(l.rate) || 0);
                 return (
                   <div key={idx} className="border-t border-[var(--border)] px-3 py-2 first:border-t-0 lg:first:border-t">
                     <div className={`grid grid-cols-2 items-end gap-2 sm:grid-cols-4 lg:items-center ${COLS}`}>
@@ -588,30 +583,15 @@ export default function WorkOrderEditor({
                         />
                       </label>
                       <label>
-                        <span className={lab}>Qty</span>
+                        <span className={lab}>m²</span>
                         <input
                           type="number"
                           step="0.01"
-                          className={inp + " text-right"}
+                          className={inp + " text-center"}
                           value={l.qty}
                           onChange={(e) => updateLine(idx, { qty: Number(e.target.value) })}
                         />
                       </label>
-                      <label>
-                        <span className={lab}>Rate $</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          className={inp + " text-right"}
-                          value={l.rate ?? 0}
-                          onChange={(e) => updateLine(idx, { rate: Number(e.target.value) })}
-                          title="Contractor pay per m² (or per unit). Comes from the product's installer rate; change it here for this line only."
-                        />
-                      </label>
-                      <div className="text-right text-sm font-medium">
-                        <span className={lab}>Pay $</span>
-                        {fmtCurrency(cost)}
-                      </div>
                       <label className="flex items-center justify-center gap-1 text-xs lg:justify-center">
                         <span className="lg:hidden">Done</span>
                         <input
@@ -662,7 +642,6 @@ export default function WorkOrderEditor({
             {lineItems.length} task(s), {lineItems.filter((l) => l.completed).length} completed,{" "}
             {lineItems.filter((l) => l.paid).length} paid
           </span>
-          <span className="font-semibold">Contractor total {fmtCurrency(contractorCost)}</span>
         </div>
       </div>
     </div>
