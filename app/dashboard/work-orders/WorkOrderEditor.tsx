@@ -22,6 +22,7 @@ type Sub = { id: string; name: string; phone: string | null; email: string | nul
 type LabourItem = { id: string; code: string; description: string; contractor_rate: number };
 type Part = { id: string; name: string; installer_rate_per_m2?: number };
 import { lineRate } from "@/lib/woRate";
+import PartPicker from "../PartPicker";
 
 type WorkOrder = {
   id: string;
@@ -519,9 +520,9 @@ export default function WorkOrderEditor({
           const inp = "w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs";
           const lab = "mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)] lg:hidden";
           return (
-            <div className="mt-3 overflow-hidden rounded-xl border border-[var(--border)]">
+            <div className="mt-3 rounded-xl border border-[var(--border)]">
               <div
-                className={`hidden gap-2 bg-[#f2f0ec] px-3 py-2 text-[11px] font-semibold uppercase text-[var(--muted)] lg:grid ${COLS}`}
+                className={`hidden gap-2 rounded-t-xl bg-[#f2f0ec] px-3 py-2 text-[11px] font-semibold uppercase text-[var(--muted)] lg:grid ${COLS}`}
               >
                 <span>Product</span>
                 <span>Contractor</span>
@@ -539,28 +540,20 @@ export default function WorkOrderEditor({
                 return (
                   <div key={idx} className="border-t border-[var(--border)] px-3 py-2 first:border-t-0 lg:first:border-t">
                     <div className={`grid grid-cols-2 items-end gap-2 sm:grid-cols-4 lg:items-center ${COLS}`}>
-                      <label className="col-span-2 sm:col-span-4 lg:col-span-1">
+                      <div className="col-span-2 sm:col-span-4 lg:col-span-1">
                         <span className={lab}>Product</span>
-                        <select
-                          className={inp}
-                          value={l.part_id || ""}
-                          onChange={(e) => {
-                            const id = e.target.value || null;
+                        <PartPicker
+                          parts={selectableParts}
+                          value={l.part_id || null}
+                          onChange={(id) =>
                             updateLine(idx, {
                               part_id: id,
                               rate: id ? partById[id]?.installer_rate_per_m2 ?? 0 : 0,
                               labour_item_id: null,
-                            });
-                          }}
-                        >
-                          <option value="">Select product...</option>
-                          {selectableParts.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                            })
+                          }
+                        />
+                      </div>
                       <label className="col-span-2 sm:col-span-2 lg:col-span-1">
                         <span className={lab}>Contractor</span>
                         <select
