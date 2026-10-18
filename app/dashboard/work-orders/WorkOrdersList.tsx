@@ -113,7 +113,6 @@ export default function WorkOrdersList({
               <th className="px-4 py-2">Customer</th>
               <th className="px-4 py-2">Job</th>
               <th className="px-4 py-2">Contractor</th>
-              <th className="px-4 py-2">P/O #</th>
               <th className="px-4 py-2 text-right">P/O value</th>
               <th className="px-4 py-2 text-right">Tasks</th>
               <th className="px-4 py-2 text-right">Contractor cost</th>
@@ -140,7 +139,6 @@ export default function WorkOrdersList({
                     {w.projects ? `${w.projects.address || ""}${w.projects.suburb ? ", " + w.projects.suburb : ""}` : "—"}
                   </td>
                   <td className="px-4 py-2">{w.subcontractors?.name || "Unassigned"}</td>
-                  <td className="px-4 py-2 text-[var(--muted)]">{w.po_number || "—"}</td>
                   <td className="px-4 py-2 text-right">{fmtCurrency(w.po_value || 0)}</td>
                   <td className="px-4 py-2 text-right">{s.count}</td>
                   <td className="px-4 py-2 text-right">{fmtCurrency(s.cost)}</td>

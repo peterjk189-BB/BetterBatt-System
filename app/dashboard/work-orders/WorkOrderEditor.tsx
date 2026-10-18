@@ -611,15 +611,6 @@ export default function WorkOrderEditor({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          P/O number
-          <input
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
-            value={form.po_number}
-            onChange={(e) => setForm({ ...form, po_number: e.target.value })}
-            placeholder="e.g. VERH1750/390"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
           P/O value ($) <span className="text-xs font-normal text-[var(--muted)]">(from the quote)</span>
           <input
             type="number"
