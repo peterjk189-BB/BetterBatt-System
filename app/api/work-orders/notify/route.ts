@@ -33,12 +33,16 @@ export async function POST(req: Request) {
   const [{ data: wo }, { data: lines }] = await Promise.all([
     admin
       .from("work_orders")
-      .select("id, wo_number, archived, projects(address, suburb, lot_no)")
+      .select("*, projects(address, suburb, lot_no)")
       .eq("id", woId)
       .single(),
     admin.from("work_order_lines").select("subcontractor_id, task_date").eq("work_order_id", woId).not("task_date", "is", null),
   ]);
   if (!wo || (wo as any).archived) return NextResponse.json({ ok: true, sent: false, reason: "Archived" });
+  // Contractors are not alerted until the office authorises the work order (column from migration 0046).
+  if ("authorised_at" in (wo as any) && !(wo as any).authorised_at) {
+    return NextResponse.json({ ok: true, sent: false, reason: "Not authorised yet" });
+  }
 
   const proj = (wo as any).projects;
   const p = Array.isArray(proj) ? proj[0] : proj;

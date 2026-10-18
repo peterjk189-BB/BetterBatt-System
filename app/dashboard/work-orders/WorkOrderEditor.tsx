@@ -36,6 +36,7 @@ type WorkOrder = {
   jsa_received: boolean;
   notes: string | null;
   archived: boolean;
+  authorised_at?: string | null;
 };
 
 type Line = {
@@ -204,6 +205,10 @@ export default function WorkOrderEditor({
   const autoBusy = useRef(false);
   const autoAgain = useRef(false);
   const firstRun = useRef(true);
+  const [authorisedAt, setAuthorisedAt] = useState<string | null>(workOrder?.authorised_at ?? null);
+  // Before migration 0046 the column does not exist: treat the work order as authorised so nothing changes.
+  const authColumn = !!workOrder && "authorised_at" in workOrder;
+  const [authorising, setAuthorising] = useState(false);
   const [autoState, setAutoState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // If a column from a newer migration is missing, retry the write without it.
@@ -319,6 +324,54 @@ export default function WorkOrderEditor({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, lineItems]);
+
+  /** Office sign-off: from now on the contractor is alerted about this work order's job dates. */
+  async function authorise() {
+    if (!workOrder) return;
+    if (!confirm("Authorise this work order? The contractor(s) will be alerted about the job dates now.")) return;
+    setAuthorising(true);
+    setError(null);
+    while (autoBusy.current) await new Promise((r) => setTimeout(r, 100));
+    const err = await persistExisting();
+    if (err) {
+      setError(err);
+      setAuthorising(false);
+      return;
+    }
+    const now = new Date().toISOString();
+    const { error: aErr } = await supabase.from("work_orders").update({ authorised_at: now }).eq("id", workOrder.id);
+    if (aErr) {
+      setError(aErr.message);
+      setAuthorising(false);
+      return;
+    }
+    setAuthorisedAt(now);
+    const { form: f, lineItems: items } = latest.current;
+    const bySub: Record<string, Set<string>> = {};
+    for (const l of items) {
+      const sid = l.subcontractor_id || f.contractor_id;
+      if (!l.task_date || !sid) continue;
+      (bySub[sid] ||= new Set()).add(l.task_date);
+      notified.current.add(`${sid}|${l.task_date}`);
+    }
+    const notifyItems = Object.entries(bySub).map(([subcontractor_id, d]) => ({ subcontractor_id, dates: Array.from(d) }));
+    if (notifyItems.length > 0) {
+      fetch("/api/work-orders/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems }),
+        keepalive: true,
+      }).catch(() => {});
+    }
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work_order",
+      entityId: workOrder.id,
+      entityLabel: f.wo_number.trim(),
+      details: "Authorised — contractor alerted",
+    });
+    setAuthorising(false);
+  }
 
   async function saveExisting() {
     setSaving(true);
@@ -551,6 +604,19 @@ export default function WorkOrderEditor({
           >
             {saving ? "Saving..." : isNew ? "Save work order" : "Save & close"}
           </button>
+          {!isNew && authColumn && !authorisedAt && (
+            <button
+              onClick={authorise}
+              disabled={authorising}
+              className="rounded-lg bg-[#1f6b35] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              title="Until you authorise, the contractor is not alerted about the job dates."
+            >
+              {authorising ? "Authorising..." : "Authorise & notify contractor"}
+            </button>
+          )}
+          {!isNew && authColumn && authorisedAt && (
+            <span className="text-xs text-[var(--muted)]">Authorised {new Date(authorisedAt).toLocaleDateString("en-AU")}</span>
+          )}
           {!isNew && (
             <span className={`text-xs ${autoState === "error" ? "text-red-700" : "text-[var(--muted)]"}`}>
               {autoState === "saving" && "Saving…"}
