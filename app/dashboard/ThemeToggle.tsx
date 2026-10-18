@@ -7,6 +7,7 @@ const ORDER: Pref[] = ["auto", "light", "dark"];
 const LABEL: Record<Pref, string> = { auto: "Auto", light: "Light", dark: "Dark" };
 
 function apply(pref: Pref) {
+  if (document.documentElement.hasAttribute("data-force-light")) return; // printable pages stay on white
   const dark = pref === "dark" || (pref === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
 }

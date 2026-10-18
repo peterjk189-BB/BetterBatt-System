@@ -7,8 +7,11 @@ export default function ForceLight() {
   useLayoutEffect(() => {
     const root = document.documentElement;
     const prev = root.getAttribute("data-theme");
+    // data-force-light stops the header's Theme button from switching this page back to dark.
+    root.setAttribute("data-force-light", "1");
     root.setAttribute("data-theme", "light");
     return () => {
+      root.removeAttribute("data-force-light");
       if (prev) root.setAttribute("data-theme", prev);
     };
   }, []);
