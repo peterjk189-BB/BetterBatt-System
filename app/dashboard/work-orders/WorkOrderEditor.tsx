@@ -118,6 +118,7 @@ export default function WorkOrderEditor({
           .map((l) => ({
             ...l,
             uid: l.id || newUid(),
+            task_date: l.task_date || (workOrder ? l.task_date : form.entry_date) || null,
             completed: l.completed ?? false,
             paid: l.paid ?? false,
             rate: lineRate(
@@ -132,13 +133,20 @@ export default function WorkOrderEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Task dates follow the booking date until someone sets a different date on that line.
+  function changeBookingDate(next: string) {
+    const prev = form.entry_date;
+    setForm((f) => ({ ...f, entry_date: next }));
+    setLineItems((ls) => ls.map((l) => (!l.task_date || l.task_date === prev ? { ...l, task_date: next } : l)));
+  }
+
   function addLine() {
     setLineItems((prev) => [
       ...prev,
       {
         uid: newUid(),
         part_id: null,
-        task_date: "",
+        task_date: form.entry_date || "",
         completed: false,
         labour_item_id: null,
         rate: 0,
@@ -622,12 +630,12 @@ export default function WorkOrderEditor({
         </label>
         <div className="grid grid-cols-2 gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            Entry date
+            Booking date
             <input
               type="date"
               className="rounded-lg border border-[var(--border)] px-3 py-2"
               value={form.entry_date}
-              onChange={(e) => setForm({ ...form, entry_date: e.target.value })}
+              onChange={(e) => changeBookingDate(e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -683,7 +691,7 @@ export default function WorkOrderEditor({
           <div>
             <h2 className="text-lg font-bold">Task lines</h2>
             <p className="text-xs text-[var(--muted)]">
-              Need more than one contractor on the same product? Use "Duplicate" on that line, split the m²
+              Dates follow the Booking date; change a line's date if it is on a different day. Need more than one contractor on the same product? Use "Duplicate" on that line, split the m²
               between the copies, and set each one's Contractor.
             </p>
           </div>
