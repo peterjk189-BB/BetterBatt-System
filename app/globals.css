@@ -14,6 +14,16 @@
   --brand-gold: #fdb930;
   --brand-gold-dark: #b1841f;
   --brand-grey: #5f6062;
+
+  /* Chart / dashboard colours (Business Dashboard) */
+  --bb-ink: #201f1c;
+  --bb-gold: #b1841f;
+  --bb-bronze: #8a5a2b;
+  --bb-blue: #2563eb;
+  --bb-good: #1f7a3d;
+  --bb-warn: #a8680f;
+  --bb-bad: #b3261e;
+  --bb-grid: #ebe8df;
 }
 
 body {
@@ -29,6 +39,7 @@ body {
 html[data-theme="dark"]{
   --bg:#2a2a2a; --surface:#333333; --text:#ececec; --muted:#b0b0b0; --border:#4a4a4a;
   --accent:#6ea0ee; --brand-gold-dark:#f0c05a; --brand-grey:#b0b0b0;
+  --bb-ink:#ececec; --bb-gold:#f0c05a; --bb-bronze:#c9945a; --bb-blue:#6ea0ee; --bb-good:#86d9a0; --bb-warn:#f3c264; --bb-bad:#f59a90; --bb-grid:#4a4a4a;
   color-scheme:dark;
 }
 html[data-theme="dark"] body{background:var(--bg);color:var(--text)}

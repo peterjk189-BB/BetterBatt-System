@@ -4,15 +4,16 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { computeStats, type BData, type Period, type Stats } from "@/lib/businessStats";
 
-const INK = "#201f1c";
-const GOLD = "#b1841f";
-const BRONZE = "#8a5a2b";
-const BLUE = "#2563eb";
-const GOOD = "#1f7a3d";
-const WARN = "#a8680f";
-const BAD = "#b3261e";
-const GRID = "#ebe8df";
-const MUTED = "#6b6862";
+// Colours are CSS variables (defined in globals.css) so the charts follow the Light / Dark theme.
+const INK = "var(--bb-ink)";
+const GOLD = "var(--bb-gold)";
+const BRONZE = "var(--bb-bronze)";
+const BLUE = "var(--bb-blue)";
+const GOOD = "var(--bb-good)";
+const WARN = "var(--bb-warn)";
+const BAD = "var(--bb-bad)";
+const GRID = "var(--bb-grid)";
+const MUTED = "var(--muted)";
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 const short = (n: number) => (Math.abs(n) >= 1_000_000 ? `$${(n / 1_000_000).toFixed(2)}m` : Math.abs(n) >= 1000 ? `$${Math.round(n / 1000)}k` : `$${Math.round(n)}`);
@@ -381,7 +382,7 @@ function Attention({ s }: { s: Stats }) {
       {items.map((i) => (
         <Link key={i.label} href={i.href} className="flex items-center justify-between gap-3 py-2.5 hover:bg-[#faf8f4]">
           <span className="text-sm">{i.label}<br /><span className="text-xs text-[var(--muted)]">{i.sub}</span></span>
-          <b className="text-xl tabular-nums" style={{ color: i.hot ? BAD : i.value === "0" ? "#9a968c" : INK }}>{i.value}</b>
+          <b className="text-xl tabular-nums" style={{ color: i.hot ? BAD : i.value === "0" ? "var(--muted)" : INK }}>{i.value}</b>
         </Link>
       ))}
     </div>
