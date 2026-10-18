@@ -136,7 +136,7 @@ export default function QuickEnquiry({ userId }: { userId: string }) {
           reset();
           setOpen(true);
         }}
-        className="fixed bottom-5 left-5 sm:left-[13rem] z-40 rounded-full bg-[var(--brand-gold)] px-5 py-3 text-sm font-bold text-[#201f1c] shadow-lg hover:brightness-95 print:hidden"
+        className="fixed bottom-5 left-5 sm:left-[8.25rem] z-40 rounded-full bg-[var(--brand-gold)] px-5 py-3 text-sm font-bold text-[#201f1c] shadow-lg hover:brightness-95 print:hidden"
         style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         + Enquiry
