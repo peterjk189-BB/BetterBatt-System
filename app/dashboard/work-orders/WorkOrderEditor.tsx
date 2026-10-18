@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +40,8 @@ type WorkOrder = {
 
 type Line = {
   id?: string;
+  /** Stable client-side key so a line keeps its identity before and after it is first saved. */
+  uid?: string;
   part_id: string | null;
   task_date?: string | null;
   task_time?: string | null;
@@ -53,6 +55,12 @@ type Line = {
   note?: string | null;
   sort_order?: number;
 };
+
+let uidCounter = 0;
+function newUid() {
+  uidCounter += 1;
+  return `new-${Date.now()}-${uidCounter}`;
+}
 
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -109,6 +117,7 @@ export default function WorkOrderEditor({
           .filter((l) => !isDeliveryItem(l.part_id ? partById[l.part_id]?.name : undefined))
           .map((l) => ({
             ...l,
+            uid: l.id || newUid(),
             completed: l.completed ?? false,
             paid: l.paid ?? false,
             rate: lineRate(
@@ -127,6 +136,7 @@ export default function WorkOrderEditor({
     setLineItems((prev) => [
       ...prev,
       {
+        uid: newUid(),
         part_id: null,
         task_date: "",
         completed: false,
@@ -162,7 +172,7 @@ export default function WorkOrderEditor({
   function duplicateLine(idx: number) {
     setLineItems((prev) => {
       const source = prev[idx];
-      const copy: Line = { ...source, id: undefined, sort_order: prev.length };
+      const copy: Line = { ...source, id: undefined, uid: newUid(), sort_order: prev.length };
       return [...prev, copy];
     });
   }
@@ -175,7 +185,177 @@ export default function WorkOrderEditor({
 
   const contractorCost = lineItems.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
 
+  // ---- Auto-save (saved work orders only) -------------------------------------------------
+  // Lines are updated in place by id (never deleted and re-created), so picking-slip progress is kept.
+  const latest = useRef({ form, lineItems });
+  latest.current = { form, lineItems };
+  const savedIds = useRef<Set<string>>(new Set(lines.filter((l) => l.id).map((l) => l.id as string)));
+  const notified = useRef<Set<string>>(
+    new Set(lines.filter((l) => l.task_date).map((l) => `${l.subcontractor_id || workOrder?.contractor_id || ""}|${l.task_date}`))
+  );
+  const autoBusy = useRef(false);
+  const autoAgain = useRef(false);
+  const firstRun = useRef(true);
+  const [autoState, setAutoState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  // If a column from a newer migration is missing, retry the write without it.
+  async function tryWrite(row: Record<string, any>, run: (r: Record<string, any>) => PromiseLike<{ error: { message: string } | null }>) {
+    let res = await run(row);
+    for (const col of ["rate", "task_time"]) {
+      if (res.error && new RegExp(`\\b${col}\\b`, "i").test(res.error.message)) {
+        const { [col]: _drop, ...rest } = row;
+        row = rest;
+        res = await run(row);
+      }
+    }
+    return res.error ? res.error.message : null;
+  }
+
+  /** Writes the header and lines as they are on screen now. Returns an error message, or null. */
+  async function persistExisting(): Promise<string | null> {
+    if (!workOrder) return null;
+    const { form: f, lineItems: items } = latest.current;
+    if (!f.wo_number.trim()) return "Please enter a work order number.";
+    const { error: hErr } = await supabase
+      .from("work_orders")
+      .update({
+        project_id: f.project_id || null,
+        contractor_id: f.contractor_id || null,
+        wo_number: f.wo_number.trim(),
+        po_number: f.po_number || null,
+        po_value: Number(f.po_value) || 0,
+        entry_date: f.entry_date || null,
+        completed_date: f.completed_date || null,
+        jsa_received: f.jsa_received,
+        notes: f.notes || null,
+      })
+      .eq("id", workOrder.id);
+    if (hErr) return hErr.message;
+
+    const keep = new Set(items.filter((l) => l.id).map((l) => l.id as string));
+    const gone = Array.from(savedIds.current).filter((id) => !keep.has(id));
+    if (gone.length) {
+      const { error: dErr } = await supabase.from("work_order_lines").delete().in("id", gone);
+      if (dErr) return dErr.message;
+      gone.forEach((id) => savedIds.current.delete(id));
+    }
+
+    const assigned = new Map<string, string>();
+    for (let idx = 0; idx < items.length; idx++) {
+      const l = items[idx];
+      const row: Record<string, any> = {
+        part_id: l.part_id || null,
+        task_date: l.task_date || null,
+        task_time: l.task_time || null,
+        completed: !!l.completed,
+        labour_item_id: l.labour_item_id || null,
+        rate: Number(l.rate) || 0,
+        qty: Number(l.qty) || 0,
+        subcontractor_id: l.subcontractor_id || f.contractor_id || null,
+        paid: !!l.paid,
+        note: l.note || null,
+        sort_order: idx,
+      };
+      if (l.id) {
+        const err = await tryWrite(row, (r) => supabase.from("work_order_lines").update(r).eq("id", l.id as string));
+        if (err) return err;
+      } else {
+        let newId: string | null = null;
+        const err = await tryWrite({ ...row, work_order_id: workOrder.id }, async (r) => {
+          const { data, error } = await supabase.from("work_order_lines").insert(r).select("id").single();
+          if (data) newId = data.id;
+          return { error };
+        });
+        if (err) return err;
+        if (newId && l.uid) {
+          assigned.set(l.uid, newId);
+          savedIds.current.add(newId);
+        }
+      }
+    }
+    if (assigned.size) {
+      setLineItems((prev) => prev.map((l) => (!l.id && l.uid && assigned.has(l.uid) ? { ...l, id: assigned.get(l.uid) } : l)));
+    }
+    return null;
+  }
+
+  async function runAutoSave() {
+    if (autoBusy.current) {
+      autoAgain.current = true;
+      return;
+    }
+    autoBusy.current = true;
+    setAutoState("saving");
+    const err = await persistExisting();
+    if (err) {
+      setError(err);
+      setAutoState("error");
+    } else {
+      setError(null);
+      setAutoState("saved");
+    }
+    autoBusy.current = false;
+    if (autoAgain.current) {
+      autoAgain.current = false;
+      runAutoSave();
+    }
+  }
+
+  useEffect(() => {
+    if (isNew) return;
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    const t = setTimeout(runAutoSave, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form, lineItems]);
+
+  async function saveExisting() {
+    setSaving(true);
+    setError(null);
+    while (autoBusy.current) await new Promise((r) => setTimeout(r, 100));
+    const err = await persistExisting();
+    setSaving(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    // Alert contractors about job dates that are new since they were last told (fire and forget).
+    try {
+      const { form: f, lineItems: items } = latest.current;
+      const fresh: Record<string, string[]> = {};
+      for (const l of items) {
+        const sid = l.subcontractor_id || f.contractor_id;
+        if (!l.task_date || !sid) continue;
+        const k = `${sid}|${l.task_date}`;
+        if (notified.current.has(k)) continue;
+        notified.current.add(k);
+        (fresh[sid] ||= []).push(l.task_date);
+      }
+      const notifyItems = Object.entries(fresh).map(([subcontractor_id, dates]) => ({ subcontractor_id, dates }));
+      if (notifyItems.length > 0) {
+        fetch("/api/work-orders/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ work_order_id: workOrder!.id, items: notifyItems }),
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch {}
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work_order",
+      entityId: workOrder!.id,
+      entityLabel: latest.current.form.wo_number.trim(),
+    });
+    router.push(`/dashboard/work-orders/${workOrder!.id}`);
+    router.refresh();
+  }
+
   async function save() {
+    if (!isNew) return saveExisting();
     if (!form.wo_number.trim()) {
       setError("Please enter a work order number.");
       return;
@@ -195,7 +375,7 @@ export default function WorkOrderEditor({
       notes: form.notes || null,
     };
 
-    let workOrderId = workOrder?.id;
+    let workOrderId: string | undefined;
 
     if (isNew) {
       const { data, error: insertErr } = await supabase.from("work_orders").insert(payload).select().single();
@@ -212,7 +392,6 @@ export default function WorkOrderEditor({
         setSaving(false);
         return;
       }
-      await supabase.from("work_order_lines").delete().eq("work_order_id", workOrderId);
     }
 
     const rowsToInsert = lineItems.map((l, idx) => ({
@@ -249,7 +428,7 @@ export default function WorkOrderEditor({
     setSaving(false);
     // Alert contractors about job dates that are new on this save (fire and forget).
     try {
-      const before = new Set(lines.filter((l) => l.task_date).map((l) => `${l.subcontractor_id || workOrder?.contractor_id || ""}|${l.task_date}`));
+      const before = new Set(lines.filter((l) => l.task_date).map((l) => `${l.subcontractor_id || ""}|${l.task_date}`));
       const fresh: Record<string, string[]> = {};
       for (const r of rowsToInsert) {
         if (!r.task_date || !r.subcontractor_id) continue;
@@ -362,8 +541,16 @@ export default function WorkOrderEditor({
             disabled={saving}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
-            {saving ? "Saving..." : "Save work order"}
+            {saving ? "Saving..." : isNew ? "Save work order" : "Save & close"}
           </button>
+          {!isNew && (
+            <span className={`text-xs ${autoState === "error" ? "text-red-700" : "text-[var(--muted)]"}`}>
+              {autoState === "saving" && "Saving…"}
+              {autoState === "saved" && "All changes saved"}
+              {autoState === "error" && "Auto-save failed"}
+              {autoState === "idle" && "Changes save automatically"}
+            </span>
+          )}
         </div>
       </div>
 
