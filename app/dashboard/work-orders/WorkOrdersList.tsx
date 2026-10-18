@@ -159,7 +159,7 @@ export default function WorkOrdersList({
             })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} work orders found — open an accepted quote and start
                   one, or add manually.
                 </td>

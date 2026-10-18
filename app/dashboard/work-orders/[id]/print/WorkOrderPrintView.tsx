@@ -186,8 +186,6 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           </div>
         </div>
 
-        </div>
-
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
