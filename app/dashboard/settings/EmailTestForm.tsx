@@ -47,7 +47,7 @@ export default function EmailTestForm({ defaultTo }: { defaultTo: string }) {
           placeholder="Send test to…"
           className="min-w-[16rem] flex-1 rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
         />
-        <button onClick={send} disabled={busy || !to} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+        <button onClick={send} disabled={busy || !to} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
           {busy ? "Sending…" : "Send test email"}
         </button>
       </div>
