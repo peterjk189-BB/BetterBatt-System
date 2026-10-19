@@ -137,6 +137,18 @@ export default function QuotePrintView({
 
       <style jsx global>{`
         @media print {
+          /* Zero page margin stops the browser stamping its own header/footer
+             (page URL, date, page numbers) on the quote. The spacing comes from
+             the padding on the quote itself instead. */
+          @page {
+            size: A4;
+            margin: 0;
+          }
+          .quote-sheet {
+            padding: 12mm 14mm !important;
+            -webkit-box-decoration-break: clone;
+            box-decoration-break: clone;
+          }
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -158,7 +170,7 @@ export default function QuotePrintView({
 
       <div
         ref={printableRef}
-        className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-[#201f1c] print:border-none print:p-0"
+        className="quote-sheet mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-[#201f1c] print:border-none print:p-0"
       >
         <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#141413] px-6 py-5">
           <div className="flex items-center gap-3.5">
