@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
 import CompanyDetailsForm from "./CompanyDetailsForm";
+import EmailTestForm from "./EmailTestForm";
 import AgreementForm from "./AgreementForm";
 import InvoiceSettingsForm from "./InvoiceSettingsForm";
 import { DEFAULT_SUBCONTRACTOR_AGREEMENT } from "@/lib/subAgreement";
@@ -36,6 +37,7 @@ export default async function SettingsPage() {
           gst: settings?.qb_gst_account ?? "",
         }}
       />
+      <EmailTestForm defaultTo={user.email ?? ""} />
       <SettingsForm initialTerms={settings?.terms_and_conditions ?? ""} />
       <AgreementForm initial={settings?.subcontractor_agreement || DEFAULT_SUBCONTRACTOR_AGREEMENT} standard={DEFAULT_SUBCONTRACTOR_AGREEMENT} />
     </div>
