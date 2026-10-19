@@ -3,6 +3,7 @@
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useRef, useState } from "react";
 import Link from "next/link";
+import { elementToPdf } from "@/lib/elementToPdf";
 
 type Line = {
   part_id: string | null;
@@ -59,34 +60,7 @@ export default function QuotePrintView({
     if (!printableRef.current) return;
     setDownloading(true);
     try {
-      // Both libraries have shipped slightly different export shapes across versions, so
-      // fall back between named/default rather than assuming one or the other.
-      const [html2canvasMod, jsPdfMod] = await Promise.all([import("html2canvas"), import("jspdf")]);
-      const html2canvas: any = (html2canvasMod as any).default || html2canvasMod;
-      const jsPDF: any = (jsPdfMod as any).jsPDF || (jsPdfMod as any).default;
-      const canvas = await html2canvas(printableRef.current, { scale: 2, backgroundColor: "#ffffff" });
-      const imgData = canvas.toDataURL("image/png");
-
-      // Fit the captured page onto A4, scaling by width and splitting across extra
-      // pages if the content runs taller than one page.
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      let heightLeft = imgHeight;
-      let position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-
-      pdf.save(`Quote-Q${project.quote_number}.pdf`);
+      await elementToPdf(printableRef.current, `Quote-Q${project.quote_number}.pdf`, "portrait");
     } finally {
       setDownloading(false);
     }
