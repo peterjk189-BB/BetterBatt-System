@@ -12,9 +12,9 @@ export async function elementToPdf(
   const html2canvas: any = (html2canvasMod as any).default || html2canvasMod;
   const jsPDF: any = (jsPdfMod as any).jsPDF || (jsPdfMod as any).default;
 
-  // About 155 dpi on A4: sharp text, far smaller than a 2x retina capture.
-  const targetWidthPx = orientation === "portrait" ? 1300 : 1840;
-  const scale = Math.min(2, Math.max(1, targetWidthPx / Math.max(1, el.offsetWidth)));
+  // About 195 dpi on A4: sharp text, far smaller than a 2x retina capture.
+  const targetWidthPx = orientation === "portrait" ? 1625 : 2300;
+  const scale = Math.min(3, Math.max(1, targetWidthPx / Math.max(1, el.offsetWidth)));
   const canvas: HTMLCanvasElement = await html2canvas(el, { scale, backgroundColor: "#ffffff" });
 
   const pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
