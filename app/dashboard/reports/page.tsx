@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import ReportsView from "./ReportsView";
+import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 
 export default async function ReportsPage() {
   const supabase = await createClient();
@@ -67,20 +68,23 @@ export default async function ReportsPage() {
     supabase.from("invoice_payments").select("invoice_id, amount"),
   ]);
 
+  const excluded = await unacceptedOptionLineIds(supabase);
+  const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));
+
   return (
     <ReportsView
       parts={(parts ?? []) as any}
       poLines={(poLines ?? []) as any}
       woLines={(woLines ?? []) as any}
       projects={(projects ?? []) as any}
-      projectLines={(projectLines ?? []) as any}
+      projectLines={countedProjectLines as any}
       jobWorkOrders={(jobWorkOrders ?? []) as any}
       jobSwms={(jobSwms ?? []) as any}
       jobInspections={(jobInspections ?? []) as any}
       jobLines={(jobLines ?? []) as any}
       pl={{
         projects: (projects ?? []) as any,
-        projectLines: (projectLines ?? []) as any,
+        projectLines: countedProjectLines as any,
         workOrders: (jobWorkOrders ?? []) as any,
         woLines: (plWoLines ?? []) as any,
         labourItems: (labourItems ?? []) as any,

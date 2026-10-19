@@ -4,11 +4,13 @@ import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
+import { optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 
 type Line = {
   part_id: string | null;
   qty_m2: number;
   note: string | null;
+  option_key?: string | null;
   parts: {
     name: string;
     coverage_m2: number;
@@ -35,6 +37,8 @@ type Project = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  option_titles?: Record<string, string> | null;
+  option_accepted?: string[] | null;
   customers: { name: string; discount_pct: number | null } | null;
 };
 
@@ -94,11 +98,41 @@ export default function QuotePrintView({
   });
 
   const customerDiscountPct = project.customers?.discount_pct || 0;
-  const chargeBeforeMarkup = computed.reduce((s, l) => s + l.charge, 0);
+  const mainComputed = computed.filter((l) => !l.option_key);
+  const optionKeys = usedOptionKeys(lines, project.option_titles);
+  const acceptedOpts = project.option_accepted ?? [];
+  const optionData = optionKeys.map((k) => {
+    const ls = computed.filter((l) => l.option_key === k);
+    const sub = ls.reduce((a, l) => a + l.charge, 0) * (1 - customerDiscountPct / 100);
+    return { key: k, lines: ls, sub, gst: sub * 0.1, total: sub * 1.1, accepted: acceptedOpts.includes(k) };
+  });
+  const chargeBeforeMarkup = mainComputed.reduce((s, l) => s + l.charge, 0);
   const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
+  const acceptedOptSub = optionData.filter((o) => o.accepted).reduce((a, o) => a + o.sub, 0);
+  const grandTotal = (subtotal + acceptedOptSub) * 1.1;
+
+  const renderRows = (list: typeof computed) =>
+    list.map((l, i) => (
+      <Fragment key={i}>
+        <tr className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
+          <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
+          {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
+          {showPrices && (
+            <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
+          )}
+        </tr>
+        {l.note && (
+          <tr className="quote-note border-b border-gray-300">
+            <td colSpan={colCount} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
+              {l.note}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    ));
 
   return (
     <div>
@@ -231,30 +265,8 @@ export default function QuotePrintView({
             </tr>
           </thead>
           <tbody>
-            {computed.map((l, i) => (
-              <Fragment key={i}>
-                <tr className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
-                  <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
-                  {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-                  {showPrices && (
-                    <td className="px-2.5 py-1.5 text-right font-medium">
-                      {l.isDelivery ? "" : fmtCurrency(l.charge)}
-                    </td>
-                  )}
-                </tr>
-                {l.note && (
-                  <tr className="quote-note border-b border-gray-300">
-                    <td
-                      colSpan={colCount}
-                      className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]"
-                    >
-                      {l.note}
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-            {computed.length === 0 && (
+            {renderRows(mainComputed)}
+            {mainComputed.length === 0 && (
               <tr>
                 <td colSpan={colCount} className="py-6 text-center text-gray-500">
                   No line items.
@@ -286,6 +298,49 @@ export default function QuotePrintView({
             </div>
           </div>
         </div>
+
+        {optionData.length > 0 && (
+          <div className="mt-6">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8c887f]">
+              Optional extras — not included in the total above
+            </div>
+            {optionData.map((o) => (
+              <div key={o.key} className="quote-totals mt-3">
+                <div className="flex items-center justify-between rounded-lg bg-[#f6f5f2] px-2.5 py-2 text-sm font-bold">
+                  <span>{optionTitle(project.option_titles, o.key)}</span>
+                  {o.accepted && <span className="text-xs font-semibold text-green-700">Accepted</span>}
+                </div>
+                <table className="w-full text-sm">
+                  <tbody>{renderRows(o.lines)}</tbody>
+                </table>
+                <div className="mt-1.5 flex justify-end">
+                  <div className="w-64 text-sm">
+                    <div className="flex justify-between py-0.5 text-[#6b6862]">
+                      <span>Subtotal</span>
+                      <span className="text-[#201f1c]">{fmtCurrency(o.sub)}</span>
+                    </div>
+                    <div className="flex justify-between py-0.5 text-[#6b6862]">
+                      <span>GST (10%)</span>
+                      <span className="text-[#201f1c]">{fmtCurrency(o.gst)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-[#e4e1da] pt-1.5 font-extrabold">
+                      <span>{`Option ${o.key} total`}</span>
+                      <span>{fmtCurrency(o.total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {acceptedOptSub > 0 && (
+              <div className="quote-totals mt-3 flex justify-end">
+                <div className="flex w-64 justify-between rounded-lg bg-[#f6f5f2] p-3.5 text-base font-extrabold">
+                  <span>Total with accepted options</span>
+                  <span>{fmtCurrency(grandTotal)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {termsAndConditions && termsAndConditions.trim() && (
           <div className="quote-terms-block mt-6 border-t border-gray-100 pt-4">

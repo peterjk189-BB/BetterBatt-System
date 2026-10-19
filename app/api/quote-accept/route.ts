@@ -9,6 +9,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const token = typeof body.token === "string" ? body.token : undefined;
   const name = typeof body.name === "string" ? body.name.trim() : "";
+  const pickedOptions: string[] = Array.isArray(body.options) ? body.options.filter((o: unknown) => typeof o === "string") : [];
 
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
@@ -38,9 +39,23 @@ export async function POST(req: Request) {
   const ip = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
   const acceptedAt = new Date().toISOString();
 
+  // Only keep options that really exist on this quote (lines carry the option key).
+  let validOptions: string[] = [];
+  if (pickedOptions.length > 0) {
+    const { data: optLines } = await admin.from("project_lines").select("option_key").eq("project_id", project.id);
+    const real = new Set((optLines ?? []).map((l: any) => l.option_key).filter(Boolean));
+    validOptions = pickedOptions.filter((o) => real.has(o));
+  }
+
   const { error: updateError } = await admin
     .from("projects")
-    .update({ accepted_at: acceptedAt, accepted_name: name, accepted_ip: ip, outcome: "Accepted" })
+    .update({
+      accepted_at: acceptedAt,
+      accepted_name: name,
+      accepted_ip: ip,
+      outcome: "Accepted",
+      ...(validOptions.length > 0 ? { option_accepted: validOptions } : {}),
+    })
     .eq("id", project.id);
 
   if (updateError) {
@@ -54,7 +69,7 @@ export async function POST(req: Request) {
     entity_type: "quote",
     entity_id: project.id,
     entity_label: `Q${project.quote_number}`,
-    details: "Accepted online via customer link",
+    details: `Accepted online via customer link${validOptions.length ? ` (with option${validOptions.length > 1 ? "s" : ""} ${validOptions.join(", ")})` : ""}`,
   });
 
   // Best-effort: let the office know a quote was just signed. Never block
@@ -70,7 +85,7 @@ export async function POST(req: Request) {
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
         <h2 style="margin-bottom: 4px;">Q${project.quote_number} accepted ✅</h2>
         <p style="color: #555;">
-          ${name} just accepted this quote online at ${new Date(acceptedAt).toLocaleString("en-AU")}.
+          ${name} just accepted this quote online${validOptions.length ? ` with option${validOptions.length > 1 ? "s" : ""} ${validOptions.join(", ")}` : ""} at ${new Date(acceptedAt).toLocaleString("en-AU")}.
         </p>
         <p style="margin: 24px 0;">
           <a href="${quoteLink}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;">

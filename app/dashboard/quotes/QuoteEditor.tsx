@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { ensureLead } from "@/lib/crmActions";
+import { OPTION_KEYS, optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
 
 type Customer = {
@@ -52,6 +53,8 @@ type Project = {
   share_token?: string | null;
   accepted_at?: string | null;
   accepted_name?: string | null;
+  option_titles?: Record<string, string> | null;
+  option_accepted?: string[] | null;
 };
 
 type Line = {
@@ -60,6 +63,7 @@ type Line = {
   qty_m2: number;
   note: string | null;
   sort_order: number;
+  option_key?: string | null;
 };
 
 /** Values carried over from a site visit when a quote is started from it. */
@@ -213,8 +217,43 @@ export default function QuoteEditor({
       : [{ part_id: "", qty_m2: 0, note: "", sort_order: 0 }]
   );
 
+  // Optional extras ("Option A", "Option B"...). Lines with option_key belong to that option.
+  const [optionKeys, setOptionKeys] = useState<string[]>(() => usedOptionKeys(lineItems, project?.option_titles));
+  const [optTitles, setOptTitles] = useState<Record<string, string>>(project?.option_titles ?? {});
+  const [optAccepted, setOptAccepted] = useState<string[]>(project?.option_accepted ?? []);
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function addOption() {
+    const next = OPTION_KEYS.find((k) => !optionKeys.includes(k));
+    if (!next) return;
+    setOptionKeys((prev) => [...prev, next]);
+    setLineItems((prev) => [...prev, { part_id: "", qty_m2: 0, note: "", sort_order: prev.length, option_key: next }]);
+  }
+
+  function removeOption(key: string) {
+    const has = lineItems.some((l) => l.option_key === key && l.part_id);
+    if (has && !confirm(`Remove Option ${key} and its lines?`)) return;
+    setOptionKeys((prev) => prev.filter((k) => k !== key));
+    setLineItems((prev) => prev.filter((l) => l.option_key !== key));
+    setOptAccepted((prev) => prev.filter((k) => k !== key));
+    setOptTitles((prev) => {
+      const n = { ...prev };
+      delete n[key];
+      return n;
+    });
+  }
+
+  function toggleOptions(on: boolean) {
+    if (on) addOption();
+    else if (optionKeys.length === 0 || confirm("Remove all optional extras from this quote?")) {
+      setOptionKeys([]);
+      setOptTitles({});
+      setOptAccepted([]);
+      setLineItems((prev) => prev.filter((l) => !l.option_key));
+    }
+  }
 
   function setCustomer(customerId: string) {
     if (customerId === "__new__") {
@@ -257,8 +296,8 @@ export default function QuoteEditor({
     setLineItems((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   }
 
-  function addLine() {
-    setLineItems((prev) => [...prev, { part_id: "", qty_m2: 0, note: "", sort_order: prev.length }]);
+  function addLine(key: string | null = null) {
+    setLineItems((prev) => [...prev, { part_id: "", qty_m2: 0, note: "", sort_order: prev.length, ...(key ? { option_key: key } : {}) }]);
   }
 
   function removeLine(idx: number) {
@@ -281,10 +320,19 @@ export default function QuoteEditor({
     const discountAmount = grossCharge * (customerDiscountPct / 100);
     return { ...l, ...c, grossCharge, discountAmount, tierMissing };
   });
-  const materialCost = computedLines.reduce((s, l) => s + l.materialCost, 0);
-  const labourCost = isSupplyOnly ? 0 : computedLines.reduce((s, l) => s + l.labourCost, 0);
-  const chargeBeforeMarkup = computedLines.reduce((s, l) => s + l.grossCharge, 0);
-  const customerDiscountTotal = computedLines.reduce((s, l) => s + l.discountAmount, 0);
+  const mainLines = computedLines.filter((l) => !l.option_key);
+  const materialCost = mainLines.reduce((s, l) => s + l.materialCost, 0);
+  const labourCost = isSupplyOnly ? 0 : mainLines.reduce((s, l) => s + l.labourCost, 0);
+  const chargeBeforeMarkup = mainLines.reduce((s, l) => s + l.grossCharge, 0);
+  const customerDiscountTotal = mainLines.reduce((s, l) => s + l.discountAmount, 0);
+  // Per-option totals (customer discount applies; the flat discount/markup above is main-quote only).
+  const optionTotals = Object.fromEntries(
+    optionKeys.map((k) => {
+      const ls = computedLines.filter((l) => l.option_key === k);
+      const sub = ls.reduce((a, l) => a + l.grossCharge - l.discountAmount, 0);
+      return [k, { sub, gst: sub * 0.1, total: sub * 1.1, cost: ls.reduce((a, l) => a + l.materialCost + (isSupplyOnly ? 0 : l.labourCost), 0) }];
+    })
+  );
   const adjustmentAmount =
     adjustMode === "percent" ? Math.round(chargeBeforeMarkup * (adjustPercent / 100) * 100) / 100 : Number(form.quote_markup || 0);
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount;
@@ -292,6 +340,9 @@ export default function QuoteEditor({
   const total = subtotal + gst;
   const profit = subtotal - materialCost - labourCost;
   const marginPct = subtotal ? (profit / subtotal) * 100 : 0;
+  const acceptedOptKeys = optionKeys.filter((k) => optAccepted.includes(k));
+  const acceptedOptSub = acceptedOptKeys.reduce((a, k) => a + optionTotals[k].sub, 0);
+  const grandTotal = (subtotal + acceptedOptSub) * 1.1;
 
   async function save() {
     if (!form.customer_id) {
@@ -317,6 +368,10 @@ export default function QuoteEditor({
       quote_markup: adjustmentAmount,
       show_qty_on_quote: form.show_qty_on_quote,
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
+      // Only sent when options are in use, so quotes still save before the option columns exist.
+      ...(optionKeys.length > 0 || project?.option_titles || project?.option_accepted?.length
+        ? { option_titles: optTitles, option_accepted: optAccepted.filter((k) => optionKeys.includes(k)) }
+        : {}),
     };
 
     let projectId = project?.id;
@@ -375,6 +430,7 @@ export default function QuoteEditor({
         qty_m2: Number(l.qty_m2) || 0,
         note: l.note || null,
         sort_order: idx,
+        ...(l.option_key ? { option_key: l.option_key } : {}),
       }));
 
     if (rowsToInsert.length > 0) {
@@ -412,6 +468,104 @@ export default function QuoteEditor({
     router.push("/dashboard/quotes");
     router.refresh();
   }
+
+  const lineTable = (optKey: string | null) => (
+        <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
+          <table className="w-full whitespace-nowrap text-sm">
+            <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
+              <tr>
+                <th className="px-3 py-2">Product</th>
+                <th className="px-3 py-2">Qty (m²)</th>
+                <th className="px-3 py-2">Packs</th>
+                <th className="px-3 py-2 text-right">Price</th>
+                <th className="px-3 py-2">Note</th>
+                <th className="px-3 py-2 text-right">Charge</th>
+                <th className="px-3 py-2 text-right">Cust. discount</th>
+                <th className="px-3 py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {computedLines.map((l, idx) =>
+                (l.option_key ?? null) !== optKey ? null : (
+                <tr key={idx} className="border-t border-[var(--border)]">
+                  <td className="px-3 py-2">
+                    <select
+                      className="rounded-lg border border-[var(--border)] px-2 py-1.5"
+                      value={l.part_id || ""}
+                      onChange={(e) => updateLine(idx, { part_id: e.target.value })}
+                    >
+                      <option value="">Select product...</option>
+                      {parts.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-24 rounded-lg border border-[var(--border)] px-2 py-1.5"
+                      value={l.qty_m2}
+                      onChange={(e) => updateLine(idx, { qty_m2: Number(e.target.value) })}
+                    />
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[var(--muted)]">{l.packs}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">
+                    {l.part_id && partById[l.part_id] ? (
+                      <>
+                        {fmtCurrency(
+                          isSupplyOnly
+                            ? supplyPackPrice(partById[l.part_id], form.price_tier || null)
+                            : Number(partById[l.part_id].supply_install_rate_per_m2) || 0
+                        )}
+                        <span className="text-xs text-[var(--muted)]">{isSupplyOnly ? " /pack" : " /m²"}</span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-3 py-2">
+                    <input
+                      className="w-[28rem] max-w-full rounded-lg border border-[var(--border)] px-2 py-1.5"
+                      value={l.note || ""}
+                      onChange={(e) => updateLine(idx, { note: e.target.value })}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-right font-medium">
+                    {fmtCurrency(l.grossCharge)}
+                    {isSupplyOnly && l.part_id && partById[l.part_id] && (
+                      <div className="text-xs font-normal text-[var(--muted)]">
+                        {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
+                      </div>
+                    )}
+                    {!isSupplyOnly && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (
+                      <div className="text-xs font-normal text-amber-700">
+                        $0 — set Coverage/pack and Supply+install/m² for this item in Inventory
+                      </div>
+                    )}
+                    {l.tierMissing && (
+                      <div className="text-xs font-normal text-amber-700">
+                        No {tierLabel(form.price_tier).toLowerCase()} price set — using standard
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right text-[var(--muted)]">
+                    {customerDiscountPct > 0 ? `-${fmtCurrency(l.discountAmount)}` : "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              )
+              )}
+            </tbody>
+          </table>
+        </div>
+  );
 
   return (
     <div>
@@ -706,104 +860,66 @@ export default function QuoteEditor({
       <div className="mt-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">Line items</h2>
-          <button onClick={addLine} className="text-sm text-accent hover:underline">
+          <button onClick={() => addLine(null)} className="text-sm text-accent hover:underline">
             + Add line
           </button>
         </div>
+        {lineTable(null)}
+      </div>
 
-        <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
-          <table className="w-full whitespace-nowrap text-sm">
-            <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
-              <tr>
-                <th className="px-3 py-2">Product</th>
-                <th className="px-3 py-2">Qty (m²)</th>
-                <th className="px-3 py-2">Packs</th>
-                <th className="px-3 py-2 text-right">Price</th>
-                <th className="px-3 py-2">Note</th>
-                <th className="px-3 py-2 text-right">Charge</th>
-                <th className="px-3 py-2 text-right">Cust. discount</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {computedLines.map((l, idx) => (
-                <tr key={idx} className="border-t border-[var(--border)]">
-                  <td className="px-3 py-2">
-                    <select
-                      className="rounded-lg border border-[var(--border)] px-2 py-1.5"
-                      value={l.part_id || ""}
-                      onChange={(e) => updateLine(idx, { part_id: e.target.value })}
-                    >
-                      <option value="">Select product...</option>
-                      {parts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="w-24 rounded-lg border border-[var(--border)] px-2 py-1.5"
-                      value={l.qty_m2}
-                      onChange={(e) => updateLine(idx, { qty_m2: Number(e.target.value) })}
-                    />
-                  </td>
-                  <td className="px-3 py-2 font-mono text-[var(--muted)]">{l.packs}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    {l.part_id && partById[l.part_id] ? (
-                      <>
-                        {fmtCurrency(
-                          isSupplyOnly
-                            ? supplyPackPrice(partById[l.part_id], form.price_tier || null)
-                            : Number(partById[l.part_id].supply_install_rate_per_m2) || 0
-                        )}
-                        <span className="text-xs text-[var(--muted)]">{isSupplyOnly ? " /pack" : " /m²"}</span>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      className="w-[28rem] max-w-full rounded-lg border border-[var(--border)] px-2 py-1.5"
-                      value={l.note || ""}
-                      onChange={(e) => updateLine(idx, { note: e.target.value })}
-                    />
-                  </td>
-                  <td className="px-3 py-2 text-right font-medium">
-                    {fmtCurrency(l.grossCharge)}
-                    {isSupplyOnly && l.part_id && partById[l.part_id] && (
-                      <div className="text-xs font-normal text-[var(--muted)]">
-                        {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
-                      </div>
-                    )}
-                    {!isSupplyOnly && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (
-                      <div className="text-xs font-normal text-amber-700">
-                        $0 — set Coverage/pack and Supply+install/m² for this item in Inventory
-                      </div>
-                    )}
-                    {l.tierMissing && (
-                      <div className="text-xs font-normal text-amber-700">
-                        No {tierLabel(form.price_tier).toLowerCase()} price set — using standard
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-right text-[var(--muted)]">
-                    {customerDiscountPct > 0 ? `-${fmtCurrency(l.discountAmount)}` : "—"}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Optional extras */}
+      <div className="mt-6 rounded-xl border border-[var(--border)] p-5">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={optionKeys.length > 0} onChange={(e) => toggleOptions(e.target.checked)} />
+          Customer wants optional extras
+          <span className="font-normal text-[var(--muted)]">
+            (shown on the quote as separate options priced on their own, not added to the main total)
+          </span>
+        </label>
+
+        {optionKeys.map((k) => {
+          const ot = optionTotals[k];
+          return (
+            <div key={k} className="mt-5 border-t border-[var(--border)] pt-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-md bg-accent px-2 py-1 text-sm font-bold text-white">Option {k}</span>
+                <input
+                  className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
+                  placeholder="Option name, e.g. Garage ceiling R4.0"
+                  value={optTitles[k] || ""}
+                  onChange={(e) => setOptTitles((prev) => ({ ...prev, [k]: e.target.value }))}
+                />
+                <label className="flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={optAccepted.includes(k)}
+                    onChange={(e) =>
+                      setOptAccepted((prev) => (e.target.checked ? [...prev, k] : prev.filter((x) => x !== k)))
+                    }
+                  />
+                  Accepted
+                </label>
+                <button onClick={() => addLine(k)} className="text-sm text-accent hover:underline">
+                  + Add line
+                </button>
+                <button onClick={() => removeOption(k)} className="text-sm text-[var(--muted)] hover:underline">
+                  Remove option
+                </button>
+              </div>
+              {lineTable(k)}
+              <div className="mt-2 text-right text-sm text-[var(--muted)]">
+                {optionTitle(optTitles, k)}: {fmtCurrency(ot.sub)} ex GST · GST {fmtCurrency(ot.gst)} ·{" "}
+                <span className="font-semibold text-[var(--text)]">{fmtCurrency(ot.total)} inc GST</span>
+              </div>
+            </div>
+          );
+        })}
+
+        {optionKeys.length > 0 && optionKeys.length < OPTION_KEYS.length && (
+          <button onClick={addOption} className="mt-4 text-sm text-accent hover:underline">
+            + Add another option (Option {OPTION_KEYS.find((k) => !optionKeys.includes(k))})
+          </button>
+        )}
       </div>
 
       {/* Discount / markup */}
@@ -900,6 +1016,13 @@ export default function QuoteEditor({
           <div className="text-xs uppercase text-[var(--muted)]">Total payable (inc GST)</div>
           <div className="text-lg font-bold text-accent">{fmtCurrency(total)}</div>
         </div>
+
+        {acceptedOptKeys.length > 0 && (
+          <div className="col-span-2 rounded-lg bg-[#f2f0ec] px-4 py-3 text-sm sm:col-span-3 lg:col-span-6">
+            Main quote plus accepted option{acceptedOptKeys.length > 1 ? "s" : ""} {acceptedOptKeys.join(", ")}:{" "}
+            <span className="font-bold text-accent">{fmtCurrency(grandTotal)} inc GST</span>
+          </div>
+        )}
 
         <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-3 lg:col-span-6">
           <p className="mb-2 text-xs font-medium uppercase text-[var(--muted)]">

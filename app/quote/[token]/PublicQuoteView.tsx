@@ -2,11 +2,13 @@
 
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useState } from "react";
+import { optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 
 type Line = {
   part_id: string | null;
   qty_m2: number;
   note: string | null;
+  option_key?: string | null;
   parts: {
     name: string;
     coverage_m2: number;
@@ -35,6 +37,8 @@ type Project = {
   contact_email: string | null;
   accepted_at: string | null;
   accepted_name: string | null;
+  option_titles?: Record<string, string> | null;
+  option_accepted?: string[] | null;
   customers: { name: string; discount_pct: number | null } | null;
 };
 
@@ -72,11 +76,40 @@ export default function PublicQuoteView({
   });
 
   const customerDiscountPct = project.customers?.discount_pct || 0;
-  const chargeBeforeMarkup = computed.reduce((s, l) => s + l.charge, 0);
+  const mainComputed = computed.filter((l) => !l.option_key);
+  const optionKeys = usedOptionKeys(lines, project.option_titles);
+  const optionData = optionKeys.map((k) => {
+    const ls = computed.filter((l) => l.option_key === k);
+    const sub = ls.reduce((a, l) => a + l.charge, 0) * (1 - customerDiscountPct / 100);
+    return { key: k, lines: ls, sub, gst: sub * 0.1, total: sub * 1.1 };
+  });
+  const chargeBeforeMarkup = mainComputed.reduce((s, l) => s + l.charge, 0);
   const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
+  const [picked, setPicked] = useState<string[]>([]);
+  const alreadyAccepted = project.option_accepted ?? [];
+  const pickedSub = optionData.filter((o) => picked.includes(o.key)).reduce((a, o) => a + o.sub, 0);
+  const payable = total + pickedSub * 1.1;
+
+  const renderRows = (list: typeof computed) =>
+    list.map((l, i) => (
+      <Fragment key={i}>
+        <tr className={l.note ? "" : "border-b border-gray-300"}>
+          <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
+          {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
+          <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
+        </tr>
+        {l.note && (
+          <tr className="border-b border-gray-300">
+            <td colSpan={project.show_qty_on_quote ? 3 : 2} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
+              {l.note}
+            </td>
+          </tr>
+        )}
+      </Fragment>
+    ));
 
   const accepted = acceptedNow || (project.accepted_at ? { accepted_at: project.accepted_at, accepted_name: project.accepted_name || "" } : null);
 
@@ -95,7 +128,7 @@ export default function PublicQuoteView({
       const res = await fetch("/api/quote-accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, name: name.trim() }),
+        body: JSON.stringify({ token, name: name.trim(), options: picked }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -171,23 +204,8 @@ export default function PublicQuoteView({
               </tr>
             </thead>
             <tbody>
-              {computed.map((l, i) => (
-                <Fragment key={i}>
-                  <tr className={l.note ? "" : "border-b border-gray-300"}>
-                    <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
-                    {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-                    <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
-                  </tr>
-                  {l.note && (
-                    <tr className="border-b border-gray-300">
-                      <td colSpan={project.show_qty_on_quote ? 3 : 2} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
-                        {l.note}
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              ))}
-              {computed.length === 0 && (
+              {renderRows(mainComputed)}
+              {mainComputed.length === 0 && (
                 <tr>
                   <td colSpan={project.show_qty_on_quote ? 3 : 2} className="py-6 text-center text-gray-500">
                     No line items.
@@ -218,6 +236,45 @@ export default function PublicQuoteView({
             </div>
           </div>
         </div>
+
+        {optionData.length > 0 && (
+          <div className="mt-6">
+            <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8c887f]">
+              Optional extras — not included in the total above
+            </div>
+            {optionData.map((o) => {
+              const isAccepted = alreadyAccepted.includes(o.key) || (!!accepted && picked.includes(o.key));
+              return (
+                <div key={o.key} className="mt-3 rounded-lg border border-[#e4e1da] p-3">
+                  <div className="flex items-center justify-between gap-3 text-sm font-bold">
+                    <span>{optionTitle(project.option_titles, o.key)}</span>
+                    <span className="whitespace-nowrap">{fmtCurrency(o.total)} inc GST</span>
+                  </div>
+                  <table className="mt-1 w-full text-sm">
+                    <tbody>{renderRows(o.lines)}</tbody>
+                  </table>
+                  <div className="mt-1 text-right text-xs text-[#6b6862]">
+                    {fmtCurrency(o.sub)} + GST {fmtCurrency(o.gst)}
+                  </div>
+                  {accepted ? (
+                    isAccepted && <div className="mt-1 text-xs font-semibold text-green-700">Accepted</div>
+                  ) : (
+                    <label className="mt-2 flex items-center gap-2 text-sm font-medium">
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(o.key)}
+                        onChange={(e) =>
+                          setPicked((prev) => (e.target.checked ? [...prev, o.key] : prev.filter((x) => x !== o.key)))
+                        }
+                      />
+                      Add Option {o.key} to my order
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {termsAndConditions && termsAndConditions.trim() && (
           <div className="mt-6 border-t border-gray-100 pt-4">
@@ -253,7 +310,7 @@ export default function PublicQuoteView({
               <div className="font-semibold text-[#201f1c]">Accept this quote</div>
               <p className="mt-1 text-xs text-[#6b6862]">
                 By typing your name below and ticking the box, you accept this quote and its total of{" "}
-                {fmtCurrency(total)} (including GST), and agree to the terms &amp; conditions above.
+                {fmtCurrency(payable)} (including GST{picked.length > 0 ? `, with option${picked.length > 1 ? "s" : ""} ${picked.join(", ")}` : ""}), and agree to the terms &amp; conditions above.
               </p>
               <div className="mt-3 flex flex-col gap-3">
                 <input

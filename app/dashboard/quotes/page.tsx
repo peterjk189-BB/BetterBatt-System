@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import QuotesList from "./QuotesList";
+import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 
 export default async function QuotesPage() {
   const supabase = await createClient();
@@ -8,14 +9,16 @@ export default async function QuotesPage() {
       .from("projects")
       .select("id, quote_number, customer_id, job_type, category, outcome, suburb, entry_date, quote_markup, archived, customers(name, discount_pct)")
       .order("quote_number", { ascending: false }),
-    supabase.from("project_lines").select("project_id, part_id, qty_m2"),
+    supabase.from("project_lines").select("id, project_id, part_id, qty_m2"),
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
   ]);
+
+  const excluded = await unacceptedOptionLineIds(supabase);
 
   return (
     <QuotesList
       initial={(projects ?? []) as any}
-      lines={lines ?? []}
+      lines={(lines ?? []).filter((l: any) => !excluded.has(l.id))}
       parts={parts ?? []}
     />
   );

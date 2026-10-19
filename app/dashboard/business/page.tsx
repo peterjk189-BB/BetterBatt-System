@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BusinessDashboard from "./BusinessDashboard";
+import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function BusinessPage() {
     supabase
       .from("project_lines")
       .select(
-        "project_id, qty_m2, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
+        "id, project_id, qty_m2, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
       ),
     supabase.from("work_orders").select("id, project_id, archived, completed_date"),
     supabase
@@ -48,9 +49,10 @@ export default async function BusinessPage() {
     supabase.from("subcontractors").select("name, insurance_expiry, archived"),
   ]);
 
+  const excluded = await unacceptedOptionLineIds(supabase);
   const data = {
     projects: projects.data ?? [],
-    projectLines: projectLines.data ?? [],
+    projectLines: (projectLines.data ?? []).filter((l: any) => !excluded.has(l.id)),
     workOrders: workOrders.data ?? [],
     woLines: woLines.data ?? [],
     labourItems: labourItems.data ?? [],

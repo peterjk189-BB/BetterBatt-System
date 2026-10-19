@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
 import WorkOrderEditor from "../WorkOrderEditor";
 import { supplyPackPrice } from "@/lib/priceTiers";
+import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 
 const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
 
@@ -43,14 +44,16 @@ export default async function NewWorkOrderPage({
 
   let prefill = null;
   if (searchParams.project_id) {
-    const [{ data: project }, { data: lines }] = await Promise.all([
+    const [{ data: project }, { data: allLines }, excluded] = await Promise.all([
       supabase
         .from("projects")
         .select("id, quote_number, job_type, quote_markup, price_tier")
         .eq("id", searchParams.project_id)
         .single(),
-      supabase.from("project_lines").select("part_id, qty_m2, note").eq("project_id", searchParams.project_id),
+      supabase.from("project_lines").select("id, part_id, qty_m2, note").eq("project_id", searchParams.project_id),
+      unacceptedOptionLineIds(supabase),
     ]);
+    const lines = (allLines ?? []).filter((l: any) => !excluded.has(l.id));
 
     if (project) {
       const partById = Object.fromEntries((parts ?? []).map((p) => [p.id, p]));

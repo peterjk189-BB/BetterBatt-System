@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { quoteTotals } from "@/lib/quoteTotals";
 import NewInvoice from "./NewInvoice";
+import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
   const supabase = await createClient();
   const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)";
-  const lineSel = "project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
+  const lineSel = "id, project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
   const loadProjects = (cols: string) =>
     supabase.from("projects").select(cols).eq("outcome", "Accepted").eq("archived", false).order("quote_number", { ascending: false });
   const [pr, ln, { data: invoices, error: invErr }, { data: customers }] = await Promise.all([
@@ -30,6 +31,9 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
   }
   if (invErr) problems.push("The invoices table is missing - run migrations 0031, 0032 and 0033 in Supabase.");
   if (pr.error || ln.error) problems.push("Run migration 0027 in Supabase so price tiers are used in quote totals.");
+
+  const excluded = await unacceptedOptionLineIds(supabase);
+  lines = (lines ?? []).filter((l: any) => !excluded.has(l.id));
 
   const items = (projects ?? []).map((p: any) => {
     const t = quoteTotals(p, (lines ?? []).filter((l: any) => l.project_id === p.id) as any);
