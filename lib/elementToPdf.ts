@@ -40,3 +40,16 @@ export async function elementToPdf(
   }
   pdf.save(filename);
 }
+
+/** "Quote Q1006 - Customer - 22 Jenny Court, Boronia.pdf" — drops characters files can't contain. */
+export function pdfFileName(...parts: (string | null | undefined)[]) {
+  const name = parts
+    .map((p) => (p ?? "").toString().trim())
+    .filter(Boolean)
+    .join(" - ")
+    .replace(/[\\/:*?"<>|\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 150);
+  return `${name || "Document"}.pdf`;
+}

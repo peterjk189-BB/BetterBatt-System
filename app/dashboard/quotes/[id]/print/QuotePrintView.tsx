@@ -1,9 +1,9 @@
 "use client";
 
 import { supplyPackPrice } from "@/lib/priceTiers";
-import { Fragment, useRef, useState } from "react";
+import { Fragment, useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { elementToPdf } from "@/lib/elementToPdf";
+import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
 
 type Line = {
   part_id: string | null;
@@ -56,11 +56,21 @@ export default function QuotePrintView({
   // Line prices are hidden by default: only Subtotal / GST / Total show. The button turns them on. Applies to Print and PDF.
   const [hidePrices, setHidePrices] = useState(true);
 
+  // The browser's Print / Save as PDF uses the page title as the file name.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = pdfFileName(`Quote Q${project.quote_number}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")).replace(/\.pdf$/, "");
+    return () => {
+      document.title = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function downloadPdf() {
     if (!printableRef.current) return;
     setDownloading(true);
     try {
-      await elementToPdf(printableRef.current, `Quote-Q${project.quote_number}.pdf`, "portrait");
+      await elementToPdf(printableRef.current, pdfFileName(`Quote Q${project.quote_number}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")), "portrait");
     } finally {
       setDownloading(false);
     }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { lineRate } from "@/lib/woRate";
-import { elementToPdf } from "@/lib/elementToPdf";
+import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
 
 type Line = {
   task_date: string | null;
@@ -49,11 +49,21 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
+  // The browser's Print / Save as PDF uses the page title as the file name.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = pdfFileName(`Work Order ${workOrder.wo_number}`, workOrder.projects?.customers?.name, [workOrder.projects?.address, workOrder.projects?.suburb].filter(Boolean).join(", ")).replace(/\.pdf$/, "");
+    return () => {
+      document.title = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function downloadPdf() {
     if (!printableRef.current) return;
     setDownloading(true);
     try {
-      await elementToPdf(printableRef.current, `WorkOrder-${workOrder.wo_number}.pdf`, "landscape");
+      await elementToPdf(printableRef.current, pdfFileName(`Work Order ${workOrder.wo_number}`, workOrder.projects?.customers?.name, [workOrder.projects?.address, workOrder.projects?.suburb].filter(Boolean).join(", ")), "landscape");
     } finally {
       setDownloading(false);
     }
