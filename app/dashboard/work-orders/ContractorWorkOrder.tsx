@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { lineRate } from "@/lib/woRate";
 import JobProgressStrip from "./JobProgressStrip";
 import type { ProgressInspection, ProgressSwms } from "@/lib/jobProgress";
 
@@ -14,7 +15,8 @@ type WoLine = {
   task_time: string | null;
   completed: boolean | null;
   note: string | null;
-  parts: { name: string } | null;
+  rate?: number | null;
+  parts: { name: string; installer_rate_per_m2?: number | null } | null;
 };
 type Extra = {
   id: string;
@@ -25,6 +27,8 @@ type Extra = {
   status: "Pending" | "Approved" | "Rejected";
   decision_note: string | null;
 };
+
+const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 
 const fmtDate = (d: string | null) =>
   d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" }) : "—";
@@ -84,6 +88,12 @@ export default function ContractorWorkOrder({
     router.refresh();
   }
 
+  const priced = lines.map((l) => {
+    const rate = lineRate(l.rate, null, l.parts?.installer_rate_per_m2 ?? null);
+    return { ...l, rate, amount: (Number(l.qty) || 0) * rate };
+  });
+  const total = priced.reduce((a, l) => a + l.amount, 0);
+
   const input = "rounded-lg border border-[var(--border)] px-3 py-2 text-sm";
   return (
     <div className="mx-auto max-w-3xl">
@@ -109,22 +119,26 @@ export default function ContractorWorkOrder({
       )}
 
       <h2 className="mt-6 text-lg font-bold">Job items</h2>
-      <p className="text-xs text-[var(--muted)]">Set by the office — these can&apos;t be changed here.</p>
+      <p className="text-xs text-[var(--muted)]">Set by the office — these can&apos;t be changed here. Amounts are ex GST.</p>
       <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full text-sm">
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
             <tr>
               <th className="px-3 py-2">Product</th>
               <th className="px-3 py-2 text-right">m²</th>
+              <th className="px-3 py-2 text-right">Rate</th>
+              <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2">Date</th>
               <th className="px-3 py-2">Note</th>
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => (
+            {priced.map((l) => (
               <tr key={l.id} className="border-t border-[var(--border)]">
                 <td className="px-3 py-2">{l.parts?.name || "—"}</td>
                 <td className="px-3 py-2 text-right">{l.qty}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">{money(l.rate)}</td>
+                <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{money(l.amount)}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {fmtDate(l.task_date)}
                   {l.task_time ? ` · ${l.task_time.slice(0, 5)}` : ""}
@@ -134,18 +148,29 @@ export default function ContractorWorkOrder({
             ))}
             {lines.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-[var(--muted)]">
+                <td colSpan={6} className="px-3 py-6 text-center text-[var(--muted)]">
                   No items yet.
                 </td>
               </tr>
             )}
           </tbody>
+          {priced.length > 0 && (
+            <tfoot>
+              <tr className="border-t-2 border-[var(--border)] bg-[#f6f5f2] font-bold">
+                <td className="px-3 py-2" colSpan={3}>
+                  Total (ex GST)
+                </td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">{money(total)}</td>
+                <td colSpan={2}></td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
       <h2 className="mt-8 text-lg font-bold">Extra items you&apos;ve added</h2>
       <p className="text-xs text-[var(--muted)]">
-        Did extra work (call-out, extra bays, etc.)? Add it here. The office checks and approves it before it&apos;s included in your payment.
+        Did extra work (call-out, extra bays, etc.)? Add it here. The office checks and approves it before it&apos;s included in your payment (approved items then appear in the table above).
       </p>
       <div className="mt-2 flex flex-col divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
         {extras.length === 0 && <div className="px-3 py-4 text-sm text-[var(--muted)]">Nothing added.</div>}

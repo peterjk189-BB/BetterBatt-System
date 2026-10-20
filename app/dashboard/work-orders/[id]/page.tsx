@@ -12,11 +12,13 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     const subId = await getEffectiveSubcontractorId();
     const [{ data: wo }, { data: cLines }, { data: cExtras }, { data: cSwms }, { data: cIns }] = await Promise.all([
       supabase.from("work_orders").select("id, wo_number, notes, projects(address, suburb)").eq("id", params.id).single(),
-      supabase
-        .from("work_order_lines")
-        .select("id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name)")
-        .eq("work_order_id", params.id)
-        .order("sort_order"),
+      (async () => {
+        // "rate" only exists once migration 0045 is run: fall back to the product's rate without it.
+        const sel = "id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2)";
+        const r = await supabase.from("work_order_lines").select(sel + ", rate").eq("work_order_id", params.id).order("sort_order");
+        if (!r.error) return r;
+        return supabase.from("work_order_lines").select(sel).eq("work_order_id", params.id).order("sort_order");
+      })(),
       supabase.from("work_order_extras").select("id, description, qty, note, work_date, status, decision_note").eq("work_order_id", params.id).order("created_at"),
       supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
       supabase
