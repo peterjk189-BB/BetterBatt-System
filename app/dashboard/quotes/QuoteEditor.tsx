@@ -450,6 +450,14 @@ export default function QuoteEditor({
       entityId: projectId,
       entityLabel: `Q${quoteNumberForLabel} — ${customerName}`,
     });
+    // Staff just marked the quote Accepted: tell all admin and office users.
+    if (form.outcome === "Accepted" && project?.outcome !== "Accepted") {
+      fetch("/api/quotes/accepted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project_id: projectId }),
+      }).catch(() => {});
+    }
     router.push(`/dashboard/quotes/${projectId}`);
     router.refresh();
   }
