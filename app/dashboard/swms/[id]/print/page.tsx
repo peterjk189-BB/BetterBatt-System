@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole } from "@/lib/currentUser";
 import SwmsPrintView from "./SwmsPrintView";
 
 export default async function SwmsPrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
+  const role = await getEffectiveRole();
   const [{ data: record }, { data: photos }] = await Promise.all([
     supabase.from("swms").select("*, work_orders(wo_number), projects(quote_number)").eq("id", params.id).single(),
     supabase
@@ -15,6 +17,7 @@ export default async function SwmsPrintPage({ params }: { params: { id: string }
   ]);
 
   if (!record) notFound();
+  if (role !== "admin" && role !== "office") (record as any).projects = null;
 
   // swms_section only exists once migration 0042 is run, so it's fetched on its own.
   const sectionById: Record<string, string | null> = {};

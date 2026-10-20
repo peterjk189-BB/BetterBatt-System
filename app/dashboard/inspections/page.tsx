@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole } from "@/lib/currentUser";
 import { jobProgress } from "@/lib/jobProgress";
 import InspectionsList, { type DueJob } from "./InspectionsList";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -12,6 +13,7 @@ export default async function InspectionsPage() {
   } catch {
     // Still show the page; the Calendar reports booking problems.
   }
+  const role = await getEffectiveRole();
   const [{ data: records }, { data: workOrders }, { data: swms }] = await Promise.all([
     supabase
       .from("inspections")
@@ -59,5 +61,7 @@ export default async function InspectionsPage() {
   // Booked ones in date order first, then anything not yet booked.
   due.sort((a, b) => (a.booked?.date || "9999").localeCompare(b.booked?.date || "9999") || (a.since || "").localeCompare(b.since || ""));
 
-  return <InspectionsList initial={(records ?? []) as any} due={due} />;
+  const staff = role === "admin" || role === "office";
+  const rows = (records ?? []).map((r: any) => (staff ? r : { ...r, projects: null }));
+  return <InspectionsList initial={rows as any} due={due} />;
 }

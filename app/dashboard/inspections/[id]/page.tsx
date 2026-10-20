@@ -24,6 +24,8 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
   ]);
 
   if (!record) notFound();
+  // Quote numbers are office-only: contractors never see them.
+  if (role !== "admin" && role !== "office") (record as any).projects = null;
   const { data: subRows } = await supabase.from("subcontractors").select("id, name").eq("archived", false).order("name");
   const { data: staffRows } = await createAdminClient().from("profiles").select("id, full_name").order("full_name");
 

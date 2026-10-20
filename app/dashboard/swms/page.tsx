@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole } from "@/lib/currentUser";
 import SwmsList from "./SwmsList";
 
 export default async function SwmsPage() {
   const supabase = await createClient();
+  const role = await getEffectiveRole();
   const { data: records } = await supabase
     .from("swms")
     .select(
@@ -11,5 +13,7 @@ export default async function SwmsPage() {
     .order("job_date", { ascending: false })
     .order("swms_number", { ascending: false });
 
-  return <SwmsList initial={(records ?? []) as any} />;
+  const staff = role === "admin" || role === "office";
+  const rows = (records ?? []).map((r: any) => (staff ? r : { ...r, projects: null }));
+  return <SwmsList initial={rows as any} />;
 }

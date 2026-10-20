@@ -17,6 +17,8 @@ export default async function SwmsRecordPage({ params }: { params: { id: string 
   ]);
 
   if (!record) notFound();
+  // Quote numbers are office-only: contractors never see them.
+  if (role !== "admin" && role !== "office") (record as any).projects = null;
 
   // swms_section only exists once migration 0042 is run, so it's fetched on its own.
   const sectionById: Record<string, string | null> = {};
