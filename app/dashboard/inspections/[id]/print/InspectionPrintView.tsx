@@ -145,10 +145,13 @@ export default function InspectionPrintView({
   record,
   photos,
   urls,
+  backHref,
 }: {
   record: InspectionRecord & { work_orders?: { wo_number: string } | null; projects?: { quote_number: number } | null };
   photos: InspectionPhoto[];
   urls: Record<string, string>;
+  /** Where "Back" goes; defaults to the inspection editor (staff). */
+  backHref?: string;
 }) {
   const included = SECTIONS.filter((s) => record[s.includeField]);
   const status = INSPECTION_STATUSES.find((s) => s === record.status) || "Draft";
@@ -160,8 +163,8 @@ export default function InspectionPrintView({
         @media print { * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       `}</style>
       <div className="mb-6 flex items-center gap-3 print:hidden">
-        <Link href={`/dashboard/inspections/${record.id}`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
-          &larr; Back to inspection
+        <Link href={backHref || `/dashboard/inspections/${record.id}`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+          &larr; {backHref ? "Back" : "Back to inspection"}
         </Link>
         <button onClick={() => window.print()} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
           Print / Save as PDF

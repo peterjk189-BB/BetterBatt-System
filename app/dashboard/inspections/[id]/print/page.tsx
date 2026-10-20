@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getEffectiveRole } from "@/lib/currentUser";
 import InspectionPrintView from "./InspectionPrintView";
 
 export default async function InspectionPrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
+  const role = await getEffectiveRole();
   const [{ data: record }, { data: photos }] = await Promise.all([
     supabase.from("inspections").select("*, work_orders(wo_number), projects(quote_number)").eq("id", params.id).single(),
     supabase
@@ -15,6 +17,8 @@ export default async function InspectionPrintPage({ params }: { params: { id: st
   ]);
 
   if (!record) notFound();
+  const staff = role === "admin" || role === "office";
+  if (!staff) (record as any).projects = null;
 
   const signed: Record<string, string> = {};
   if (photos && photos.length > 0) {
@@ -25,5 +29,5 @@ export default async function InspectionPrintPage({ params }: { params: { id: st
     for (const s of data ?? []) if (s.path && s.signedUrl) signed[s.path] = s.signedUrl;
   }
 
-  return <InspectionPrintView record={record as any} photos={(photos ?? []) as any} urls={signed} />;
+  return <InspectionPrintView record={record as any} photos={(photos ?? []) as any} urls={signed} backHref={staff ? undefined : (record as any).work_order_id ? `/dashboard/work-orders/${(record as any).work_order_id}` : "/dashboard"} />;
 }

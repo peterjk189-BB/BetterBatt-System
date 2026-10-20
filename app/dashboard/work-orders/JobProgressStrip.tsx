@@ -6,10 +6,13 @@ export default function JobProgressStrip({
   workOrderId,
   swms,
   inspections,
+  canInspect = true,
 }: {
   workOrderId: string;
   swms: ProgressSwms[];
   inspections: ProgressInspection[];
+  /** Staff only. Contractors can read inspection reports but never start or edit them. */
+  canInspect?: boolean;
 }) {
   const p = jobProgress(swms, inspections);
   const completedSwms = p.swms.find((s) => s.status === "Completed") || p.swms[0];
@@ -36,7 +39,7 @@ export default function JobProgressStrip({
         <span key={ins.id} className="inline-flex items-center gap-2">
           {arrow}
           <Link
-            href={`/dashboard/inspections/${ins.id}`}
+            href={canInspect ? `/dashboard/inspections/${ins.id}` : `/dashboard/inspections/${ins.id}/print`}
             className={`${chip} ${
               ins.result === "PASS"
                 ? STAGE_STYLE.passed
@@ -57,7 +60,7 @@ export default function JobProgressStrip({
         </span>
       ))}
 
-      {p.stage === "inspection-due" && (
+      {canInspect && p.stage === "inspection-due" && (
         <>
           {arrow}
           <Link href={`/dashboard/inspections/new?work_order_id=${workOrderId}`} className={`${chip} ${STAGE_STYLE["inspection-due"]}`}>
@@ -65,7 +68,7 @@ export default function JobProgressStrip({
           </Link>
         </>
       )}
-      {p.stage === "reinspection-due" && p.latest && (
+      {canInspect && p.stage === "reinspection-due" && p.latest && (
         <>
           {arrow}
           <Link href={`/dashboard/inspections/new?reinspect=${p.latest.id}`} className={`${chip} border-[#9b1c1c] bg-[#9b1c1c] text-white`}>
@@ -74,7 +77,7 @@ export default function JobProgressStrip({
         </>
       )}
 
-      {p.stage === "passed" && p.latest && (
+      {canInspect && p.stage === "passed" && p.latest && (
         <Link href={`/dashboard/inspections/${p.latest.id}/certificate`} className={`${chip} border-[#201f1c] bg-[var(--brand-gold)] text-[#201f1c]`}>
           Insulation certificate
         </Link>

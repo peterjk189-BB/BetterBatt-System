@@ -46,6 +46,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       labourItems={labourItems ?? []}
       parts={parts ?? []}
       isAdmin={role === "admin"}
+      canInspect={role === "admin" || role === "office"}
       progress={{ swms: (swms ?? []) as any, inspections: (inspections ?? []) as any }}
     />
   );

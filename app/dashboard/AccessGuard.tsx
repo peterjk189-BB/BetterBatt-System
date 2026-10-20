@@ -14,6 +14,9 @@ export default function AccessGuard({ allowedHrefs }: { allowedHrefs: string[] }
 
   useEffect(() => {
     if (!pathname || pathname === "/dashboard") return; // the home page handles its own "no access" message
+    // Anyone may open an inspection report's read-only view (contractors learn from PASS/FAIL reports on their jobs;
+    // the database only returns reports for jobs they're on).
+    if (/^\/dashboard\/inspections\/[0-9a-f-]{36}\/print$/.test(pathname)) return;
     const ok = allowedHrefs.some((href) => pathname === href || pathname.startsWith(href + "/"));
     if (!ok) router.replace("/dashboard");
   }, [pathname, allowedHrefs, router]);

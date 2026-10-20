@@ -76,6 +76,7 @@ export default function WorkOrderEditor({
   labourItems,
   parts,
   isAdmin,
+  canInspect = true,
   progress,
 }: {
   workOrder: WorkOrder | null;
@@ -86,6 +87,8 @@ export default function WorkOrderEditor({
   labourItems: LabourItem[];
   parts: Part[];
   isAdmin: boolean;
+  /** Admin/office only: contractors don't carry out inspections. */
+  canInspect?: boolean;
   /** This work order's SWMS and inspections, for the job progress strip (saved work orders only). */
   progress?: { swms: ProgressSwms[]; inspections: ProgressInspection[] };
 }) {
@@ -625,7 +628,7 @@ export default function WorkOrderEditor({
         </div>
       </div>
 
-      {!isNew && progress && <JobProgressStrip workOrderId={workOrder!.id} swms={progress.swms} inspections={progress.inspections} />}
+      {!isNew && progress && <JobProgressStrip workOrderId={workOrder!.id} swms={progress.swms} inspections={progress.inspections} canInspect={canInspect} />}
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
@@ -724,17 +727,19 @@ export default function WorkOrderEditor({
         {!isNew && workOrder && (
           <div className="flex flex-wrap gap-2 sm:col-span-2">
             <Link
-              href={`/dashboard/swms/new?work_order_id=${workOrder.id}`}
+              href={`/dashboard/swms/new?work_order_id=${workOrder.id}${canInspect ? "" : "&start=1"}`}
               className="inline-block rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
             >
               + Start a digital SWMS / JSA for this work order
             </Link>
-            <Link
-              href={`/dashboard/inspections/new?work_order_id=${workOrder.id}`}
-              className="inline-block rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
-            >
-              + New inspection report
-            </Link>
+            {canInspect && (
+              <Link
+                href={`/dashboard/inspections/new?work_order_id=${workOrder.id}`}
+                className="inline-block rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
+              >
+                + New inspection report
+              </Link>
+            )}
           </div>
         )}
 
