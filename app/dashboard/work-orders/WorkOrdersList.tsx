@@ -37,12 +37,15 @@ export default function WorkOrdersList({
   labourItems,
   swms,
   inspections,
+  isStaff = true,
 }: {
   initial: WorkOrder[];
   lines: Line[];
   labourItems: LabourItem[];
   swms: (ProgressSwms & { work_order_id: string })[];
   inspections: (ProgressInspection & { work_order_id: string })[];
+  /** Admin/office. Contractors can't create work orders and don't see the P/O (customer) value. */
+  isStaff?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -69,7 +72,7 @@ export default function WorkOrdersList({
         w.wo_number.toLowerCase().includes(q) ||
         (w.projects?.customers?.name || "").toLowerCase().includes(q) ||
         (w.subcontractors?.name || "").toLowerCase().includes(q) ||
-        (w.po_number || "").toLowerCase().includes(q) ||
+        (isStaff && (w.po_number || "").toLowerCase().includes(q)) ||
         (w.projects?.address || "").toLowerCase().includes(q) ||
         (w.projects?.suburb || "").toLowerCase().includes(q) ||
         `${w.projects?.address || ""} ${w.projects?.suburb || ""}`.toLowerCase().includes(q)
@@ -85,12 +88,14 @@ export default function WorkOrdersList({
             Purchase orders issued to contractors, with task-by-task completion and pay tracking.
           </p>
         </div>
-        <Link
-          href="/dashboard/work-orders/new"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-        >
-          Add work order
-        </Link>
+        {isStaff && (
+          <Link
+            href="/dashboard/work-orders/new"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+          >
+            Add work order
+          </Link>
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
@@ -113,7 +118,7 @@ export default function WorkOrdersList({
               <th className="px-4 py-2">Customer</th>
               <th className="px-4 py-2">Job</th>
               <th className="px-4 py-2">Contractor</th>
-              <th className="px-4 py-2 text-right">P/O value</th>
+              {isStaff && <th className="px-4 py-2 text-right">P/O value</th>}
               <th className="px-4 py-2 text-right">Tasks</th>
               <th className="px-4 py-2 text-right">Contractor cost</th>
               <th className="px-4 py-2">JSA</th>
@@ -139,7 +144,7 @@ export default function WorkOrdersList({
                     {w.projects ? `${w.projects.address || ""}${w.projects.suburb ? ", " + w.projects.suburb : ""}` : "—"}
                   </td>
                   <td className="px-4 py-2">{w.subcontractors?.name || "Unassigned"}</td>
-                  <td className="px-4 py-2 text-right">{fmtCurrency(w.po_value || 0)}</td>
+                  {isStaff && <td className="px-4 py-2 text-right">{fmtCurrency(w.po_value || 0)}</td>}
                   <td className="px-4 py-2 text-right">{s.count}</td>
                   <td className="px-4 py-2 text-right">{fmtCurrency(s.cost)}</td>
                   <td className="px-4 py-2">

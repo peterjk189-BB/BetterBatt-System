@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import WorkOrdersList from "./WorkOrdersList";
+import { getEffectiveRole } from "@/lib/currentUser";
 
 export default async function WorkOrdersPage() {
   const supabase = await createClient();
+  const role = await getEffectiveRole();
+  const isStaff = role === "admin" || role === "office";
   const [{ data: workOrders }, { data: lines }, { data: labourItems }, { data: swms }, { data: inspections }] = await Promise.all([
     supabase
       .from("work_orders")
@@ -21,11 +24,12 @@ export default async function WorkOrdersPage() {
 
   return (
     <WorkOrdersList
-      initial={(workOrders ?? []) as any}
+      initial={((workOrders ?? []) as any[]).map((w) => (isStaff ? w : { ...w, po_value: null, po_number: null }))}
       lines={lines ?? []}
       labourItems={labourItems ?? []}
       swms={(swms ?? []) as any}
       inspections={(inspections ?? []) as any}
+      isStaff={isStaff}
     />
   );
 }

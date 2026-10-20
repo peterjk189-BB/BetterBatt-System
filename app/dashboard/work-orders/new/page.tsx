@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { getEffectiveRole } from "@/lib/currentUser";
 import WorkOrderEditor from "../WorkOrderEditor";
 import { supplyPackPrice } from "@/lib/priceTiers";
@@ -41,6 +42,8 @@ export default async function NewWorkOrderPage({
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2, installer_rate_per_m2"),
     getEffectiveRole(),
   ]);
+  // Contractors can't create work orders.
+  if (role !== "admin" && role !== "office") redirect("/dashboard/work-orders");
 
   let prefill = null;
   if (searchParams.project_id) {
