@@ -1,10 +1,43 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getEffectiveRole } from "@/lib/currentUser";
+import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
+import ContractorWorkOrder from "../ContractorWorkOrder";
 import WorkOrderEditor from "../WorkOrderEditor";
 
 export default async function WorkOrderPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
+
+  // Contractors get a read-only view of the job plus a form to add extra items (the office approves them).
+  if ((await getEffectiveRole()) === "installer") {
+    const subId = await getEffectiveSubcontractorId();
+    const [{ data: wo }, { data: cLines }, { data: cExtras }, { data: cSwms }, { data: cIns }] = await Promise.all([
+      supabase.from("work_orders").select("id, wo_number, notes, projects(address, suburb)").eq("id", params.id).single(),
+      supabase
+        .from("work_order_lines")
+        .select("id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name)")
+        .eq("work_order_id", params.id)
+        .order("sort_order"),
+      supabase.from("work_order_extras").select("id, description, qty, note, work_date, status, decision_note").eq("work_order_id", params.id).order("created_at"),
+      supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
+      supabase
+        .from("inspections")
+        .select("id, inspection_number, status, result, parent_inspection_id, archived, inspection_date")
+        .eq("work_order_id", params.id),
+    ]);
+    if (!wo) notFound();
+    const proj = (wo as any).projects;
+    return (
+      <ContractorWorkOrder
+        workOrder={{ id: (wo as any).id, wo_number: (wo as any).wo_number, notes: (wo as any).notes }}
+        site={[proj?.address, proj?.suburb].filter(Boolean).join(", ")}
+        lines={((cLines ?? []) as any[]).filter((l) => !subId || !l.subcontractor_id || l.subcontractor_id === subId) as any}
+        extras={(cExtras ?? []) as any}
+        subcontractorId={subId}
+        progress={{ swms: (cSwms ?? []) as any, inspections: (cIns ?? []) as any }}
+      />
+    );
+  }
+
   const [
     { data: workOrder },
     { data: lines },
