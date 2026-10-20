@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
 import CalendarView from "./CalendarView";
+import TodaysJobs from "./TodaysJobs";
 import LiveRefresh from "./LiveRefresh";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookDueInspections } from "@/lib/inspectionPrefill";
@@ -50,9 +51,30 @@ export default async function CalendarPage() {
       ? await supabase.from("work_order_lines").select(WO_LINE_SELECT).eq("subcontractor_id", subId).not("task_date", "is", null).order("task_date")
       : { data: [] };
 
+    // Today's jobs (Melbourne time) get a "Start SWMS" button at the top of the schedule.
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+    const todayLines = ((woLines ?? []) as any[]).filter((l) => l.task_date === today && l.work_orders && !l.work_orders.archived);
+    const woIds = Array.from(new Set(todayLines.map((l) => l.work_order_id as string)));
+    const { data: swmsRows } = woIds.length
+      ? await supabase.from("swms").select("id, status, work_order_id, job_date").in("work_order_id", woIds).eq("archived", false).order("created_at", { ascending: false })
+      : { data: [] as any[] };
+    const todaysJobs = woIds.map((id) => {
+      const l = todayLines.find((x) => x.work_order_id === id);
+      const proj = l?.work_orders?.projects;
+      const sw = (swmsRows ?? []).find((r: any) => r.work_order_id === id && r.job_date === today) || null;
+      return {
+        workOrderId: id,
+        woNumber: String(l?.work_orders?.wo_number ?? ""),
+        site: [proj?.address, proj?.suburb].filter(Boolean).join(", "),
+        customer: proj?.customers?.name ?? "",
+        swms: sw ? { id: sw.id as string, status: sw.status as string } : null,
+      };
+    });
+
     return (
       <>
       <LiveRefresh />
+      <TodaysJobs jobs={todaysJobs} />
       <CalendarView
         woLines={(await withTimes(supabase, woLines as any)) as any}
         pos={[]}

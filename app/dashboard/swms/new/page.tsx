@@ -5,7 +5,7 @@ import SwmsEditor from "../SwmsEditor";
 export default async function NewSwmsPage({
   searchParams,
 }: {
-  searchParams: { work_order_id?: string; project_id?: string };
+  searchParams: { work_order_id?: string; project_id?: string; start?: string };
 }) {
   const supabase = await createClient();
   const role = await getEffectiveRole();
@@ -50,5 +50,5 @@ export default async function NewSwmsPage({
     }
   }
 
-  return <SwmsEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} />;
+  return <SwmsEditor record={null} photos={[]} prefill={prefill} isAdmin={role === "admin"} autoStart={searchParams.start === "1" && !!prefill?.work_order_id} alertOnStart={role === "installer"} />;
 }

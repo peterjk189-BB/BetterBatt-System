@@ -58,11 +58,17 @@ export default function SwmsEditor({
   photos,
   prefill,
   isAdmin,
+  autoStart = false,
+  alertOnStart = false,
 }: {
   record: (SwmsRecord & { work_orders?: { wo_number: string } | null; projects?: { quote_number: number } | null }) | null;
   photos: SwmsPhoto[];
   prefill: { work_order_id?: string; project_id?: string; site_address?: string; suburb?: string; builder_name?: string } | null;
   isAdmin: boolean;
+  /** Opened from the "Start SWMS" button: create it straight away and record where the contractor is. */
+  autoStart?: boolean;
+  /** Alert the office when this SWMS is first created (set for installers). */
+  alertOnStart?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
@@ -98,6 +104,11 @@ export default function SwmsEditor({
   const [error, setError] = useState<string | null>(null);
 
   const creating = useRef<Promise<string | null> | null>(null);
+  const [startInfo, setStartInfo] = useState<{ at: string | null; located: boolean; locating: boolean }>({
+    at: (record as any)?.started_at ?? null,
+    located: typeof (record as any)?.start_lat === "number",
+    locating: false,
+  });
   const firstRender = useRef(true);
   const notified = useRef(false);
 
@@ -107,6 +118,11 @@ export default function SwmsEditor({
   function notifyIfCompleted(swmsId: string, status: string) {
     if (status !== "Completed" || notified.current) return;
     notified.current = true;
+    fetch("/api/swms/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ swms_id: swmsId, event: "completed" }),
+    }).catch(() => {});
     fetch("/api/swms-completed", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -119,6 +135,35 @@ export default function SwmsEditor({
       .catch(() => {
         notified.current = false;
       });
+  }
+
+  // Time + place the SWMS was started, then alert the office. The start time is stamped by the database
+  // when the row is created; location is best-effort (the phone may refuse or have no signal).
+  async function recordStart(swmsId: string, wantLocation: boolean) {
+    let located = false;
+    if (wantLocation && typeof navigator !== "undefined" && navigator.geolocation) {
+      setStartInfo((i) => ({ ...i, locating: true }));
+      const pos = await new Promise<GeolocationPosition | null>((resolve) =>
+        navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 60000,
+        })
+      );
+      if (pos) {
+        const { error: locErr } = await supabase
+          .from("swms")
+          .update({ start_lat: pos.coords.latitude, start_lng: pos.coords.longitude, start_accuracy_m: Math.round(pos.coords.accuracy) })
+          .eq("id", swmsId);
+        located = !locErr;
+      }
+    }
+    setStartInfo({ at: new Date().toISOString(), located, locating: false });
+    fetch("/api/swms/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ swms_id: swmsId, event: "started" }),
+    }).catch(() => {});
   }
 
   function switchJobType(jt: JobType) {
@@ -178,6 +223,7 @@ export default function SwmsEditor({
       setSavedAt(new Date());
       setError(null);
       window.history.replaceState(null, "", `/dashboard/swms/${data.id}`);
+      if (autoStart || alertOnStart) recordStart(data.id, autoStart);
       notifyIfCompleted(data.id, form.status);
       logAudit(supabase, { eventType: "create", entityType: "SWMS/JSA", entityId: data.id, entityLabel: swmsLabel(data) });
       return data.id as string;
@@ -220,6 +266,11 @@ export default function SwmsEditor({
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form, scope, hazards, siteReport, photosChecklist, removal, installers]);
+
+  useEffect(() => {
+    if (autoStart && !record) ensureId();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -317,6 +368,15 @@ export default function SwmsEditor({
             &larr; SWMS / JSA
           </Link>
           <h1 className="mt-1 text-2xl font-bold">{number ? `SWMS${number}` : "New SWMS / JSA"}</h1>
+          {id && (startInfo.at || startInfo.locating) && (
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {startInfo.locating
+                ? "Recording your start time and location…"
+                : `Started ${new Date(startInfo.at as string).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · ${
+                    startInfo.located ? "location recorded" : "no location recorded"
+                  }`}
+            </p>
+          )}
         </div>
         {id && (
           <div className="flex flex-wrap items-center gap-2">
