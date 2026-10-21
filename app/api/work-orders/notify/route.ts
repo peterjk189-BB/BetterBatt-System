@@ -76,6 +76,7 @@ export async function POST(req: Request) {
     }
     for (const [to, first] of Array.from(recipients.entries())) {
       const r = await sendEmail({
+      kind: "jobs",
         to,
         subject: `Job scheduled for you — WO ${wo.wo_number}, ${dateText}`,
         html: brandedEmailHtml({

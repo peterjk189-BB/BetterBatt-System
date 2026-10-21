@@ -19,6 +19,7 @@ export async function POST(req: Request) {
   const { inv } = out;
 
   const res = await sendEmail({
+      kind: "invoices",
     to,
     subject: `Invoice ${invNo(inv.invoice_number)} from Better Batt Insulation`,
     html: brandedEmailHtml({

@@ -66,6 +66,7 @@ export async function POST(req: Request) {
     .map(([k, v]) => `<tr><td style="padding:4px 14px 4px 0;color:#8a8a8a;">${k}</td><td style="padding:4px 0;color:#111418;">${esc(String(v))}</td></tr>`)
     .join("");
   const r = await sendEmail({
+      kind: "jobs",
     to,
     subject: `Inspection ${label} booked for you — ${when}${site ? ", " + site : ""}`,
     html: brandedEmailHtml({

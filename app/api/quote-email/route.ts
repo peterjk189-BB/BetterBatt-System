@@ -37,6 +37,7 @@ export async function POST(req: Request) {
   const customerName = (project.customers as any)?.name || "";
 
   const result = await sendEmail({
+      kind: "quotes",
     to: toEmail,
     subject: `Your quote from Better Batt Insulation (Q${project.quote_number})`,
     html: `

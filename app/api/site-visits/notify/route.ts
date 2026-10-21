@@ -66,6 +66,7 @@ export async function POST(req: Request) {
       const to = target?.user?.email;
       if (!to) continue;
       const r = await sendEmail({
+      kind: "jobs",
         to,
         subject: `Site visit SV${v.visit_number} completed — ${summary}`,
         html: brandedEmailHtml({
@@ -122,6 +123,7 @@ export async function POST(req: Request) {
     .join("");
 
   const result = await sendEmail({
+      kind: "jobs",
     to,
     subject: `Site visit SV${v.visit_number} booked for you — ${when}${site ? ", " + site : ""}`,
     html: brandedEmailHtml({

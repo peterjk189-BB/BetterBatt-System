@@ -68,12 +68,35 @@ export function brandedEmailHtml({
   `;
 }
 
+export type EmailKind = "invoices" | "quotes" | "jobs";
+
+const KIND_DEFAULT_LOCAL: Record<EmailKind, string> = { invoices: "accounts", quotes: "quotes", jobs: "jobs" };
+
+/**
+ * The From address. Invoices, quotes and work order / job emails can each have their own address:
+ * set RESEND_FROM_INVOICES / RESEND_FROM_QUOTES / RESEND_FROM_JOBS, or just set RESEND_FROM on your
+ * verified domain and the system uses accounts@, quotes@ and jobs@ on that same domain automatically.
+ */
+export function fromAddress(kind?: EmailKind): string {
+  const base = process.env.RESEND_FROM || "Better Batt Insulation <onboarding@resend.dev>";
+  if (!kind) return base;
+  const specific = process.env[`RESEND_FROM_${kind.toUpperCase()}`];
+  if (specific) return specific;
+  const m = base.match(/^(.*?)<?([^<>\s@]+)@([^<>\s]+?)>?\s*$/);
+  if (!m || /(^|\.)resend\.dev$/i.test(m[3])) return base;
+  const name = m[1].trim() || "Better Batt Insulation";
+  return `${name} <${KIND_DEFAULT_LOCAL[kind]}@${m[3]}>`;
+}
+
 export async function sendEmail({
   to,
   subject,
   html,
   attachments,
+  kind,
 }: {
+  /** Which address to send from: invoices (accounts@), quotes (quotes@) or jobs (jobs@). */
+  kind?: EmailKind;
   to: string | string[];
   subject: string;
   html: string;
@@ -84,7 +107,7 @@ export async function sendEmail({
   if (!apiKey) {
     return { ok: false, error: "Email sending isn't set up yet (RESEND_API_KEY is missing)." };
   }
-  const from = process.env.RESEND_FROM || "Better Batt Insulation <onboarding@resend.dev>";
+  const from = fromAddress(kind);
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
