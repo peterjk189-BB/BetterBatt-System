@@ -21,6 +21,11 @@ create table if not exists subcontractor_workers (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.subcontractor_workers to authenticated;
+grant select, insert, update, delete on public.subcontractor_workers to service_role;
+
 drop trigger if exists trg_subcontractor_workers_updated_at on subcontractor_workers;
 create trigger trg_subcontractor_workers_updated_at before update on subcontractor_workers
   for each row execute procedure set_updated_at();

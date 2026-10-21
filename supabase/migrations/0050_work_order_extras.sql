@@ -18,6 +18,12 @@ create table if not exists work_order_extras (
   created_by uuid references auth.users(id) on delete set null default auth.uid(),
   created_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.work_order_extras to authenticated;
+grant select, insert, update, delete on public.work_order_extras to service_role;
+
 create index if not exists idx_wo_extras_wo on work_order_extras (work_order_id);
 create index if not exists idx_wo_extras_status on work_order_extras (status);
 

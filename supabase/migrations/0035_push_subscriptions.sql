@@ -11,6 +11,11 @@ create table if not exists push_subscriptions (
   created_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+grant select, insert, update, delete on public.push_subscriptions to service_role;
+
 create index if not exists idx_push_subscriptions_user on push_subscriptions (user_id);
 
 alter table push_subscriptions enable row level security;

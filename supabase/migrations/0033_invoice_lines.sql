@@ -11,6 +11,12 @@ create table if not exists invoice_lines (
   line_ex numeric(12,2) not null default 0,
   sort_order integer not null default 0
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.invoice_lines to authenticated;
+grant select, insert, update, delete on public.invoice_lines to service_role;
+
 create index if not exists idx_invoice_lines_invoice on invoice_lines (invoice_id);
 
 alter table invoice_lines enable row level security;

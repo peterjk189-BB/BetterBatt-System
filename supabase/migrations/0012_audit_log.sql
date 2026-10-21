@@ -13,6 +13,11 @@ create table if not exists audit_log (
   details text
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.audit_log to authenticated;
+grant select, insert, update, delete on public.audit_log to service_role;
+
 create index if not exists audit_log_created_at_idx on audit_log (created_at desc);
 create index if not exists audit_log_user_id_idx on audit_log (user_id);
 create index if not exists audit_log_entity_type_idx on audit_log (entity_type);

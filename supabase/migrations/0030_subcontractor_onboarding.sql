@@ -30,6 +30,11 @@ create table if not exists subcontractor_invites (
   subcontractor_id uuid references subcontractors(id) on delete set null
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.subcontractor_invites to authenticated;
+grant select, insert, update, delete on public.subcontractor_invites to service_role;
+
 create index if not exists idx_sub_invites_status on subcontractor_invites (status);
 
 alter table subcontractor_invites enable row level security;

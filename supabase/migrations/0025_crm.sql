@@ -10,6 +10,7 @@
 -- Editor. Safe to re-run.
 
 create sequence if not exists crm_lead_number_seq start 1;
+grant usage, select on sequence public.crm_lead_number_seq to authenticated, service_role;
 
 create table if not exists crm_leads (
   id uuid primary key default gen_random_uuid(),
@@ -36,6 +37,11 @@ create table if not exists crm_leads (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.crm_leads to authenticated;
+grant select, insert, update, delete on public.crm_leads to service_role;
+
 drop trigger if exists trg_crm_leads_updated_at on crm_leads;
 create trigger trg_crm_leads_updated_at before update on crm_leads
   for each row execute procedure set_updated_at();
@@ -61,6 +67,11 @@ create table if not exists crm_tasks (
   created_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.crm_tasks to authenticated;
+grant select, insert, update, delete on public.crm_tasks to service_role;
+
 create index if not exists idx_crm_tasks_open on crm_tasks (assigned_to, due_date) where not done;
 create index if not exists idx_crm_tasks_lead on crm_tasks (lead_id);
 create index if not exists idx_crm_tasks_customer on crm_tasks (customer_id);
@@ -74,6 +85,11 @@ create table if not exists crm_activity (
   created_by uuid references profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.crm_activity to authenticated;
+grant select, insert, update, delete on public.crm_activity to service_role;
 
 create index if not exists idx_crm_activity_lead on crm_activity (lead_id, created_at desc);
 create index if not exists idx_crm_activity_customer on crm_activity (customer_id, created_at desc);

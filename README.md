@@ -73,3 +73,19 @@ layout as the old form.
 Supabase SQL Editor. Admin and office users get the tab automatically; to let
 an estimator or installer do visits, tick **Site Visits** for them on the
 Users page (the database checks that tick too).
+
+## Database grants (required for every new table)
+
+From 30 Oct 2026 Supabase no longer auto-grants Data API access to new tables
+in `public`. Every migration that creates a table must grant access in the
+same file, or the app gets "permission denied":
+
+```sql
+grant select, insert, update, delete on public.<table> to authenticated;
+grant select, insert, update, delete on public.<table> to service_role;
+-- and for any new sequence:
+grant usage, select on sequence public.<seq> to authenticated, service_role;
+```
+
+No `anon` grant — nothing in Coverage reads tables without a login (the public
+quote page uses the service-role client). Keep row level security on as well.

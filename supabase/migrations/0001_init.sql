@@ -35,6 +35,11 @@ create table if not exists profiles (
   created_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.profiles to authenticated;
+grant select, insert, update, delete on public.profiles to service_role;
+
 create or replace function is_admin()
 returns boolean
 language sql
@@ -95,6 +100,11 @@ create table if not exists app_settings (
   value text not null
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.app_settings to authenticated;
+grant select, insert, update, delete on public.app_settings to service_role;
+
 insert into app_settings (key, value) values ('gst_rate', '0.10')
   on conflict (key) do nothing;
 
@@ -126,6 +136,11 @@ create table if not exists customers (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.customers to authenticated;
+grant select, insert, update, delete on public.customers to service_role;
+
 drop trigger if exists trg_customers_updated_at on customers;
 create trigger trg_customers_updated_at before update on customers
   for each row execute procedure set_updated_at();
@@ -151,6 +166,11 @@ create table if not exists subcontractors (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.subcontractors to authenticated;
+grant select, insert, update, delete on public.subcontractors to service_role;
 
 drop trigger if exists trg_subcontractors_updated_at on subcontractors;
 create trigger trg_subcontractors_updated_at before update on subcontractors
@@ -182,6 +202,11 @@ create table if not exists suppliers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.suppliers to authenticated;
+grant select, insert, update, delete on public.suppliers to service_role;
 
 drop trigger if exists trg_suppliers_updated_at on suppliers;
 create trigger trg_suppliers_updated_at before update on suppliers
@@ -215,6 +240,11 @@ create table if not exists parts (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.parts to authenticated;
+grant select, insert, update, delete on public.parts to service_role;
+
 drop trigger if exists trg_parts_updated_at on parts;
 create trigger trg_parts_updated_at before update on parts
   for each row execute procedure set_updated_at();
@@ -238,6 +268,11 @@ create table if not exists labour_items (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.labour_items to authenticated;
+grant select, insert, update, delete on public.labour_items to service_role;
+
 drop trigger if exists trg_labour_items_updated_at on labour_items;
 create trigger trg_labour_items_updated_at before update on labour_items
   for each row execute procedure set_updated_at();
@@ -252,6 +287,7 @@ create policy "labour_items: admin full access" on labour_items
 -- ============================================================================
 
 create sequence if not exists quote_number_seq start 1001;
+grant usage, select on sequence public.quote_number_seq to authenticated, service_role;
 
 create table if not exists projects (
   id uuid primary key default gen_random_uuid(),
@@ -275,6 +311,11 @@ create table if not exists projects (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.projects to authenticated;
+grant select, insert, update, delete on public.projects to service_role;
+
 drop trigger if exists trg_projects_updated_at on projects;
 create trigger trg_projects_updated_at before update on projects
   for each row execute procedure set_updated_at();
@@ -292,6 +333,11 @@ create table if not exists project_lines (
   note text,
   sort_order integer not null default 0
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.project_lines to authenticated;
+grant select, insert, update, delete on public.project_lines to service_role;
 
 alter table project_lines enable row level security;
 drop policy if exists "project_lines: admin full access" on project_lines;
@@ -318,6 +364,11 @@ create table if not exists work_orders (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.work_orders to authenticated;
+grant select, insert, update, delete on public.work_orders to service_role;
+
 drop trigger if exists trg_work_orders_updated_at on work_orders;
 create trigger trg_work_orders_updated_at before update on work_orders
   for each row execute procedure set_updated_at();
@@ -343,6 +394,11 @@ create table if not exists work_order_lines (
   note text,
   sort_order integer not null default 0
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.work_order_lines to authenticated;
+grant select, insert, update, delete on public.work_order_lines to service_role;
 
 alter table work_order_lines enable row level security;
 drop policy if exists "work_order_lines: admin full access" on work_order_lines;
@@ -374,6 +430,11 @@ create table if not exists purchase_orders (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.purchase_orders to authenticated;
+grant select, insert, update, delete on public.purchase_orders to service_role;
+
 drop trigger if exists trg_purchase_orders_updated_at on purchase_orders;
 create trigger trg_purchase_orders_updated_at before update on purchase_orders
   for each row execute procedure set_updated_at();
@@ -393,6 +454,11 @@ create table if not exists purchase_order_lines (
   received_pks numeric(10,2) not null default 0,
   unit_cost numeric(10,2)
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.purchase_order_lines to authenticated;
+grant select, insert, update, delete on public.purchase_order_lines to service_role;
 
 alter table purchase_order_lines enable row level security;
 drop policy if exists "purchase_order_lines: admin full access" on purchase_order_lines;
@@ -414,6 +480,11 @@ create table if not exists attachments (
   uploaded_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.attachments to authenticated;
+grant select, insert, update, delete on public.attachments to service_role;
 
 alter table attachments enable row level security;
 drop policy if exists "attachments: admin full access" on attachments;

@@ -9,6 +9,11 @@ create table if not exists company_settings (
   constraint company_settings_singleton check (id)
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.company_settings to authenticated;
+grant select, insert, update, delete on public.company_settings to service_role;
+
 alter table company_settings enable row level security;
 
 -- Any signed-in staff member can read the settings (so the terms render on

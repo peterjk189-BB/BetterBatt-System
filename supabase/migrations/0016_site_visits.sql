@@ -13,6 +13,7 @@
 -- Run once in Supabase -> SQL Editor. Safe to re-run.
 
 create sequence if not exists site_visit_number_seq start 1;
+grant usage, select on sequence public.site_visit_number_seq to authenticated, service_role;
 
 create table if not exists site_visits (
   id uuid primary key default gen_random_uuid(),
@@ -35,6 +36,11 @@ create table if not exists site_visits (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.site_visits to authenticated;
+grant select, insert, update, delete on public.site_visits to service_role;
 
 drop trigger if exists trg_site_visits_updated_at on site_visits;
 create trigger trg_site_visits_updated_at before update on site_visits

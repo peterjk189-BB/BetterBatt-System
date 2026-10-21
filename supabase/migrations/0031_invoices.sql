@@ -2,6 +2,7 @@
 -- and a QuickBooks Desktop (IIF) export flag. Run once in Supabase -> SQL Editor. Safe to re-run.
 
 create sequence if not exists invoice_number_seq start 1001;
+grant usage, select on sequence public.invoice_number_seq to authenticated, service_role;
 
 create table if not exists invoices (
   id uuid primary key default gen_random_uuid(),
@@ -27,6 +28,11 @@ create table if not exists invoices (
   updated_at timestamptz not null default now()
 );
 
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.invoices to authenticated;
+grant select, insert, update, delete on public.invoices to service_role;
+
 drop trigger if exists trg_invoices_updated_at on invoices;
 create trigger trg_invoices_updated_at before update on invoices
   for each row execute procedure set_updated_at();
@@ -44,6 +50,12 @@ create table if not exists invoice_payments (
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+-- Data API access (Supabase no longer auto-grants new tables from 2026-10-30).
+-- No anon grant: Coverage never reads tables without a login.
+grant select, insert, update, delete on public.invoice_payments to authenticated;
+grant select, insert, update, delete on public.invoice_payments to service_role;
+
 create index if not exists idx_invoice_payments_invoice on invoice_payments (invoice_id);
 
 alter table invoices enable row level security;
