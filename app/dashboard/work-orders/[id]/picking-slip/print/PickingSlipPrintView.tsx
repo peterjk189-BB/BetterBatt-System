@@ -24,7 +24,7 @@ type WorkOrder = {
 };
 
 export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: WorkOrder; lines: Line[] }) {
-  const today = new Date().toLocaleDateString("en-AU", { weekday: "long", day: "2-digit", month: "short", year: "numeric" });
+  const today = new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
     <div>
@@ -46,12 +46,13 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
       <style jsx global>{`
         @media print {
           @page {
-            size: A4 portrait;
+            size: A4 landscape;
+            margin: 10mm;
           }
         }
       `}</style>
 
-      <div className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0">
+      <div className="mx-auto max-w-5xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0">
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -76,7 +77,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3 text-base">
+        <div className="mt-4 grid grid-cols-2 gap-3 text-base">
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">Job</div>
             <div className="mt-0.5 font-semibold">
@@ -97,10 +98,6 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                   })
                 : "Not set"}
             </div>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Date printed</div>
-            <div className="mt-0.5 font-semibold">{today}</div>
           </div>
         </div>
 
@@ -126,7 +123,6 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                   <td className="px-2 py-2 font-medium">
                     {l.parts.name}
                     {packPerMulti > 1 && <span className="ml-1 font-normal text-gray-400">({packPerMulti}/multi)</span>}
-                    {l.note && <div className="text-xs font-normal text-gray-500">{l.note}</div>}
                   </td>
                   <td className="px-2 py-2 text-right font-semibold">{needed} pack{needed === 1 ? "" : "s"}</td>
                   <td className="px-2 py-2 text-right text-gray-600">{Number(l.parts.stock_on_hand ?? 0)}</td>
@@ -155,7 +151,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
         </table>
 
         <div className="mt-6 flex justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
-          <span>Better Batt Insulation</span>
+          <span>Better Batt Insulation · printed {today}</span>
           <span>Picked by: _______________________</span>
         </div>
       </div>
