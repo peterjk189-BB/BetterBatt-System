@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -225,6 +225,12 @@ export default function QuoteEditor({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-save (existing quotes only): a few seconds after you stop typing, changes are saved quietly.
+  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted]);
+  const [savedSnap, setSavedSnap] = useState(snapshot);
+  const saveRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
+  const savingRef = useRef(false);
+
   function addOption() {
     const next = OPTION_KEYS.find((k) => !optionKeys.includes(k));
     if (!next) return;
@@ -344,11 +350,14 @@ export default function QuoteEditor({
   const acceptedOptSub = acceptedOptKeys.reduce((a, k) => a + optionTotals[k].sub, 0);
   const grandTotal = (subtotal + acceptedOptSub) * 1.1;
 
-  async function save() {
+  async function save(silent = false) {
     if (!form.customer_id) {
-      setError("Please select a customer.");
+      if (!silent) setError("Please select a customer.");
       return;
     }
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSavedSnap(snapshot);
     setSaving(true);
     setError(null);
 
@@ -382,6 +391,8 @@ export default function QuoteEditor({
       if (insertErr || !data) {
         setError(insertErr?.message || "Failed to create quote.");
         setSaving(false);
+        savingRef.current = false;
+        setSavedSnap("");
         return;
       }
       projectId = data.id;
@@ -416,6 +427,8 @@ export default function QuoteEditor({
       if (updateErr) {
         setError(updateErr.message);
         setSaving(false);
+        savingRef.current = false;
+        setSavedSnap("");
         return;
       }
       // Clear existing lines, then re-insert the current set (simplest way to keep this in sync).
@@ -438,18 +451,23 @@ export default function QuoteEditor({
       if (linesErr) {
         setError(linesErr.message);
         setSaving(false);
+        savingRef.current = false;
+        setSavedSnap("");
         return;
       }
     }
 
     setSaving(false);
+    savingRef.current = false;
     const customerName = customerList.find((c) => c.id === form.customer_id)?.name || "—";
-    logAudit(supabase, {
-      eventType: isNew ? "create" : "update",
-      entityType: "quote",
-      entityId: projectId,
-      entityLabel: `Q${quoteNumberForLabel} — ${customerName}`,
-    });
+    if (!silent) {
+      logAudit(supabase, {
+        eventType: isNew ? "create" : "update",
+        entityType: "quote",
+        entityId: projectId,
+        entityLabel: `Q${quoteNumberForLabel} — ${customerName}`,
+      });
+    }
     // Staff just marked the quote Accepted: tell all admin and office users.
     if (form.outcome === "Accepted" && project?.outcome !== "Accepted") {
       fetch("/api/quotes/accepted", {
@@ -458,9 +476,27 @@ export default function QuoteEditor({
         body: JSON.stringify({ project_id: projectId }),
       }).catch(() => {});
     }
+    if (silent) return;
     router.push(`/dashboard/quotes/${projectId}`);
     router.refresh();
   }
+  saveRef.current = save;
+
+  const dirty = snapshot !== savedSnap;
+  useEffect(() => {
+    if (isNew || !dirty || saving) return;
+    const t = setTimeout(() => saveRef.current(true), 2500);
+    return () => clearTimeout(t);
+  }, [snapshot, dirty, saving, isNew]);
+  useEffect(() => {
+    if (isNew || !dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, isNew]);
 
   async function toggleArchive() {
     if (!project) return;
@@ -636,8 +672,13 @@ export default function QuoteEditor({
               Create invoice
             </Link>
           )}
+          {!isNew && (
+            <span className="text-xs text-[var(--muted)]">
+              {saving ? "Saving..." : error ? "Not saved" : dirty ? "Unsaved changes" : "All changes saved"}
+            </span>
+          )}
           <button
-            onClick={save}
+            onClick={() => save()}
             disabled={saving}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
