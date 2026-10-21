@@ -503,12 +503,22 @@ export default function CalendarView({
     setCenterWeekStart((prev) => addDays(prev, n * 7));
   }
 
+  const [fullScreen, setFullScreen] = useState(false);
+  useEffect(() => {
+    if (!fullScreen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setFullScreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullScreen]);
+
   function goToday() {
     setCenterWeekStart(mondayOf(new Date()));
   }
 
   return (
-    <div>
+    <div className={fullScreen ? "fixed inset-0 z-[45] overflow-auto bg-[var(--bg)] p-4" : ""}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Calendar</h1>
         <div className="flex items-center gap-2">
@@ -543,6 +553,14 @@ export default function CalendarView({
             className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-accent"
           >
             Next week &rarr;
+          </button>
+          <button
+            onClick={() => setFullScreen((f) => !f)}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+              fullScreen ? "bg-[#201f1c] text-white" : "border border-[var(--border)] hover:border-accent"
+            }`}
+          >
+            {fullScreen ? "Exit full screen (Esc)" : "⛶ Full screen"}
           </button>
         </div>
       </div>
