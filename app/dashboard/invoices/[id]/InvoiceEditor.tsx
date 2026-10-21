@@ -74,6 +74,30 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     await syncTotals(next);
   }
 
+  /** Changing the price point re-prices the inventory lines already on the draft. */
+  async function changeTier(nextTier: string) {
+    setTier(nextTier);
+    if (!draft) return;
+    const priced = lines.filter((l) => l.part_id && parts.some((p) => p.id === l.part_id));
+    if (priced.length === 0) return;
+    const next: InvoiceLine[] = [];
+    for (const l of lines) {
+      const part = l.part_id ? parts.find((p) => p.id === l.part_id) : undefined;
+      if (!part) {
+        next.push(l);
+        continue;
+      }
+      const unit = round2(supplyPackPrice(part, nextTier === "standard" ? null : nextTier));
+      const merged = { ...l, unit_price: unit, line_ex: round2(Number(l.qty || 0) * unit) };
+      const { error } = await supabase.from("invoice_lines").update({ unit_price: merged.unit_price, line_ex: merged.line_ex }).eq("id", l.id);
+      if (error) return setMsg({ ok: false, text: error.message });
+      next.push(merged);
+    }
+    setLines(next);
+    await syncTotals(next);
+    setMsg({ ok: true, text: `Re-priced ${priced.length} line${priced.length === 1 ? "" : "s"} to the ${PRICE_TIERS.find((t) => t.value === nextTier)?.label ?? nextTier} price point.` });
+  }
+
   async function removeLine(l: InvoiceLine) {
     const { error } = await supabase.from("invoice_lines").delete().eq("id", l.id);
     if (error) return setMsg({ ok: false, text: error.message });
@@ -390,12 +414,12 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                   </ul>
                 )}
               </div>
-              <select className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-sm" value={tier} onChange={(e) => setTier(e.target.value)}>
+              <select className="rounded-lg border border-[var(--border)] bg-white px-2 py-2 text-sm" value={tier} onChange={(e) => changeTier(e.target.value)}>
                 <option value="standard">Standard price</option>
                 {PRICE_TIERS.map((t) => (<option key={t.value} value={t.value}>{t.label} price</option>))}
               </select>
             </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">Pick the price point first, then tap an item in the list (or press Enter to add the top match). The price point is applied when you add an item (a price left at $0 on the item falls back to Standard). You can edit the price or quantity on the line.</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">Tap an item in the list (or press Enter to add the top match). Changing the price point re-prices every inventory line already on the draft (a price left at $0 on the item falls back to Standard). You can still edit the price or quantity on a line afterwards.</p>
           </div>
         ) : (
           lines.length === 0 && <p className="mt-2 text-xs text-[var(--muted)]">No items on this invoice.</p>
