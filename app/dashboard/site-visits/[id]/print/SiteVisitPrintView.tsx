@@ -261,6 +261,7 @@ export default function SiteVisitPrintView({
             <Group label="Quoting">
               <Pill on={c.quote_ceiling}>Ceiling batts</Pill>
               <Pill on={c.quote_underfloor}>Underfloor batts</Pill>
+              <Pill on={c.quote_walls}>Wall batts</Pill>
             </Group>
             <Group label="Roof">
               {ROOF_TYPES.map((o) => <Pill key={o} on={c.roof.includes(o)}>{o}</Pill>)}
@@ -301,6 +302,27 @@ export default function SiteVisitPrintView({
             {c.power_isolation_explained ? "✓ " : "☐ "}
             <strong>Explained to the customer</strong> that the power is isolated while we install in the ceiling space.
           </div>
+        </Card>
+
+        <Card title="Wall batts">
+          <Grid cols={4}>
+            <Field span={1} label="External GF m²" value={c.wall_ext_gf_m2} />
+            <Field span={1} label="GF batt size" value={c.wall_ext_gf_size} />
+            <Field span={1} label="External FF m²" value={c.wall_ext_ff_m2} />
+            <Field span={1} label="FF batt size" value={c.wall_ext_ff_size} />
+            <Field span={1} label="External R rating" value={c.wall_r_rating} />
+            <Field span={1} label="Internal / acoustic m²" value={c.wall_int_m2} />
+            <Field span={1} label="Internal R rating" value={c.wall_int_r_rating} />
+          </Grid>
+          <Group label="Suitability">
+            <Pill on={c.wall_suitability.includes("Mixed")}>Mixed</Pill>
+          </Group>
+          <Group label="Wall access">
+            {ACCESS_LEVELS.map((o) => <Pill key={o} on={c.wall_access.includes(o)}>{o}</Pill>)}
+          </Group>
+          <Grid cols={4}>
+            <Field span={4} label="Notes" value={c.wall_notes} />
+          </Grid>
         </Card>
 
         <Card title="Underfloor batts">

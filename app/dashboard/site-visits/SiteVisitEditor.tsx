@@ -17,6 +17,7 @@ import {
   ACCESS_LEVELS,
   CEILING_EXISTING,
   CEILING_METHODS,
+  WALL_BATT_SIZES,
   CEILING_SUITABILITY,
   EMPTY_CHECKLIST,
   ROOF_TYPES,
@@ -775,6 +776,9 @@ export default function SiteVisitEditor({
             <Toggle on={checklist.quote_underfloor} onClick={() => setC("quote_underfloor", !checklist.quote_underfloor)}>
               Underfloor batts
             </Toggle>
+            <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
+              Wall batts
+            </Toggle>
           </Group>
           <Group label="Roof">
             {ROOF_TYPES.map((o) => (
@@ -900,6 +904,66 @@ export default function SiteVisitEditor({
             <strong>Explained to the customer</strong> that the power is isolated while we install in the ceiling space.
           </span>
         </label>
+      </Section>
+
+      {/* Walls */}
+      <Section title="Wall batts" muted={!checklist.quote_walls} hint={!checklist.quote_walls ? "Tick Wall batts above if you're quoting walls." : undefined}>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="External walls GF m²">
+            <M2Input value={checklist.wall_ext_gf_m2} onChange={(v) => setC("wall_ext_gf_m2", v)} />
+          </Field>
+          <Field label="GF batt size">
+            <select className={inputCls} value={checklist.wall_ext_gf_size} onChange={(e) => setC("wall_ext_gf_size", e.target.value)}>
+              <option value="">Select...</option>
+              {WALL_BATT_SIZES.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="External walls FF m²">
+            <M2Input value={checklist.wall_ext_ff_m2} onChange={(v) => setC("wall_ext_ff_m2", v)} />
+          </Field>
+          <Field label="FF batt size">
+            <select className={inputCls} value={checklist.wall_ext_ff_size} onChange={(e) => setC("wall_ext_ff_size", e.target.value)}>
+              <option value="">Select...</option>
+              {WALL_BATT_SIZES.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="External R rating">
+            <input className={inputCls} placeholder="e.g. R2.5" value={checklist.wall_r_rating} onChange={(e) => setC("wall_r_rating", e.target.value)} />
+          </Field>
+          <Field label="Internal / acoustic walls m²">
+            <M2Input value={checklist.wall_int_m2} onChange={(v) => setC("wall_int_m2", v)} />
+          </Field>
+          <Field label="Internal R rating">
+            <input className={inputCls} placeholder="e.g. R2.7" value={checklist.wall_int_r_rating} onChange={(e) => setC("wall_int_r_rating", e.target.value)} />
+          </Field>
+        </div>
+        <div className="mt-4 flex flex-col gap-4">
+          <Group label="Suitability">
+            {CEILING_SUITABILITY.map((o) => (
+              <Toggle key={o} on={checklist.wall_suitability.includes(o)} onClick={() => toggleIn("wall_suitability", o)}>
+                {o}
+              </Toggle>
+            ))}
+          </Group>
+          <Group label="Wall access">
+            {ACCESS_LEVELS.map((o) => (
+              <Toggle key={o} tone={accessTone(o)} on={checklist.wall_access.includes(o)} onClick={() => toggleIn("wall_access", o)}>
+                {o}
+              </Toggle>
+            ))}
+          </Group>
+          <Field label="Wall notes">
+            <textarea rows={3} className={inputCls} value={checklist.wall_notes} onChange={(e) => setC("wall_notes", e.target.value)} placeholder="e.g. Stud spacing 450 downstairs, 600 upstairs. Double layer to M1 walls." />
+          </Field>
+        </div>
       </Section>
 
       {/* Underfloor */}

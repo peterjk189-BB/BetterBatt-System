@@ -37,9 +37,12 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
       const c = normaliseChecklist(v.checklist);
       const linked = (customers ?? []).find((x) => x.id === v.customer_id);
       const product = c.underfloor_products[0] || "";
-      const wanted: { label: string; qty: number }[] = [
+      const wanted: { label: string; qty: number; note?: string }[] = [
         { label: `${c.ceiling_r_rating} 430`, qty: num(c.ceiling_430_m2) },
         { label: `${c.ceiling_r_rating} 580`, qty: num(c.ceiling_580_m2) },
+        { label: `wall ${c.wall_r_rating}`.trim(), qty: num(c.wall_ext_gf_m2), note: "External walls — ground floor" },
+        { label: `wall ${c.wall_r_rating}`.trim(), qty: num(c.wall_ext_ff_m2), note: "External walls — first floor" },
+        { label: `wall ${c.wall_int_r_rating}`.trim(), qty: num(c.wall_int_m2), note: "Internal / acoustic walls" },
         { label: product || "underfloor 415", qty: num(c.underfloor_415_m2) },
         { label: product ? `${product} 565` : "underfloor 565", qty: num(c.underfloor_565_m2) },
       ].filter((w) => w.qty > 0);
@@ -57,7 +60,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
         lines: wanted.map((w, i) => ({
           part_id: matchPart(w.label, (parts ?? []) as PartLite[]) || "",
           qty_m2: w.qty,
-          note: null,
+          note: w.note ?? null,
           sort_order: i,
         })),
       };

@@ -11,6 +11,7 @@ export const VISIT_TYPES = ["Retro fit", "Building site"] as const;
 export const ROOF_TYPES = ["Tile roof", "Tin roof", "Pitched roof", "Flat roof"];
 export const STOREYS = ["Single storey", "Double storey"];
 export const TRUSS_SIZES = ["450", "600", "900", "Mixed"];
+export const WALL_BATT_SIZES = ["430 (450 centres)", "580 (600 centres)", "Mixed"];
 export const CEILING_METHODS = ["Contents", "Coverage"];
 export const CEILING_EXISTING = ["Ceiling empty", "Blow-in installed", "Batts installed"];
 export const ACCESS_LEVELS = ["Excellent", "Good", "Hard", "Limited", "Can't do"];
@@ -45,6 +46,19 @@ export type Checklist = {
   ceiling_method: string;
   ceiling_suitability: string[];
   ceiling_access: string[];
+
+  // Wall batts: ground floor and first floor external walls are kept separate because the stud
+  // spacing (and so the batt size) can differ between levels.
+  wall_ext_gf_m2: string;
+  wall_ext_gf_size: string;
+  wall_ext_ff_m2: string;
+  wall_ext_ff_size: string;
+  wall_int_m2: string;
+  wall_r_rating: string;
+  wall_int_r_rating: string;
+  wall_suitability: string[];
+  wall_access: string[];
+  wall_notes: string;
 
   underfloor_415_m2: string;
   underfloor_565_m2: string;
@@ -106,6 +120,17 @@ export const EMPTY_CHECKLIST: Checklist = {
   ceiling_method: "",
   ceiling_suitability: [],
   ceiling_access: [],
+
+  wall_ext_gf_m2: "",
+  wall_ext_gf_size: "",
+  wall_ext_ff_m2: "",
+  wall_ext_ff_size: "",
+  wall_int_m2: "",
+  wall_r_rating: "",
+  wall_int_r_rating: "",
+  wall_suitability: [],
+  wall_access: [],
+  wall_notes: "",
 
   underfloor_415_m2: "",
   underfloor_565_m2: "",
@@ -200,6 +225,8 @@ export function measuredSummary(c: Checklist): string[] {
   const ceiling = num(c.ceiling_430_m2) + num(c.ceiling_580_m2);
   const underfloor = num(c.underfloor_415_m2) + num(c.underfloor_565_m2);
   if (c.quote_ceiling || ceiling) out.push(ceiling ? `Ceiling ${ceiling} m²` : "Ceiling");
+  const walls = num(c.wall_ext_gf_m2) + num(c.wall_ext_ff_m2) + num(c.wall_int_m2);
+  if (c.quote_walls || walls) out.push(walls ? `Walls ${walls} m²` : "Walls");
   if (c.quote_underfloor || underfloor) out.push(underfloor ? `Underfloor ${underfloor} m²` : "Underfloor");
   return out;
 }
