@@ -23,7 +23,7 @@ type WoLine = {
   } | null;
   subcontractors: { name: string } | null;
   labour_items: { code: string; description: string } | null;
-  parts?: { name: string } | null;
+  parts?: { name: string; is_stock_item?: boolean | null } | null;
 };
 
 type Po = {
@@ -343,12 +343,14 @@ export default function CalendarView({
       const address = project ? [project.address, project.suburb].filter(Boolean).join(", ") || "—" : "—";
       const task = l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task");
 
+      // Non-stock items (delivery, tape, etc.) are not installed m², so leave them out of the total.
+      const lineQty = l.parts?.is_stock_item === false ? 0 : Number(l.qty) || 0;
       const shownDate = movedWo[`${l.task_date}|${l.work_order_id}`] || l.task_date;
       const sid = l.subcontractor_id || l.work_orders.contractor_id;
       const key = `${shownDate}|${l.work_order_id}`;
       const existing = woGroups.get(key);
       if (existing) {
-        existing.qty += Number(l.qty) || 0;
+        existing.qty += lineQty;
         existing.contractorNames.add(contractorName);
         existing.tasks.push(task);
         if (sid) existing.subIds.add(sid);
@@ -360,7 +362,7 @@ export default function CalendarView({
           woNumber: l.work_orders.wo_number,
           builderName,
           address,
-          qty: Number(l.qty) || 0,
+          qty: lineQty,
           contractorNames: new Set([contractorName]),
           tasks: [task],
           time: l.task_time || null,
