@@ -306,6 +306,7 @@ function ResizableTh({
   align,
   isDragging,
   highlightClass,
+  stickyLeft,
   onResizeStart,
   onDragStart,
   onDragOver,
@@ -316,6 +317,7 @@ function ResizableTh({
   align: Align;
   isDragging?: boolean;
   highlightClass?: string;
+  stickyLeft?: number;
   onResizeStart: (e: React.PointerEvent) => void;
   onDragStart: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent) => void;
@@ -329,7 +331,8 @@ function ResizableTh({
       onDragOver={onDragOver}
       onDrop={onDrop}
       onDragEnd={onDragEnd}
-      className={`sticky top-0 z-10 cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
+      style={stickyLeft !== undefined ? { left: stickyLeft } : undefined}
+      className={`sticky top-0 ${stickyLeft !== undefined ? "z-20" : "z-10"} cursor-move select-none whitespace-normal break-words px-3 py-2 align-bottom leading-tight ${
         TEXT_ALIGN[align]
       } ${highlightClass ?? "bg-[#f2f0ec]"} ${isDragging ? "opacity-40" : ""}`}
     >
@@ -581,6 +584,21 @@ export default function PartsTable({
     () => colOrder.filter((key) => !hiddenCols.has(key)),
     [colOrder, hiddenCols]
   );
+
+  // Freeze the Item column (and anything left of it, e.g. Code) so the product stays visible
+  // when scrolling across to the price and stock columns.
+  const frozenLeft = useMemo(() => {
+    const out: Record<string, number> = {};
+    const nameIdx = visibleColOrder.indexOf("name");
+    if (nameIdx < 0) return out;
+    let left = 0;
+    for (let i = 0; i <= nameIdx; i++) {
+      const k = visibleColOrder[i];
+      out[k] = left;
+      left += colWidths[k] ?? DEFAULT_COL_WIDTHS[k];
+    }
+    return out;
+  }, [visibleColOrder, colWidths]);
 
   const supplierById = useMemo(
     () => Object.fromEntries(supplierList.map((s) => [s.id, s.name])),
@@ -1386,6 +1404,7 @@ export default function PartsTable({
                     align={c.align}
                     isDragging={dragKey === c.key}
                     highlightClass={STOCK_MOVEMENT_COLS.has(c.key) ? STOCK_MOVEMENT_TH_CLASS : undefined}
+                    stickyLeft={frozenLeft[c.key]}
                     onResizeStart={startResize(c.key)}
                     onDragStart={(e) => {
                       setDragKey(c.key);
@@ -1414,8 +1433,13 @@ export default function PartsTable({
                 {visibleColOrder.map((key) => (
                   <td
                     key={key}
+                    style={frozenLeft[key] !== undefined ? { left: frozenLeft[key] } : undefined}
                     className={`${TD_CLASS[key] ?? "px-1 py-1"} ${
                       STOCK_MOVEMENT_COLS.has(key) ? STOCK_MOVEMENT_TD_CLASS : ""
+                    } ${
+                      frozenLeft[key] !== undefined
+                        ? `sticky z-[5] ${key === "name" ? "border-r border-[var(--border)] shadow-[2px_0_4px_-2px_rgba(0,0,0,0.15)]" : ""} ${STOCK_MOVEMENT_COLS.has(key) ? "" : "bg-white group-hover:bg-[#f7f6f3]"}`
+                        : ""
                     }`}
                   >
                     {renderCell(key, p)}
