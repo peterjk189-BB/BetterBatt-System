@@ -56,6 +56,7 @@ export type PlInvoice = {
   invoice_date: string;
   customers: { name: string } | null;
 };
+export type PlInvoiceLine = { invoice_id: string; part_id: string | null; qty: number; line_ex: number; parts: { pack_cost_ex_gst: number | null } | null };
 export type PlPayment = { invoice_id: string; amount: number };
 
 type Preset = "month" | "quarter" | "year" | "all" | "custom";
@@ -99,6 +100,7 @@ export default function ProfitLossReport({
   woLines,
   labourItems,
   invoices,
+  invoiceLines = [],
   payments,
   invoicesAvailable,
 }: {
@@ -108,6 +110,7 @@ export default function ProfitLossReport({
   woLines: PlWoLine[];
   labourItems: PlLabour[];
   invoices: PlInvoice[];
+  invoiceLines?: PlInvoiceLine[];
   payments: PlPayment[];
   invoicesAvailable: boolean;
 }) {
@@ -188,11 +191,24 @@ export default function ProfitLossReport({
     }
     out.sort((a, b) => b.p.quote_number - a.p.quote_number);
 
-    const counter = invoices
-      .filter((i) => i.status !== "Void" && !i.project_id && i.kind === "Items" && inRange(i.invoice_date, start, end))
-      .reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
+    const counterInv = invoices.filter((i) => i.status !== "Void" && !i.project_id && i.kind === "Items" && inRange(i.invoice_date, start, end));
+    const counterIds = new Set(counterInv.map((i) => i.id));
+    let counterCost = 0;
+    let counterUncosted = 0;
+    invoiceLines.forEach((l) => {
+      if (!counterIds.has(l.invoice_id)) return;
+      const pc = l.parts?.pack_cost_ex_gst;
+      if (l.part_id && pc != null) counterCost += (Number(l.qty) || 0) * Number(pc);
+      else counterUncosted += 1;
+    });
+    const counter = {
+      sales: counterInv.reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0),
+      cost: counterCost,
+      uncosted: counterUncosted,
+      count: counterInv.length,
+    };
     return { jobs: out, counterSales: counter };
-  }, [projects, projectLines, workOrders, woLines, labourItems, invoices, payments, start, end]);
+  }, [projects, projectLines, workOrders, woLines, labourItems, invoices, invoiceLines, payments, start, end]);
 
   const rev = (j: JobRow) => (basis === "quoted" ? j.quoted : j.invoicedEx);
   const profit = (j: JobRow) => rev(j) - j.materials - j.contractors;
@@ -286,10 +302,25 @@ export default function ProfitLossReport({
         <Tile label="Invoiced inc GST" value={money(tInv)} />
         <Tile label="Paid / outstanding" value={`${money(tPaid)} / ${money(tInv - tPaid)}`} small />
       </div>
-      {counterSales > 0 && (
-        <p className="text-sm text-[var(--muted)]">
-          Counter / item sales invoiced in this period: <b>{money(counterSales)}</b> ex GST. They have no job costing so they are not in the profit figures above.
-        </p>
+      {counterSales.count > 0 && (
+        <div className="rounded-xl border border-[var(--border)] bg-white p-4 text-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">
+            Counter / item sales ({counterSales.count} invoice{counterSales.count === 1 ? "" : "s"}, ex GST)
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <Tile label="Sales" value={money(counterSales.sales)} />
+            <Tile label="Cost" value={money(counterSales.cost)} />
+            <Tile label="Profit" value={money(counterSales.sales - counterSales.cost)} cls={tone(counterSales.sales - counterSales.cost)} />
+            <Tile label="Margin" value={pct(counterSales.sales > 0 ? ((counterSales.sales - counterSales.cost) / counterSales.sales) * 100 : null)} />
+            <Tile label="Total profit (jobs + counter)" value={money(tProfit + counterSales.sales - counterSales.cost)} cls={tone(tProfit + counterSales.sales - counterSales.cost)} />
+          </div>
+          {counterSales.uncosted > 0 && (
+            <p className="mt-2 text-xs text-amber-700">
+              {counterSales.uncosted} counter line{counterSales.uncosted === 1 ? "" : "s"} have no inventory pack cost (custom lines) and are counted at $0 cost. Cost = pack cost ex GST × quantity.
+            </p>
+          )}
+          <p className="mt-1 text-xs text-[var(--muted)]">Draft and sent invoices are included; void invoices are not.</p>
+        </div>
       )}
 
       <h2 className="text-lg font-bold">By job</h2>

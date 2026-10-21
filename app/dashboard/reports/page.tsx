@@ -68,6 +68,11 @@ export default async function ReportsPage() {
     supabase.from("invoice_payments").select("invoice_id, amount"),
   ]);
 
+  // Lines of item / counter invoices, with the part's pack cost, so counter sales get a profit figure.
+  const { data: plInvLines } = await supabase
+    .from("invoice_lines")
+    .select("invoice_id, part_id, qty, line_ex, parts(pack_cost_ex_gst)");
+
   const excluded = await unacceptedOptionLineIds(supabase);
   const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));
 
@@ -89,6 +94,7 @@ export default async function ReportsPage() {
         woLines: (plWoLines ?? []) as any,
         labourItems: (labourItems ?? []) as any,
         invoices: (plInvoices ?? []) as any,
+        invoiceLines: (plInvLines ?? []) as any,
         payments: (plPayments ?? []) as any,
         invoicesAvailable: !invErr,
       }}

@@ -1,6 +1,6 @@
 "use client";
 
-import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlPayment } from "./ProfitLossReport";
+import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment } from "./ProfitLossReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { useMemo, useState } from "react";
@@ -547,6 +547,7 @@ export default function ReportsView({
     woLines: PlWoLine[];
     labourItems: PlLabour[];
     invoices: PlInvoice[];
+    invoiceLines?: PlInvoiceLine[];
     payments: PlPayment[];
     invoicesAvailable: boolean;
   };

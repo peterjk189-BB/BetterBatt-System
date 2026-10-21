@@ -14,7 +14,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
     supabase.from("invoice_lines").select("*").eq("invoice_id", params.id).order("sort_order"),
     supabase
       .from("parts")
-      .select("id, code, name, supply_charge_per_pack, price_retail, price_trade, price_regency")
+      .select("id, code, name, supply_charge_per_pack, price_retail, price_trade, price_regency, pack_cost_ex_gst")
       .eq("archived", false)
       .order("name"),
   ]);

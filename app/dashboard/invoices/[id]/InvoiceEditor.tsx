@@ -16,7 +16,7 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null };
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null };
 
 export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[] }) {
   const supabase = createClient();
@@ -330,6 +330,31 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             </table>
           </div>
         )}
+        {lines.length > 0 && (() => {
+          const costOf = (l: InvoiceLine) => {
+            const part = parts.find((x) => x.id === l.part_id);
+            return part && part.pack_cost_ex_gst != null ? round2(Number(l.qty || 0) * Number(part.pack_cost_ex_gst)) : null;
+          };
+          const sales = round2(lines.reduce((a, l) => a + Number(l.line_ex || 0), 0));
+          const costed = lines.filter((l) => costOf(l) !== null);
+          const cost = round2(costed.reduce((a, l) => a + (costOf(l) as number), 0));
+          const missing = lines.length - costed.length;
+          const profit = round2(sales - cost);
+          const margin = sales > 0 ? (profit / sales) * 100 : 0;
+          return (
+            <div className="mt-4 rounded-lg border border-[var(--border)] bg-black/[0.03] p-3 text-sm">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Profit on this invoice (staff only, not on the customer copy)</p>
+              <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div><div className="text-xs text-[var(--muted)]">Sales ex GST</div><div className="font-semibold">{money(sales)}</div></div>
+                <div><div className="text-xs text-[var(--muted)]">Cost ex GST</div><div className="font-semibold">{money(cost)}</div></div>
+                <div><div className="text-xs text-[var(--muted)]">Profit</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{money(profit)}</div></div>
+                <div><div className="text-xs text-[var(--muted)]">Margin</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{margin.toFixed(1)}%</div></div>
+              </div>
+              {missing > 0 && <p className="mt-2 text-xs text-amber-700">{missing} line{missing === 1 ? "" : "s"} with no inventory cost (custom lines or no pack cost set), counted at $0 cost.</p>}
+              <p className="mt-1 text-xs text-[var(--muted)]">Cost = pack cost ex GST in Inventory × quantity.</p>
+            </div>
+          );
+        })()}
         {draft ? (
           <div className="mt-3">
             <div className="flex flex-wrap items-center gap-2">
