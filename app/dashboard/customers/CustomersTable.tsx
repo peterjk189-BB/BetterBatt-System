@@ -1,7 +1,7 @@
 "use client";
 
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 
@@ -48,6 +48,8 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState<"All" | Customer["category"]>("All");
+  const [letter, setLetter] = useState("");
   const [modalTab, setModalTab] = useState<"details" | "crm">("details");
 
   function openNew() {
@@ -126,9 +128,25 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
     }
   }
 
-  const visible = customers
+  const CAT_ORDER: Customer["category"][] = ["Builder", "Retro Fit", "Private"];
+  const firstLetter = (n: string) => {
+    const ch = n.trim().charAt(0).toUpperCase();
+    return /[A-Z]/.test(ch) ? ch : "#";
+  };
+  const base = customers
     .filter((c) => c.archived === showArchived)
-    .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()));
+    .filter((c) => c.name.toLowerCase().includes(search.toLowerCase()))
+    .filter((c) => catFilter === "All" || c.category === catFilter);
+  const lettersWithRows = new Set(base.map((c) => firstLetter(c.name)));
+  const visible = base
+    .filter((c) => !letter || firstLetter(c.name) === letter)
+    .sort(
+      (a, b) =>
+        CAT_ORDER.indexOf(a.category) - CAT_ORDER.indexOf(b.category) ||
+        a.name.localeCompare(b.name, "en", { sensitivity: "base" })
+    );
+  const catCount = (cat: string) =>
+    customers.filter((c) => c.archived === showArchived && (cat === "All" || c.category === cat)).length;
 
   return (
     <div>
@@ -154,6 +172,40 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
         </button>
       </div>
 
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(["All", ...CAT_ORDER] as const).map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setCatFilter(cat)}
+            className={`rounded-full border px-3 py-1 text-sm ${catFilter === cat ? "border-accent bg-accent text-white" : "border-[var(--border)] bg-white"}`}
+          >
+            {cat === "All" ? "All" : cat === "Builder" ? "Builders" : cat} <span className="opacity-70">({catCount(cat)})</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-1">
+        <button
+          onClick={() => setLetter("")}
+          className={`rounded px-2 py-1 text-xs font-medium ${letter === "" ? "bg-[#201f1c] text-white" : "bg-white border border-[var(--border)]"}`}
+        >
+          A–Z
+        </button>
+        {"ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("").map((l) => {
+          const has = lettersWithRows.has(l);
+          return (
+            <button
+              key={l}
+              disabled={!has}
+              onClick={() => setLetter(letter === l ? "" : l)}
+              className={`min-w-[1.75rem] rounded px-1.5 py-1 text-xs font-medium ${letter === l ? "bg-[#201f1c] text-white" : "bg-white border border-[var(--border)]"} ${has ? "" : "opacity-30"}`}
+            >
+              {l}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full text-sm">
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
@@ -168,8 +220,16 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
             </tr>
           </thead>
           <tbody>
-            {visible.map((c) => (
-              <tr key={c.id} className="border-t border-[var(--border)]">
+            {visible.map((c, i) => (
+              <Fragment key={c.id}>
+              {(i === 0 || visible[i - 1].category !== c.category) && (
+                <tr className="border-t border-[var(--border)] bg-[#f7f5f1]">
+                  <td colSpan={7} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                    {c.category === "Builder" ? "Builders" : c.category} ({visible.filter((x) => x.category === c.category).length})
+                  </td>
+                </tr>
+              )}
+              <tr className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">{c.name}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLORS[c.category]}`}>
@@ -199,6 +259,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                   )}
                 </td>
               </tr>
+              </Fragment>
             ))}
             {visible.length === 0 && (
               <tr>
