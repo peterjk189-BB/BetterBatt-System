@@ -14,6 +14,9 @@ type Customer = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  accounts_contact_name?: string | null;
+  accounts_contact_email?: string | null;
+  accounts_contact_phone?: string | null;
   archived: boolean;
 };
 
@@ -31,6 +34,9 @@ const emptyForm = {
   contact_name: "",
   contact_phone: "",
   contact_email: "",
+  accounts_contact_name: "",
+  accounts_contact_email: "",
+  accounts_contact_phone: "",
 };
 
 export default function CustomersTable({ initial, isAdmin, crmEnabled = false }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean }) {
@@ -62,6 +68,9 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
       contact_name: c.contact_name || "",
       contact_phone: c.contact_phone || "",
       contact_email: c.contact_email || "",
+      accounts_contact_name: c.accounts_contact_name || "",
+      accounts_contact_email: c.accounts_contact_email || "",
+      accounts_contact_phone: c.accounts_contact_phone || "",
     });
     setModalOpen(true);
   }
@@ -172,7 +181,10 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                 <td className="px-4 py-2 text-[var(--muted)]">
                   {[c.contact_name, c.contact_phone].filter(Boolean).join(" · ") || "—"}
                 </td>
-                <td className="px-4 py-2 text-[var(--muted)]">{c.contact_email || "—"}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">
+                  {c.contact_email || "—"}
+                  {c.accounts_contact_email && <div className="text-xs">Accounts: {c.accounts_contact_email}</div>}
+                </td>
                 <td className="px-4 py-2 text-right">
                   <button onClick={() => openEdit(c)} className="text-accent hover:underline">
                     Edit
@@ -309,6 +321,40 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                     onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                   />
                 </label>
+              </div>
+              <div className="mt-2 border-t border-[var(--border)] pt-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--muted)]">Accounts contact (invoices)</h3>
+                <p className="mb-3 mt-1 text-xs text-[var(--muted)]">
+                  Who invoices are sent to. Invoices email this address first, then fall back to the contact email above.
+                </p>
+                <label className="flex flex-col gap-1 text-sm">
+                  Accounts contact name
+                  <input
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={form.accounts_contact_name}
+                    onChange={(e) => setForm({ ...form, accounts_contact_name: e.target.value })}
+                  />
+                </label>
+                <div className="mt-3 grid grid-cols-2 gap-4">
+                  <label className="flex flex-col gap-1 text-sm">
+                    Accounts email
+                    <input
+                      type="email"
+                      placeholder="accounts@builder.com.au"
+                      className="rounded-lg border border-[var(--border)] px-3 py-2"
+                      value={form.accounts_contact_email}
+                      onChange={(e) => setForm({ ...form, accounts_contact_email: e.target.value })}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm">
+                    Accounts phone
+                    <input
+                      className="rounded-lg border border-[var(--border)] px-3 py-2"
+                      value={form.accounts_contact_phone}
+                      onChange={(e) => setForm({ ...form, accounts_contact_phone: e.target.value })}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">

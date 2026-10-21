@@ -10,7 +10,7 @@ import { derivedStatus, fmtDate, invNo, money, paidTotal, PAY_METHODS, round2, S
 import { siteAddress } from "@/lib/siteAddress";
 
 type Full = Invoice & {
-  customers: { name: string; contact_email: string | null } | null;
+  customers: { name: string; contact_email: string | null; accounts_contact_name?: string | null; accounts_contact_email?: string | null; accounts_contact_phone?: string | null } | null;
   projects: { id: string; quote_number: number; lot_no: string | null; address: string | null; suburb: string | null; contact_email: string | null } | null;
 };
 
@@ -25,7 +25,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [payments, setPayments] = useState(initialPayments);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState("");
-  const [emailTo, setEmailTo] = useState(invoice.customers?.contact_email || invoice.projects?.contact_email || "");
+  const [emailTo, setEmailTo] = useState(invoice.customers?.accounts_contact_email || invoice.customers?.contact_email || invoice.projects?.contact_email || "");
   const [lines, setLines] = useState<InvoiceLine[]>(initialLines);
   const [tier, setTier] = useState<string>("retail");
   const [partSearch, setPartSearch] = useState("");
@@ -89,7 +89,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
-    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(name, contact_email), projects(id, quote_number, lot_no, address, suburb, contact_email)").single();
+    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, lot_no, address, suburb, contact_email)").single();
     setBusy("");
     if (error || !data) return setMsg({ ok: false, text: error?.message || "Could not save" });
     setInv(data as any);
@@ -244,6 +244,14 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
           <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
           {(inv as any).customers?.contact_email && <p className="text-[var(--muted)]">{(inv as any).customers.contact_email}</p>}
+          {(inv.customers?.accounts_contact_email || inv.customers?.accounts_contact_name || inv.customers?.accounts_contact_phone) ? (
+            <p className="mt-1 text-[var(--muted)]">
+              <span className="font-medium">Accounts:</span>{" "}
+              {[inv.customers?.accounts_contact_name, inv.customers?.accounts_contact_email, inv.customers?.accounts_contact_phone].filter(Boolean).join(" · ")}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs text-amber-700">No accounts contact on this customer. Add one on the Customers page so invoices go to the right place.</p>
+          )}
           {editCust && (
             <div className="mt-3 space-y-3 border-t border-[var(--border)] pt-3">
               <label className="block text-sm">
