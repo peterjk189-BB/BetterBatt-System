@@ -464,3 +464,8 @@ html[data-theme="dark"] .hover\:bg-lime-400:hover{background-color:#416235}
 html[data-theme="dark"] .text-\[\#1a2e05\]{color:#e4f5c8}
 html[data-theme="dark"] .text-\[\#365314\]{color:#c3e29c}
 }
+
+/* Calendar work order chips: bright orange with white text in the dark theme */
+html[data-theme="dark"] .wo-chip{background-color:#c9701a}
+html[data-theme="dark"] .wo-chip:hover{background-color:#dc7f26}
+html[data-theme="dark"] .wo-chip,html[data-theme="dark"] .wo-chip div{color:#fff}

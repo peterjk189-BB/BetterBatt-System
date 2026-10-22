@@ -724,7 +724,7 @@ export default function CalendarView({
                                   setWoDrag(null);
                                   setDropDate(null);
                                 }}
-                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "bg-orange-200 text-orange-900 hover:bg-orange-300"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "wo-chip bg-orange-200 text-orange-900 hover:bg-orange-300"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
                               >
                                 <div className="truncate font-medium">
                                   {ev.complete ? "✓ " : ""}{ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
