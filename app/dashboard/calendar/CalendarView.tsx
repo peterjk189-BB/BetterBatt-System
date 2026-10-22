@@ -724,18 +724,18 @@ export default function CalendarView({
                                   setWoDrag(null);
                                   setDropDate(null);
                                 }}
-                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "bg-orange-100 text-orange-900 hover:bg-orange-200"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "bg-orange-200 text-orange-950 hover:bg-orange-300"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
                               >
                                 <div className="truncate font-medium">
                                   {ev.complete ? "✓ " : ""}{ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
                                 </div>
-                                <div className={`truncate ${ev.complete ? "text-green-800" : "text-orange-800"}`}>
+                                <div className={`truncate ${ev.complete ? "text-green-800" : "text-orange-900"}`}>
                                   {ev.builderName} — {ev.address}
                                 </div>
                                 {ev.complete ? (
                                   <div className="font-bold uppercase text-green-800">Complete{ev.qty > 0 ? ` · ${ev.qty} m²` : ""}</div>
                                 ) : (
-                                  ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>
+                                  ev.qty > 0 && <div className="text-orange-900">{ev.qty} m² to install</div>
                                 )}
                               </Link>
                             );
