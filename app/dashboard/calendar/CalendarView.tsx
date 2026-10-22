@@ -12,11 +12,13 @@ type WoLine = {
   task_time?: string | null;
   note: string | null;
   qty: number;
+  completed?: boolean | null;
   work_order_id: string;
   subcontractor_id: string | null;
   work_orders: {
     wo_number: string;
     archived: boolean;
+    completed_date?: string | null;
     contractor_id: string | null;
     projects: { quote_number: number; address: string | null; suburb: string | null; customers: { name: string } | null } | null;
     subcontractors: { name: string } | null;
@@ -49,6 +51,8 @@ type WoEvent = {
   tasks: string[];
   time: string | null;
   subIds: string[];
+  /** The work order is marked complete (completed date set, or every task that day ticked off). */
+  complete: boolean;
 };
 
 type PoEvent = {
@@ -332,6 +336,8 @@ export default function CalendarView({
         tasks: string[];
         time: string | null;
         subIds: Set<string>;
+        woDone: boolean;
+        allTicked: boolean;
       }
     >();
 
@@ -353,6 +359,7 @@ export default function CalendarView({
         existing.qty += lineQty;
         existing.contractorNames.add(contractorName);
         existing.tasks.push(task);
+        if (!l.completed) existing.allTicked = false;
         if (sid) existing.subIds.add(sid);
         if (l.task_time && (!existing.time || l.task_time < existing.time)) existing.time = l.task_time;
       } else {
@@ -367,6 +374,8 @@ export default function CalendarView({
           tasks: [task],
           time: l.task_time || null,
           subIds: new Set(sid ? [sid] : []),
+          woDone: !!l.work_orders.completed_date,
+          allTicked: !!l.completed,
         });
       }
     }
@@ -385,6 +394,7 @@ export default function CalendarView({
         tasks: g.tasks,
         time: g.time,
         subIds: Array.from(g.subIds),
+        complete: g.woDone || g.allTicked,
       });
     }
 
@@ -705,7 +715,7 @@ export default function CalendarView({
                                 key={`wo-${ev.id}`}
                                 href={`/dashboard/work-orders/${ev.workOrderId}`}
                                 title={`${ev.woNumber} — ${ev.builderName} (${ev.address}) — ${ev.tasks.join(", ")} (${ev.contractorNames})${installerNote ? "" : " — drag to another day to reschedule"}`}
-                                draggable={!installerNote}
+                                draggable={!installerNote && !ev.complete}
                                 onDragStart={(e) => {
                                   e.dataTransfer.effectAllowed = "move";
                                   setWoDrag({ woId: ev.workOrderId, from: ev.date, label: ev.woNumber });
@@ -714,15 +724,19 @@ export default function CalendarView({
                                   setWoDrag(null);
                                   setDropDate(null);
                                 }}
-                                className={`block rounded bg-orange-100 px-1.5 py-1 text-[11px] leading-tight text-orange-900 hover:bg-orange-200 ${installerNote ? "" : "cursor-grab active:cursor-grabbing"}`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "bg-orange-100 text-orange-900 hover:bg-orange-200"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
                               >
                                 <div className="truncate font-medium">
-                                  {ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
+                                  {ev.complete ? "✓ " : ""}{ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
                                 </div>
-                                <div className="truncate text-orange-800">
+                                <div className={`truncate ${ev.complete ? "text-green-800" : "text-orange-800"}`}>
                                   {ev.builderName} — {ev.address}
                                 </div>
-                                {ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>}
+                                {ev.complete ? (
+                                  <div className="font-bold uppercase text-green-800">Complete{ev.qty > 0 ? ` · ${ev.qty} m²` : ""}</div>
+                                ) : (
+                                  ev.qty > 0 && <div className="text-orange-800">{ev.qty} m² to install</div>
+                                )}
                               </Link>
                             );
                           }

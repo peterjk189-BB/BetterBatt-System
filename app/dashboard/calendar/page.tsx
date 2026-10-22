@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { bookDueInspections } from "@/lib/inspectionPrefill";
 
 const WO_LINE_SELECT =
-  "id, task_date, note, qty, work_order_id, subcontractor_id, work_orders(wo_number, archived, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description), parts(name, is_stock_item)";
+  "id, task_date, note, qty, completed, work_order_id, subcontractor_id, work_orders(wo_number, archived, completed_date, contractor_id, projects(quote_number, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description), parts(name, is_stock_item)";
 
 // Start times live in a newer column; fetched separately so the calendar still loads if migration 0039 hasn't been run.
 async function withTimes(supabase: Awaited<ReturnType<typeof createClient>>, lines: any[] | null) {
