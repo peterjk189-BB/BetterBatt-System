@@ -297,6 +297,12 @@ const TD_CLASS: Record<string, string> = {
 // highlighted to stand out from the mostly-static pricing/reference columns around them.
 const STOCK_MOVEMENT_COLS = new Set(["pks", "multi"]);
 const STOCK_MOVEMENT_TH_CLASS = "bg-amber-100 text-amber-900";
+// Coloured headers for the inc GST price columns.
+const PRICE_TH_CLASS: Record<string, string> = {
+  priceRetailInc: "bg-blue-600 text-white",
+  priceTradeInc: "bg-green-800 text-white",
+  priceRegencyInc: "bg-black text-white",
+};
 const STOCK_MOVEMENT_TD_CLASS = "bg-amber-50";
 
 // A column header that can be dragged wider/narrower from its right edge, or picked up and
@@ -1403,7 +1409,7 @@ export default function PartsTable({
                     label={c.label}
                     align={c.align}
                     isDragging={dragKey === c.key}
-                    highlightClass={STOCK_MOVEMENT_COLS.has(c.key) ? STOCK_MOVEMENT_TH_CLASS : undefined}
+                    highlightClass={STOCK_MOVEMENT_COLS.has(c.key) ? STOCK_MOVEMENT_TH_CLASS : PRICE_TH_CLASS[c.key]}
                     stickyLeft={frozenLeft[c.key]}
                     onResizeStart={startResize(c.key)}
                     onDragStart={(e) => {
