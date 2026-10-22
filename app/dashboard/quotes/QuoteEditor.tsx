@@ -105,6 +105,27 @@ function computeLine(part: Part | undefined, qty: number, tier: string | null) {
   };
 }
 
+// Work orders already raised from this quote, shown at the top of the page.
+type QuoteWorkOrder = {
+  id: string;
+  wo_number: string;
+  entry_date: string | null;
+  completed_date: string | null;
+  authorised_at: string | null;
+  subcontractors: { name: string } | null;
+};
+
+function workOrderStatus(wo: QuoteWorkOrder) {
+  if (wo.completed_date) return { label: "Completed", cls: "bg-green-100 text-green-800" };
+  if (wo.authorised_at) return { label: "Authorised", cls: "bg-blue-100 text-blue-800" };
+  return { label: "Awaiting authorisation", cls: "bg-amber-100 text-amber-800" };
+}
+
+function shortDate(d: string | null) {
+  if (!d) return null;
+  return new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export default function QuoteEditor({
   project,
   lines,
@@ -113,6 +134,7 @@ export default function QuoteEditor({
   isAdmin,
   prefill = null,
   crmEnabled = false,
+  workOrders = [],
 }: {
   project: Project | null;
   lines: Line[];
@@ -121,6 +143,7 @@ export default function QuoteEditor({
   isAdmin: boolean;
   prefill?: QuotePrefill | null;
   crmEnabled?: boolean;
+  workOrders?: QuoteWorkOrder[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -659,9 +682,13 @@ export default function QuoteEditor({
           {!isNew && (
             <Link
               href={`/dashboard/work-orders/new?project_id=${project!.id}`}
-              className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+              className={
+                workOrders.length > 0
+                  ? "rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+                  : "rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600"
+              }
             >
-              Create work order
+              {workOrders.length > 0 ? "Create another work order" : "Create work order"}
             </Link>
           )}
           {!isNew && (isAdmin || crmEnabled) && project!.outcome === "Accepted" && (
@@ -686,6 +713,32 @@ export default function QuoteEditor({
           </button>
         </div>
       </div>
+
+      {!isNew && workOrders.length > 0 && (
+        <div className="mt-4 rounded-lg border border-orange-300 bg-orange-50 px-4 py-3">
+          <p className="text-sm font-semibold text-orange-900">
+            {workOrders.length === 1 ? "A work order has already been created for this quote" : `${workOrders.length} work orders have already been created for this quote`}
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {workOrders.map((wo) => {
+              const st = workOrderStatus(wo);
+              const booked = shortDate(wo.entry_date);
+              return (
+                <li key={wo.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <Link href={`/dashboard/work-orders/${wo.id}`} className="font-medium text-orange-900 underline hover:text-orange-700">
+                    {wo.wo_number}
+                  </Link>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
+                  <span className="text-[var(--muted)]">
+                    {wo.subcontractors?.name || "No contractor yet"}
+                    {booked ? ` · Booked ${booked}` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {crmEnabled && !isNew && (
         <div className="mt-5 flex gap-1 border-b border-[var(--border)]">

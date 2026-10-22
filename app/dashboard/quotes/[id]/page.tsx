@@ -5,12 +5,18 @@ import QuoteEditor from "../QuoteEditor";
 
 export default async function QuotePage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const [{ data: project }, { data: lines }, { data: customers }, { data: parts }, role] = await Promise.all([
+  const [{ data: project }, { data: lines }, { data: customers }, { data: parts }, role, { data: workOrders }] = await Promise.all([
     supabase.from("projects").select("*").eq("id", params.id).single(),
     supabase.from("project_lines").select("*").eq("project_id", params.id).order("sort_order"),
     supabase.from("customers").select("*").eq("archived", false).order("name"),
     supabase.from("parts").select("*").eq("archived", false).order("name"),
     getEffectiveRole(),
+    supabase
+      .from("work_orders")
+      .select("id, wo_number, entry_date, completed_date, authorised_at, subcontractors(name)")
+      .eq("project_id", params.id)
+      .eq("archived", false)
+      .order("created_at"),
   ]);
 
   if (!project) notFound();
@@ -21,6 +27,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
       lines={lines ?? []}
       customers={customers ?? []}
       parts={parts ?? []}
+      workOrders={(workOrders ?? []) as any}
       isAdmin={role === "admin"}
       crmEnabled={role === "admin" || role === "office"}
     />
