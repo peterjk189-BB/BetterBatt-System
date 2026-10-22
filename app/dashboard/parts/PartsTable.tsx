@@ -291,6 +291,9 @@ const TD_CLASS: Record<string, string> = {
   totalM2: "px-3 py-1 text-center font-mono text-[var(--muted)]",
   value: "px-3 py-1 text-center font-medium",
   actions: "px-3 py-1 text-center",
+  priceRetailInc: "px-1 py-1 text-center",
+  priceTradeInc: "px-1 py-1 text-center",
+  priceRegencyInc: "px-1 py-1 text-center",
 };
 
 // Pks and Multi get moved constantly with stock coming in and going out, so they're
