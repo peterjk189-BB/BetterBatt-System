@@ -299,14 +299,14 @@ const TD_CLASS: Record<string, string> = {
 // Pks and Multi get moved constantly with stock coming in and going out, so they're
 // highlighted to stand out from the mostly-static pricing/reference columns around them.
 const STOCK_MOVEMENT_COLS = new Set(["pks", "multi"]);
-const STOCK_MOVEMENT_TH_CLASS = "bg-amber-100 text-amber-900";
+const STOCK_MOVEMENT_TH_CLASS = "bg-amber-400 text-amber-950";
 // Coloured headers for the inc GST price columns.
 const PRICE_TH_CLASS: Record<string, string> = {
   priceRetailInc: "bg-blue-600 text-white",
   priceTradeInc: "bg-green-800 text-white",
   priceRegencyInc: "bg-black text-white",
 };
-const STOCK_MOVEMENT_TD_CLASS = "bg-amber-50";
+const STOCK_MOVEMENT_TD_CLASS = "bg-amber-200";
 
 // A column header that can be dragged wider/narrower from its right edge, or picked up and
 // dropped on another header to reorder the columns.
