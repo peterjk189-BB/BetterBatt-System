@@ -245,7 +245,6 @@ const INVENTORY_COLS = [
   { key: "covCostM2", label: "Cov/Cost/m²", align: "center" as Align, width: 110 },
   { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 130 },
   { key: "installerRate", label: "Installer rate/m²", align: "center" as Align, width: 120 },
-  { key: "supplyPack", label: "Supply/pack", align: "center" as Align, width: 110 },
   { key: "priceRetail", label: "Retail ex GST", align: "center" as Align, width: 100 },
   { key: "priceRetailInc", label: "Retail inc GST", align: "center" as Align, width: 100 },
   { key: "priceTrade", label: "Trade ex GST", align: "center" as Align, width: 100 },
