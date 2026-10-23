@@ -14,13 +14,29 @@ export async function elementToPdf(
 
   // About 195 dpi on A4: sharp text, far smaller than a 2x retina capture.
   const targetWidthPx = orientation === "portrait" ? 1625 : 2300;
-  let scale = Math.min(3, Math.max(1, targetWidthPx / Math.max(1, el.offsetWidth)));
+  // Always lay the page out at desktop width, so a phone gets the same PDF as a computer.
+  const layoutWidth = orientation === "portrait" ? 800 : 1100;
+  const baseWidth = Math.max(el.offsetWidth, layoutWidth);
+  const baseHeight = el.offsetHeight * (baseWidth / Math.max(1, el.offsetWidth)); // rough: narrower layouts are taller
+  let scale = Math.min(3, Math.max(1, targetWidthPx / baseWidth));
   // Phones (iOS Safari especially) refuse canvases above roughly 16 million pixels, so long pages get a lower scale.
   const maxPixels = 14_000_000;
-  const pixels = el.offsetWidth * el.offsetHeight * scale * scale;
-  if (pixels > maxPixels) scale = Math.max(0.6, Math.sqrt(maxPixels / Math.max(1, el.offsetWidth * el.offsetHeight)));
+  const pixels = baseWidth * baseHeight * scale * scale;
+  if (pixels > maxPixels) scale = Math.max(0.6, Math.sqrt(maxPixels / Math.max(1, baseWidth * baseHeight)));
   // useCORS lets photos stored in Supabase draw onto the canvas.
-  const canvas: HTMLCanvasElement = await html2canvas(el, { scale, backgroundColor: "#ffffff", useCORS: true });
+  const canvas: HTMLCanvasElement = await html2canvas(el, {
+    scale,
+    backgroundColor: "#ffffff",
+    useCORS: true,
+    // Desktop-sized layout whatever the screen: media queries see a wide window and the page is held at full width.
+    windowWidth: 1280,
+    width: baseWidth,
+    onclone: (doc: Document, clone: HTMLElement) => {
+      clone.style.width = `${baseWidth}px`;
+      clone.style.maxWidth = "none";
+      clone.style.margin = "0";
+    },
+  });
 
   const pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
   const pageW = pdf.internal.pageSize.getWidth();

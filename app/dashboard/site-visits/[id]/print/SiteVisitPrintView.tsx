@@ -165,7 +165,7 @@ export default function SiteVisitPrintView({
         >
           {downloading ? "Making PDF…" : "Download PDF"}
         </button>
-        <button onClick={() => window.print()} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+        <button onClick={() => window.print()} className="hidden rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent md:block">
           Print
         </button>
       </div>
