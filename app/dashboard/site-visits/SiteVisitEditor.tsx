@@ -916,6 +916,15 @@ export default function SiteVisitEditor({
         </label>
       </Section>
 
+      <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <Toggle on={checklist.ceiling_only} onClick={() => setCeilingOnly(!checklist.ceiling_only)}>
+          Ceiling only
+        </Toggle>
+        <span className="text-sm text-[var(--muted)]">
+          {checklist.ceiling_only ? "Wall batts and Underfloor batts are hidden for this visit. Untick to bring them back." : "Tick to hide the Wall batts and Underfloor batts sections below."}
+        </span>
+      </div>
+
       {!checklist.ceiling_only && (
         <>
       {/* Walls */}
