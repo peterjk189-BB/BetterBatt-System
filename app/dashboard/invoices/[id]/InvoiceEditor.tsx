@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
-import { derivedStatus, fmtDate, invNo, money, paidTotal, PAY_METHODS, round2, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
+import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 
 type Full = Invoice & {
@@ -42,12 +42,16 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const balance = Math.max(0, round2(inv.total - paid));
 
   const hasLines = lines.length > 0;
+  // false until migration 0052 has been run in Supabase
+  const hasDiscountCols = inv.discount_ex_gst !== undefined;
+  const discountEx = Number(inv.discount_ex_gst || 0);
+  const subtotalEx = round2(Number(inv.amount_ex_gst || 0) + discountEx);
 
   /** Items drive the invoice amount: ex GST = sum of lines, GST = 10%. */
   async function syncTotals(next: InvoiceLine[]) {
-    const ex = round2(next.reduce((s, l) => s + Number(l.line_ex || 0), 0));
-    const gst = round2(ex * 0.1);
-    await save({ amount_ex_gst: ex, gst, total: round2(ex + gst) });
+    const sub = round2(next.reduce((s, l) => s + Number(l.line_ex || 0), 0));
+    const t = invoiceTotals(sub, inv.discount_type, inv.discount_value);
+    await save(hasDiscountCols ? t : { amount_ex_gst: t.amount_ex_gst, gst: t.gst, total: t.total });
   }
 
   async function addItem(p: PartOpt) {
@@ -124,9 +128,13 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   }
 
   function setAmounts(exText: string) {
-    const ex = round2(Number(exText) || 0);
-    const gst = round2(ex * 0.1);
-    setInv({ ...inv, amount_ex_gst: ex, gst, total: round2(ex + gst) });
+    // The typed figure is the amount before any discount.
+    setInv({ ...inv, ...invoiceTotals(Number(exText) || 0, inv.discount_type, inv.discount_value) });
+  }
+
+  function setDiscount(patch: { discount_type?: "amount" | "percent"; discount_value?: number; discount_label?: string }) {
+    const next = { ...inv, ...patch };
+    setInv({ ...next, ...invoiceTotals(subtotalEx, next.discount_type, next.discount_value) });
   }
 
   async function saveDetails() {
@@ -136,6 +144,14 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         amount_ex_gst: inv.amount_ex_gst,
         gst: inv.gst,
         total: inv.total,
+        ...(hasDiscountCols
+          ? {
+              discount_type: inv.discount_type ?? "amount",
+              discount_value: Number(inv.discount_value) || 0,
+              discount_ex_gst: discountEx,
+              discount_label: inv.discount_label?.trim() || null,
+            }
+          : {}),
         invoice_date: inv.invoice_date,
         due_date: inv.due_date,
         customer_po: inv.customer_po,
@@ -359,7 +375,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             const part = parts.find((x) => x.id === l.part_id);
             return part && part.pack_cost_ex_gst != null ? round2(Number(l.qty || 0) * Number(part.pack_cost_ex_gst)) : null;
           };
-          const sales = round2(lines.reduce((a, l) => a + Number(l.line_ex || 0), 0));
+          const sales = round2(lines.reduce((a, l) => a + Number(l.line_ex || 0), 0) - discountEx);
           const costed = lines.filter((l) => costOf(l) !== null);
           const cost = round2(costed.reduce((a, l) => a + (costOf(l) as number), 0));
           const missing = lines.length - costed.length;
@@ -369,7 +385,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             <div className="mt-4 rounded-lg border border-[var(--border)] bg-black/[0.03] p-3 text-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Profit on this invoice (staff only, not on the customer copy)</p>
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div><div className="text-xs text-[var(--muted)]">Sales ex GST</div><div className="font-semibold">{money(sales)}</div></div>
+                <div><div className="text-xs text-[var(--muted)]">Sales ex GST{discountEx > 0 ? " (after discount)" : ""}</div><div className="font-semibold">{money(sales)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Cost ex GST</div><div className="font-semibold">{money(cost)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Profit</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{money(profit)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Margin</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{margin.toFixed(1)}%</div></div>
@@ -427,10 +443,42 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
       </div>
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        {!hasDiscountCols ? (
+          draft && <p className="text-xs text-amber-700">Discounts need migration 0052 to be run in Supabase first.</p>
+        ) : draft || discountEx > 0 ? (
+          <div className="rounded-lg border border-[var(--border)] bg-black/[0.03] p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Discount (taken off before GST)</p>
+            {draft ? (
+              <div className="mt-2 grid gap-3 sm:grid-cols-[8rem_8rem_1fr_auto] sm:items-end">
+                <label className="block text-sm">
+                  Type
+                  <select className={input} value={inv.discount_type ?? "amount"} onChange={(e) => setDiscount({ discount_type: e.target.value as "amount" | "percent" })}>
+                    <option value="amount">Dollar amount ($)</option>
+                    <option value="percent">Percentage (%)</option>
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  {inv.discount_type === "percent" ? "Percent off" : "Dollars off (ex GST)"}
+                  <input className={input} inputMode="decimal" value={inv.discount_value ?? 0} onChange={(e) => setDiscount({ discount_value: e.target.value === "" ? 0 : (e.target.value as any) })} />
+                </label>
+                <label className="block text-sm">
+                  Label on the invoice
+                  <input className={input} placeholder="Discount" value={inv.discount_label ?? ""} onChange={(e) => setDiscount({ discount_label: e.target.value })} />
+                </label>
+                <div className="pb-2 text-sm">
+                  {discountEx > 0 ? <span className="font-semibold text-red-700">-{money(discountEx)}</span> : <span className="text-[var(--muted)]">No discount</span>}
+                </div>
+              </div>
+            ) : (
+              <p className="mt-1 text-sm">{inv.discount_label || "Discount"}{inv.discount_type === "percent" ? ` (${Number(inv.discount_value)}%)` : ""}: <span className="font-semibold text-red-700">-{money(discountEx)}</span> ex GST</p>
+            )}
+            {draft && <p className="mt-2 text-xs text-[var(--muted)]">Press Save below to keep the discount. It comes off the items total (or the amount), and GST is worked out on what is left.</p>}
+          </div>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">
-            Amount ex GST {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
-            <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={inv.amount_ex_gst} onChange={(e) => setAmounts(e.target.value)} />
+            {discountEx > 0 ? "Amount before discount, ex GST" : "Amount ex GST"} {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
+            <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={subtotalEx} onChange={(e) => setAmounts(e.target.value)} />
           </label>
           <div className="text-sm">
             <p>GST</p>

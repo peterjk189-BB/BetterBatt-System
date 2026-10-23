@@ -139,7 +139,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     const desc = inv.description || `${inv.kind} invoice`;
     const dl = doc.splitTextToSize(desc, W - M * 2 - 50) as string[];
     doc.text(dl, M + 2, y);
-    doc.text(money(inv.amount_ex_gst), W - M - 2, y, { align: "right" });
+    doc.text(money(Number(inv.amount_ex_gst) + Number(inv.discount_ex_gst || 0)), W - M - 2, y, { align: "right" });
     y += dl.length * 4.8 + 4;
   }
   doc.setDrawColor(210);
@@ -155,7 +155,14 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     doc.text(v, W - M - 2, y, { align: "right" });
     y += bold ? 7 : 5.5;
   };
-  row("Subtotal (ex GST)", money(inv.amount_ex_gst));
+  const disc = Number(inv.discount_ex_gst || 0);
+  if (disc > 0) {
+    row("Subtotal (ex GST)", money(Number(inv.amount_ex_gst) + disc));
+    row(`${inv.discount_label?.trim() || "Discount"}${inv.discount_type === "percent" ? ` (${Number(inv.discount_value)}%)` : ""}`, `-${money(disc)}`);
+    row("Total ex GST", money(inv.amount_ex_gst));
+  } else {
+    row("Subtotal (ex GST)", money(inv.amount_ex_gst));
+  }
   row("GST (10%)", money(inv.gst));
   row("Total (inc GST)", money(inv.total), true);
   if (input.paid > 0) {

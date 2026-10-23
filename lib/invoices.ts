@@ -14,6 +14,10 @@ export type Invoice = {
   customer_po: string | null;
   site_address?: string | null;
   delivery_address?: string | null;
+  discount_type?: "amount" | "percent";
+  discount_value?: number;
+  discount_ex_gst?: number;
+  discount_label?: string | null;
   notes: string | null;
   status: "Draft" | "Sent" | "Void";
   sent_at: string | null;
@@ -72,3 +76,14 @@ export const STATUS_STYLE: Record<DerivedStatus, string> = {
 
 export const money = (n: number) => Number(n || 0).toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 export const fmtDate = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU") : "—");
+
+/** Totals from a pre-discount subtotal (ex GST) and a discount that is a dollar amount or a percentage. */
+export function invoiceTotals(subtotal: number, type: "amount" | "percent" | undefined, value: number | undefined) {
+  const sub = round2(Number(subtotal) || 0);
+  const v = Math.max(0, Number(value) || 0);
+  const raw = type === "percent" ? (sub * Math.min(100, v)) / 100 : v;
+  const discount = round2(Math.min(sub, raw));
+  const ex = round2(sub - discount);
+  const gst = round2(ex * 0.1);
+  return { discount_ex_gst: discount, amount_ex_gst: ex, gst, total: round2(ex + gst) };
+}
