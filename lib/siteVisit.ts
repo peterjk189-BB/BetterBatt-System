@@ -38,6 +38,8 @@ export type Checklist = {
   /** Free-text notes for the job specifics section. */
   job_notes: string;
   quote_ceiling: boolean;
+  /** Ceiling-only job: the Wall batts and Underfloor sections are hidden (and left off prints and quote prefill). */
+  ceiling_only: boolean;
   quote_underfloor: boolean;
 
   ceiling_430_m2: string;
@@ -112,6 +114,7 @@ export const EMPTY_CHECKLIST: Checklist = {
   tile_lift_qty: "",
   job_notes: "",
   quote_ceiling: false,
+  ceiling_only: false,
   quote_underfloor: false,
 
   ceiling_430_m2: "",
@@ -225,6 +228,7 @@ export function measuredSummary(c: Checklist): string[] {
   const ceiling = num(c.ceiling_430_m2) + num(c.ceiling_580_m2);
   const underfloor = num(c.underfloor_415_m2) + num(c.underfloor_565_m2);
   if (c.quote_ceiling || ceiling) out.push(ceiling ? `Ceiling ${ceiling} m²` : "Ceiling");
+  if (c.ceiling_only) return out;
   const walls = num(c.wall_ext_gf_m2) + num(c.wall_ext_ff_m2) + num(c.wall_int_m2);
   if (c.quote_walls || walls) out.push(walls ? `Walls ${walls} m²` : "Walls");
   if (c.quote_underfloor || underfloor) out.push(underfloor ? `Underfloor ${underfloor} m²` : "Underfloor");

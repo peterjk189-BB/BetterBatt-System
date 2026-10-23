@@ -45,7 +45,9 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
         { label: `wall ${c.wall_int_r_rating}`.trim(), qty: num(c.wall_int_m2), note: "Internal / acoustic walls" },
         { label: product || "underfloor 415", qty: num(c.underfloor_415_m2) },
         { label: product ? `${product} 565` : "underfloor 565", qty: num(c.underfloor_565_m2) },
-      ].filter((w) => w.qty > 0);
+      ]
+        .filter((_, i) => !c.ceiling_only || i < 2)
+        .filter((w) => w.qty > 0);
 
       prefill = {
         siteVisit: { id: v.id, visit_number: v.visit_number },

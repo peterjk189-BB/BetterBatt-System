@@ -341,6 +341,8 @@ export default function SiteVisitPrintView({
           </div>
         </Card>
 
+        {!c.ceiling_only && (
+          <>
         <Card title="Wall batts">
           <Grid cols={4}>
             <Field span={1} label="External GF m²" value={c.wall_ext_gf_m2} />
@@ -377,6 +379,8 @@ export default function SiteVisitPrintView({
             {ACCESS_LEVELS.map((o) => <Pill key={o} on={c.underfloor_access.includes(o)}>{o}</Pill>)}
           </Group>
         </Card>
+          </>
+        )}
 
         {rooms.length > 0 && (
           <Card title="Room measurements">

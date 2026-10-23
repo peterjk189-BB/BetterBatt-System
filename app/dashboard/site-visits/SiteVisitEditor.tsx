@@ -367,6 +367,10 @@ export default function SiteVisitEditor({
   function setC<K extends keyof Checklist>(k: K, v: Checklist[K]) {
     setChecklist((c) => ({ ...c, [k]: v }));
   }
+  /** Ceiling-only job: hide the wall and underfloor sections and stop quoting them. */
+  function setCeilingOnly(on: boolean) {
+    setChecklist((c) => (on ? { ...c, ceiling_only: true, quote_ceiling: true, quote_walls: false, quote_underfloor: false } : { ...c, ceiling_only: false }));
+  }
   function toggleIn(k: keyof Checklist, option: string) {
     setChecklist((c) => {
       const arr = (c[k] as string[]) || [];
@@ -631,6 +635,9 @@ export default function SiteVisitEditor({
                 <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
                   Wall batts
                 </Toggle>
+                <Toggle on={checklist.ceiling_only} onClick={() => setCeilingOnly(!checklist.ceiling_only)}>
+                  Ceiling only (hide walls &amp; underfloor)
+                </Toggle>
               </Group>
               <Group label="Stage of build">
                 {BUILD_STAGES.map((o) => (
@@ -779,6 +786,9 @@ export default function SiteVisitEditor({
             <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
               Wall batts
             </Toggle>
+                <Toggle on={checklist.ceiling_only} onClick={() => setCeilingOnly(!checklist.ceiling_only)}>
+                  Ceiling only (hide walls &amp; underfloor)
+                </Toggle>
           </Group>
           <Group label="Roof">
             {ROOF_TYPES.map((o) => (
@@ -906,6 +916,8 @@ export default function SiteVisitEditor({
         </label>
       </Section>
 
+      {!checklist.ceiling_only && (
+        <>
       {/* Walls */}
       <Section title="Wall batts" muted={!checklist.quote_walls} hint={!checklist.quote_walls ? "Tick Wall batts above if you're quoting walls." : undefined}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1009,6 +1021,8 @@ export default function SiteVisitEditor({
           />
         </div>
       </Section>
+        </>
+      )}
 
       {/* Notes */}
       <Section title="Notes">
