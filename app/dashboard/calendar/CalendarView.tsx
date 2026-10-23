@@ -622,7 +622,7 @@ export default function CalendarView({
               ["wo", "Work orders", "bg-orange-500"],
               ["po", "PO deliveries", "bg-blue-500"],
               ["delivery", "Stock deliveries", "bg-red-500"],
-              ...(invoiceDeliveries.length > 0 || hiddenKinds.includes("invdelivery") ? [["invdelivery", "Invoice deliveries", "bg-teal-600"]] : []),
+              ...(invoiceDeliveries.length > 0 || hiddenKinds.includes("invdelivery") ? [["invdelivery", "Invoice deliveries", "bg-red-500"]] : []),
               ["visit", "Site visits", "bg-lime-400"],
               ["inspection", "Inspections", "bg-[#1e3a8a]"],
               ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
@@ -812,12 +812,12 @@ export default function CalendarView({
                                 key={`invdelivery-${ev.id}`}
                                 href={`/dashboard/invoices/${ev.invoiceId}`}
                                 title={`${ev.pickup ? "Customer pick-up" : "Delivery"} — INV-${ev.invoiceNumber} — ${ev.customerName} (${ev.address})`}
-                                className="block rounded bg-teal-700 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-teal-800"
+                                className="block rounded bg-red-600 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-red-700"
                               >
                                 <div className="truncate font-bold">
                                   {ev.pickup ? "Pick-up" : "Delivery"} · INV-{ev.invoiceNumber}
                                 </div>
-                                <div className="truncate text-teal-100">
+                                <div className="truncate text-red-100">
                                   {ev.customerName}
                                   {ev.pickup ? "" : ` — ${ev.address}`}
                                 </div>
