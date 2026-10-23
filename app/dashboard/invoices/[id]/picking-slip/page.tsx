@@ -8,10 +8,10 @@ export default async function InvoicePickingSlipPage({ params }: { params: { id:
     supabase.from("invoices").select("*, customers(name)").eq("id", params.id).single(),
     supabase
       .from("invoice_lines")
-      .select("id, description, qty, part_id, fulfilment, picked, multi_picked, packs_picked, sort_order, parts(id, name, code, pack_per_multi, stock_on_hand)")
+      .select("id, description, qty, part_id, fulfilment, picked, multi_picked, packs_picked, sort_order, parts(id, name, code, pack_per_multi, stock_on_hand, is_stock_item)")
       .eq("invoice_id", params.id)
       .order("sort_order"),
   ]);
   if (!invoice) notFound();
-  return <InvoicePickingSlip invoice={invoice as any} lines={((lines ?? []) as any[]).filter((l) => l.fulfilment !== "supplier" && l.part_id)} />;
+  return <InvoicePickingSlip invoice={invoice as any} lines={((lines ?? []) as any[]).filter((l) => l.fulfilment !== "supplier" && l.part_id && l.parts?.is_stock_item !== false)} />;
 }

@@ -16,7 +16,7 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null };
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null };
 
 export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts, suppliers = [], initialPoNumbers = {} }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[]; suppliers?: { id: string; name: string }[]; initialPoNumbers?: Record<string, string> }) {
   const supabase = createClient();
@@ -74,8 +74,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   // false until migration 0053 has been run in Supabase
   const hasFulfilCols = inv.delivery_method !== undefined;
   const isSupplierLine = (l: InvoiceLine) => (l.fulfilment ?? "warehouse") === "supplier";
-  const warehouseLines = lines.filter((l) => l.part_id && !isSupplierLine(l));
-  const supplierToOrder = lines.filter((l) => l.part_id && isSupplierLine(l) && !l.po_id);
+  // Non-stock items (labour, delivery fees and the like) are never picked or ordered.
+  const isStockLine = (l: InvoiceLine) => !!l.part_id && parts.find((p) => p.id === l.part_id)?.is_stock_item !== false;
+  const warehouseLines = lines.filter((l) => isStockLine(l) && !isSupplierLine(l));
+  const supplierToOrder = lines.filter((l) => isStockLine(l) && isSupplierLine(l) && !l.po_id);
 
   async function setFulfilment(l: InvoiceLine, value: "warehouse" | "supplier") {
     const { error } = await supabase.from("invoice_lines").update({ fulfilment: value }).eq("id", l.id);
@@ -448,7 +450,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                     <td className="px-2 text-right">{money(l.line_ex)}</td>
                     {hasFulfilCols && (
                       <td className="px-2">
-                        {l.part_id ? (
+                        {isStockLine(l) ? (
                           <div>
                             <select className="w-full rounded border border-[var(--border)] bg-white px-1 py-1 text-xs" value={l.fulfilment ?? "warehouse"} onChange={(e) => setFulfilment(l, e.target.value as "warehouse" | "supplier")}>
                               <option value="warehouse">Warehouse (pick)</option>
@@ -458,7 +460,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                             {l.po_id && <div className="mt-0.5 text-[11px] font-semibold text-blue-700"><Link href={`/dashboard/purchase-orders/${l.po_id}`} className="hover:underline">On {poNumbers[l.po_id] || "PO"}</Link></div>}
                           </div>
                         ) : (
-                          <span className="text-xs text-[var(--muted)]">—</span>
+                          <span className="text-xs text-[var(--muted)]">{l.part_id ? "Non-stock" : "—"}</span>
                         )}
                       </td>
                     )}
