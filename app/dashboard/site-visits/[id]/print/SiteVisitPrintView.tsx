@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
 import {
   ACCESS_LEVELS,
   BATTEN_OPTIONS,
@@ -120,6 +122,33 @@ export default function SiteVisitPrintView({
   const rooms = c.rooms.filter((r) => r.length || r.width);
   const builder = isBuilderVisit(visit.visit_type);
 
+  const printableRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+  const fileBase = pdfFileName(`Site visit SV${visit.visit_number}`, [visit.address, visit.suburb].filter(Boolean).join(", "));
+
+  // The browser's Print / Save as PDF uses the page title as the file name.
+  useEffect(() => {
+    const prev = document.title;
+    document.title = fileBase.replace(/\.pdf$/, "");
+    return () => {
+      document.title = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Works on phones, where the browser's Print / Save as PDF is not available.
+  async function downloadPdf() {
+    if (!printableRef.current) return;
+    setDownloading(true);
+    try {
+      await elementToPdf(printableRef.current, fileBase, "portrait");
+    } catch {
+      alert("Couldn't make the PDF. Try again, or use Print.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-6 flex items-center gap-3 print:hidden">
@@ -129,12 +158,20 @@ export default function SiteVisitPrintView({
         >
           &larr; Back to site visit
         </Link>
-        <button onClick={() => window.print()} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
-          Print / Save as PDF
+        <button
+          onClick={downloadPdf}
+          disabled={downloading}
+          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {downloading ? "Making PDF…" : "Download PDF"}
+        </button>
+        <button onClick={() => window.print()} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+          Print
         </button>
       </div>
 
       <div
+        ref={printableRef}
         className="mx-auto max-w-[800px] bg-white p-8 text-[13px] leading-snug text-[#201f1c] shadow-sm print:p-0 print:shadow-none"
         style={{ WebkitPrintColorAdjust: "exact", printColorAdjust: "exact" } as React.CSSProperties}
       >

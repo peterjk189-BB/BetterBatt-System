@@ -14,8 +14,13 @@ export async function elementToPdf(
 
   // About 195 dpi on A4: sharp text, far smaller than a 2x retina capture.
   const targetWidthPx = orientation === "portrait" ? 1625 : 2300;
-  const scale = Math.min(3, Math.max(1, targetWidthPx / Math.max(1, el.offsetWidth)));
-  const canvas: HTMLCanvasElement = await html2canvas(el, { scale, backgroundColor: "#ffffff" });
+  let scale = Math.min(3, Math.max(1, targetWidthPx / Math.max(1, el.offsetWidth)));
+  // Phones (iOS Safari especially) refuse canvases above roughly 16 million pixels, so long pages get a lower scale.
+  const maxPixels = 14_000_000;
+  const pixels = el.offsetWidth * el.offsetHeight * scale * scale;
+  if (pixels > maxPixels) scale = Math.max(0.6, Math.sqrt(maxPixels / Math.max(1, el.offsetWidth * el.offsetHeight)));
+  // useCORS lets photos stored in Supabase draw onto the canvas.
+  const canvas: HTMLCanvasElement = await html2canvas(el, { scale, backgroundColor: "#ffffff", useCORS: true });
 
   const pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
   const pageW = pdf.internal.pageSize.getWidth();
