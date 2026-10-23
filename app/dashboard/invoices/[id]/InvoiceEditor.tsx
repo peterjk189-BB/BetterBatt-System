@@ -73,6 +73,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
   // false until migration 0053 has been run in Supabase
   const hasFulfilCols = inv.delivery_method !== undefined;
+  // false until migration 0054 has been run in Supabase
+  const hasContactCols = inv.delivery_contact_name !== undefined;
   const isSupplierLine = (l: InvoiceLine) => (l.fulfilment ?? "warehouse") === "supplier";
   // Non-stock items (labour, delivery fees and the like) are never picked or ordered.
   const isStockLine = (l: InvoiceLine) => !!l.part_id && parts.find((p) => p.id === l.part_id)?.is_stock_item !== false;
@@ -95,6 +97,9 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         delivery_date: inv.delivery_date || null,
         delivery_note: inv.delivery_note?.trim() || null,
         delivery_address: inv.delivery_address?.trim() || null,
+        ...(hasContactCols
+          ? { delivery_contact_name: inv.delivery_contact_name?.trim() || null, delivery_contact_phone: inv.delivery_contact_phone?.trim() || null, delivery_time: inv.delivery_time || null }
+          : {}),
       })
       .eq("id", inv.id);
     setBusy("");
@@ -205,7 +210,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     setBusy("");
     if (error || !data) return setMsg({ ok: false, text: error?.message || "Could not save" });
     // keep any delivery details typed but not yet saved (they have their own Save button)
-    setInv((prev) => ({ ...(data as any), delivery_method: prev.delivery_method !== undefined ? prev.delivery_method : (data as any).delivery_method, delivery_date: prev.delivery_date !== undefined ? prev.delivery_date : (data as any).delivery_date, delivery_note: prev.delivery_note !== undefined ? prev.delivery_note : (data as any).delivery_note }));
+    setInv((prev) => ({ ...(data as any), delivery_method: prev.delivery_method !== undefined ? prev.delivery_method : (data as any).delivery_method, delivery_date: prev.delivery_date !== undefined ? prev.delivery_date : (data as any).delivery_date, delivery_note: prev.delivery_note !== undefined ? prev.delivery_note : (data as any).delivery_note, delivery_contact_name: prev.delivery_contact_name !== undefined ? prev.delivery_contact_name : (data as any).delivery_contact_name, delivery_contact_phone: prev.delivery_contact_phone !== undefined ? prev.delivery_contact_phone : (data as any).delivery_contact_phone, delivery_time: prev.delivery_time !== undefined ? prev.delivery_time : (data as any).delivery_time }));
     if (note) {
       setMsg({ ok: true, text: note });
       logAudit(supabase, { eventType: "update", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: note });
@@ -564,6 +569,24 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
               <input className={input} value={inv.delivery_note ?? ""} onChange={(e) => setInv({ ...inv, delivery_note: e.target.value })} />
             </label>
           </div>
+          {hasContactCols ? (
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <label className="block text-sm">
+                Time
+                <input type="time" className={input} value={inv.delivery_time ?? ""} onChange={(e) => setInv({ ...inv, delivery_time: e.target.value || null })} />
+              </label>
+              <label className="block text-sm">
+                Site contact <span className="text-xs text-[var(--muted)]">(if not the customer)</span>
+                <input className={input} value={inv.delivery_contact_name ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_name: e.target.value })} placeholder="Name" />
+              </label>
+              <label className="block text-sm">
+                Site contact phone
+                <input className={input} inputMode="tel" value={inv.delivery_contact_phone ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_phone: e.target.value })} placeholder="04.." />
+              </label>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-amber-700">Delivery time and site contact need migration 0054 to be run in Supabase first.</p>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Save delivery</button>
             {warehouseLines.length > 0 && (

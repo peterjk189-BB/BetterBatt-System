@@ -17,6 +17,9 @@ export type Invoice = {
   delivery_method?: "delivery" | "pickup";
   delivery_date?: string | null;
   delivery_note?: string | null;
+  delivery_contact_name?: string | null;
+  delivery_contact_phone?: string | null;
+  delivery_time?: string | null;
   discount_type?: "amount" | "percent";
   discount_value?: number;
   discount_ex_gst?: number;

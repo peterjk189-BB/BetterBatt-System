@@ -27,7 +27,9 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
   const [downloading, setDownloading] = useState(false);
   const printableRef = useRef<HTMLDivElement>(null);
 
-  const site = invoice.delivery_address || invoice.site_address || "";
+  const proj = invoice.projects;
+  const site =
+    invoice.delivery_address || invoice.site_address || [proj?.lot_no ? (/^lot\b/i.test(proj.lot_no) ? proj.lot_no : `Lot ${proj.lot_no}`) : null, proj?.address, proj?.suburb].filter(Boolean).join(", ") || "";
   const method = invoice.delivery_method === "pickup" ? "Customer pick-up" : "Delivery";
   const field = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
 
@@ -100,16 +102,35 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-base">
+        <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">Customer</div>
-            <div className="mt-0.5 font-semibold">{invoice.customers?.name || "—"}</div>
-            <div className="text-gray-600">{site || "—"}</div>
+            <div className="mt-0.5 text-base font-semibold">{invoice.customers?.name || "—"}</div>
+            {invoice.customers?.contact_name && <div className="text-gray-700">{invoice.customers.contact_name}</div>}
+            {(invoice.customers?.contact_phone || invoice.projects?.contact_phone) && (
+              <div className="font-semibold">{invoice.customers?.contact_phone || invoice.projects?.contact_phone}</div>
+            )}
+            {invoice.customers?.contact_email && <div className="break-all text-xs text-gray-500">{invoice.customers.contact_email}</div>}
+            {invoice.customer_po && <div className="mt-1 text-xs text-gray-500">Customer PO: {invoice.customer_po}</div>}
+          </div>
+          <div className="rounded-lg bg-gray-50 px-3 py-2">
+            <div className="text-xs uppercase tracking-wide text-gray-500">{invoice.delivery_method === "pickup" ? "Site" : "Deliver to"}</div>
+            <div className="mt-0.5 whitespace-pre-wrap text-base font-semibold">{site || "—"}</div>
+            <div className="mt-1 text-xs uppercase tracking-wide text-gray-500">Site contact</div>
+            {invoice.delivery_contact_name || invoice.delivery_contact_phone ? (
+              <div>
+                {invoice.delivery_contact_name && <span className="font-semibold">{invoice.delivery_contact_name}</span>}
+                {invoice.delivery_contact_phone && <span className="ml-2 font-semibold">{invoice.delivery_contact_phone}</span>}
+              </div>
+            ) : (
+              <div className="text-gray-500">Same as customer</div>
+            )}
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">{method}</div>
-            <div className="mt-0.5 text-lg font-bold">{invoice.delivery_date ? fmtDate(invoice.delivery_date) : "Date not set"}</div>
-            {invoice.delivery_note && <div className="text-gray-600">{invoice.delivery_note}</div>}
+            <div className="mt-0.5 text-base font-bold">{invoice.delivery_date ? fmtDate(invoice.delivery_date) : "Date not set"}</div>
+            {invoice.delivery_time && <div className="font-semibold">{invoice.delivery_time}</div>}
+            {invoice.delivery_note && <div className="mt-1 whitespace-pre-wrap text-gray-700">{invoice.delivery_note}</div>}
           </div>
         </div>
 
@@ -166,7 +187,7 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
 
         <div className="mt-6 flex justify-between border-t border-gray-100 pt-3 text-xs text-gray-400">
           <span>Better Batt Insulation · printed {new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}</span>
-          <span>Picked by: _______________________</span>
+          <span>Picked by: _______________________ &nbsp;&nbsp; Received by: _______________________ &nbsp;&nbsp; Date: ____________</span>
         </div>
       </div>
     </div>
