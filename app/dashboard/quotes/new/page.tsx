@@ -31,11 +31,28 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
   ]);
 
   let prefill: QuotePrefill | null = null;
+  let visitCustomers: any[] | null = null;
   if (searchParams.site_visit_id) {
     const { data: v } = await supabase.from("site_visits").select("*").eq("id", searchParams.site_visit_id).single();
     if (v) {
       const c = normaliseChecklist(v.checklist);
-      const linked = (customers ?? []).find((x) => x.id === v.customer_id);
+      let customerList = customers ?? [];
+      let linked = customerList.find((x) => x.id === v.customer_id);
+      // A visit linked to a customer who has since been archived: still show them in the list.
+      if (!linked && v.customer_id) {
+        const { data: arch } = await supabase.from("customers").select("*").eq("id", v.customer_id).maybeSingle();
+        if (arch) {
+          linked = arch;
+          customerList = [...customerList, arch];
+        }
+      }
+      // Visit has only a typed name (no linked customer): use the customer with the same name, if there is exactly one.
+      if (!linked && v.customer_name?.trim()) {
+        const want = v.customer_name.trim().toLowerCase();
+        const exact = customerList.filter((x) => String(x.name || "").trim().toLowerCase() === want);
+        if (exact.length === 1) linked = exact[0];
+      }
+      visitCustomers = customerList;
       const product = c.underfloor_products[0] || "";
       const wanted: { label: string; qty: number; note?: string }[] = [
         { label: `${c.ceiling_r_rating} 430`, qty: num(c.ceiling_430_m2) },
@@ -51,7 +68,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
 
       prefill = {
         siteVisit: { id: v.id, visit_number: v.visit_number },
-        customer_id: v.customer_id || "",
+        customer_id: linked?.id || v.customer_id || "",
         customer_name: v.customer_name || "",
         category: linked?.category || (v.visit_type === "Retro fit" ? "Retro Fit" : ""),
         contact_name: v.customer_name || "",
@@ -73,7 +90,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
     <QuoteEditor
       project={null}
       lines={[]}
-      customers={customers ?? []}
+      customers={visitCustomers ?? customers ?? []}
       parts={parts ?? []}
       isAdmin={role === "admin"}
       prefill={prefill}
