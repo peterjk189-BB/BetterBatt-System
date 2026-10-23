@@ -635,9 +635,6 @@ export default function SiteVisitEditor({
                 <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
                   Wall batts
                 </Toggle>
-                <Toggle on={checklist.ceiling_only} onClick={() => setCeilingOnly(!checklist.ceiling_only)}>
-                  Ceiling only (hide walls &amp; underfloor)
-                </Toggle>
               </Group>
               <Group label="Stage of build">
                 {BUILD_STAGES.map((o) => (
@@ -786,9 +783,6 @@ export default function SiteVisitEditor({
             <Toggle on={checklist.quote_walls} onClick={() => setC("quote_walls", !checklist.quote_walls)}>
               Wall batts
             </Toggle>
-                <Toggle on={checklist.ceiling_only} onClick={() => setCeilingOnly(!checklist.ceiling_only)}>
-                  Ceiling only (hide walls &amp; underfloor)
-                </Toggle>
           </Group>
           <Group label="Roof">
             {ROOF_TYPES.map((o) => (
