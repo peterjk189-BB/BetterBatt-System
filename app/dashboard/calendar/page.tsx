@@ -113,7 +113,7 @@ export default async function CalendarPage() {
     }
   }
 
-  const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }] = await Promise.all([
+  const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }, invoiceDeliveries] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
       .from("purchase_orders")
@@ -135,6 +135,13 @@ export default async function CalendarPage() {
       .select("id, wo_number, stock_delivery_date, projects(lot_no, address, suburb, customers(name)), work_order_lines(parts(is_stock_item, suppliers(name)))")
       .eq("archived", false)
       .not("stock_delivery_date", "is", null),
+    // Delivery / pick-up dates set on item invoices (columns come from migration 0053; empty until it has been run).
+    supabase
+      .from("invoices")
+      .select("id, invoice_number, status, delivery_method, delivery_date, delivery_address, site_address, customers(name)")
+      .neq("status", "Void")
+      .not("delivery_date", "is", null)
+      .then((r) => (r.error ? [] : r.data ?? [])),
   ]);
 
   return (
@@ -147,6 +154,7 @@ export default async function CalendarPage() {
       inspections={(inspections ?? []) as any}
       crmTasks={crmTasks as any}
       stockDeliveries={(stockDeliveries ?? []) as any}
+      invoiceDeliveries={invoiceDeliveries as any}
       bookingErrors={bookingErrors}
       installerNote={null}
     />

@@ -16,9 +16,9 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null };
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null };
 
-export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[] }) {
+export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts, suppliers = [], initialPoNumbers = {} }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[]; suppliers?: { id: string; name: string }[]; initialPoNumbers?: Record<string, string> }) {
   const supabase = createClient();
   const router = useRouter();
   const [inv, setInv] = useState<Full>(invoice);
@@ -35,6 +35,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [custChoice, setCustChoice] = useState("");
   const [custName, setCustName] = useState("");
   const [discText, setDiscText] = useState<string | null>(null);
+  const [poNumbers, setPoNumbers] = useState<Record<string, string>>(initialPoNumbers);
+  const [fulfilMsg, setFulfilMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
@@ -67,6 +69,85 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     setLines(next);
     setPartSearch("");
     await syncTotals(next);
+  }
+
+  // false until migration 0053 has been run in Supabase
+  const hasFulfilCols = inv.delivery_method !== undefined;
+  const isSupplierLine = (l: InvoiceLine) => (l.fulfilment ?? "warehouse") === "supplier";
+  const warehouseLines = lines.filter((l) => l.part_id && !isSupplierLine(l));
+  const supplierToOrder = lines.filter((l) => l.part_id && isSupplierLine(l) && !l.po_id);
+
+  async function setFulfilment(l: InvoiceLine, value: "warehouse" | "supplier") {
+    const { error } = await supabase.from("invoice_lines").update({ fulfilment: value }).eq("id", l.id);
+    if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
+    setLines(lines.map((x) => (x.id === l.id ? { ...x, fulfilment: value } : x)));
+  }
+
+  /** Delivery / pick-up details save on their own, so they can still be changed after the invoice is sent. */
+  async function saveDelivery() {
+    setBusy("delivery");
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        delivery_method: inv.delivery_method ?? "delivery",
+        delivery_date: inv.delivery_date || null,
+        delivery_note: inv.delivery_note?.trim() || null,
+        delivery_address: inv.delivery_address?.trim() || null,
+      })
+      .eq("id", inv.id);
+    setBusy("");
+    if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
+    setFulfilMsg({ ok: true, text: "Delivery details saved." });
+    logAudit(supabase, { eventType: "update", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: "Delivery details updated" });
+  }
+
+  /** Draft purchase orders for the lines marked "Order from supplier", one per supplier. */
+  async function createPurchaseOrders() {
+    setBusy("po");
+    const groups = new Map<string, InvoiceLine[]>();
+    for (const l of supplierToOrder) {
+      const part = parts.find((p) => p.id === l.part_id);
+      const key = part?.supplier_id || "";
+      groups.set(key, [...(groups.get(key) ?? []), l]);
+    }
+    const made: string[] = [];
+    const nextNumbers = { ...poNumbers };
+    let nextLines = lines;
+    for (const [supplierId, ls] of Array.from(groups.entries())) {
+      const { data: po, error } = await supabase
+        .from("purchase_orders")
+        .insert({
+          supplier_id: supplierId || null,
+          status: "Draft",
+          delivery_address: inv.delivery_address?.trim() || inv.site_address?.trim() || null,
+          delivery_date: inv.delivery_date || null,
+          notes: `For ${invNo(inv.invoice_number)}${inv.customers?.name ? ` - ${inv.customers.name}` : ""}`,
+        })
+        .select("id, po_number")
+        .single();
+      if (error || !po) {
+        setBusy("");
+        return setFulfilMsg({ ok: false, text: error?.message || "Could not create the purchase order" });
+      }
+      const rows = ls.map((l) => {
+        const part = parts.find((p) => p.id === l.part_id);
+        return { purchase_order_id: po.id, part_id: l.part_id, qty_multi: 0, qty_pks: Number(l.qty) || 0, unit_cost: part?.pack_cost_ex_gst ?? null };
+      });
+      const { error: lineErr } = await supabase.from("purchase_order_lines").insert(rows);
+      if (lineErr) {
+        setBusy("");
+        return setFulfilMsg({ ok: false, text: lineErr.message });
+      }
+      await supabase.from("invoice_lines").update({ po_id: po.id }).in("id", ls.map((l) => l.id));
+      nextLines = nextLines.map((x) => (ls.some((l) => l.id === x.id) ? { ...x, po_id: po.id } : x));
+      nextNumbers[po.id] = po.po_number || "PO";
+      made.push(`${po.po_number || "PO"}${supplierId ? ` (${suppliers.find((s) => s.id === supplierId)?.name ?? "supplier"})` : " (no supplier set)"}`);
+    }
+    setLines(nextLines);
+    setPoNumbers(nextNumbers);
+    setBusy("");
+    setFulfilMsg({ ok: true, text: `Created draft ${made.length === 1 ? "purchase order" : "purchase orders"}: ${made.join(", ")}. Open Purchase Orders to review and send.` });
+    logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: `Draft purchase orders created: ${made.join(", ")}` });
   }
 
   async function changeLine(l: InvoiceLine, patch: Partial<InvoiceLine>) {
@@ -121,7 +202,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, lot_no, address, suburb, contact_email)").single();
     setBusy("");
     if (error || !data) return setMsg({ ok: false, text: error?.message || "Could not save" });
-    setInv(data as any);
+    // keep any delivery details typed but not yet saved (they have their own Save button)
+    setInv((prev) => ({ ...(data as any), delivery_method: prev.delivery_method !== undefined ? prev.delivery_method : (data as any).delivery_method, delivery_date: prev.delivery_date !== undefined ? prev.delivery_date : (data as any).delivery_date, delivery_note: prev.delivery_note !== undefined ? prev.delivery_note : (data as any).delivery_note }));
     if (note) {
       setMsg({ ok: true, text: note });
       logAudit(supabase, { eventType: "update", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: note });
@@ -349,7 +431,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-[var(--muted)]">
-                <tr><th className="py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount</th><th></th></tr>
+                <tr><th className="py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount</th>{hasFulfilCols && <th className="w-44 px-2">From</th>}<th></th></tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
@@ -364,6 +446,22 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                       {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={l.unit_price} onBlur={(e) => Number(e.target.value) !== Number(l.unit_price) && changeLine(l, { unit_price: Number(e.target.value) || 0 })} /> : money(l.unit_price)}
                     </td>
                     <td className="px-2 text-right">{money(l.line_ex)}</td>
+                    {hasFulfilCols && (
+                      <td className="px-2">
+                        {l.part_id ? (
+                          <div>
+                            <select className="w-full rounded border border-[var(--border)] bg-white px-1 py-1 text-xs" value={l.fulfilment ?? "warehouse"} onChange={(e) => setFulfilment(l, e.target.value as "warehouse" | "supplier")}>
+                              <option value="warehouse">Warehouse (pick)</option>
+                              <option value="supplier">Order from supplier</option>
+                            </select>
+                            {l.picked && <div className="mt-0.5 text-[11px] font-semibold text-green-700">✓ Picked</div>}
+                            {l.po_id && <div className="mt-0.5 text-[11px] font-semibold text-blue-700"><Link href={`/dashboard/purchase-orders/${l.po_id}`} className="hover:underline">On {poNumbers[l.po_id] || "PO"}</Link></div>}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[var(--muted)]">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="text-right">{draft && <button onClick={() => removeLine(l)} className="text-xs text-red-700 underline">Remove</button>}</td>
                   </tr>
                 ))}
@@ -442,6 +540,46 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           lines.length === 0 && <p className="mt-2 text-xs text-[var(--muted)]">No items on this invoice.</p>
         )}
       </div>
+
+      {hasFulfilCols ? (
+        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Delivery and fulfilment</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">Set each item above to come from the warehouse or be ordered from the supplier. The date shows on the Calendar, and on any purchase order raised here.</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm">
+              Delivery or pick-up
+              <select className={input} value={inv.delivery_method ?? "delivery"} onChange={(e) => setInv({ ...inv, delivery_method: e.target.value as "delivery" | "pickup" })}>
+                <option value="delivery">We deliver</option>
+                <option value="pickup">Customer picks up</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              Date
+              <input type="date" className={input} value={inv.delivery_date ?? ""} onChange={(e) => setInv({ ...inv, delivery_date: e.target.value || null })} />
+            </label>
+            <label className="block text-sm">
+              Note <span className="text-xs text-[var(--muted)]">(time, gate code, who to call)</span>
+              <input className={input} value={inv.delivery_note ?? ""} onChange={(e) => setInv({ ...inv, delivery_note: e.target.value })} />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Save delivery</button>
+            {warehouseLines.length > 0 && (
+              <Link href={`/dashboard/invoices/${inv.id}/picking-slip`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+                Picking slip ({warehouseLines.length} warehouse item{warehouseLines.length === 1 ? "" : "s"})
+              </Link>
+            )}
+            {supplierToOrder.length > 0 && (
+              <button onClick={createPurchaseOrders} disabled={busy === "po"} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60">
+                {busy === "po" ? "Creating…" : `Create draft purchase order (${supplierToOrder.length} item${supplierToOrder.length === 1 ? "" : "s"})`}
+              </button>
+            )}
+            {fulfilMsg && <span className={`text-sm ${fulfilMsg.ok ? "text-green-700" : "text-red-700"}`}>{fulfilMsg.text}</span>}
+          </div>
+        </div>
+      ) : lines.length > 0 ? (
+        <p className="mt-5 text-xs text-amber-700">Warehouse / supplier and delivery options need migration 0053 to be run in Supabase first.</p>
+      ) : null}
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         {!hasDiscountCols ? (

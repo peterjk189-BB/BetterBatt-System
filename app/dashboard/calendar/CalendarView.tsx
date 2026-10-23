@@ -168,7 +168,28 @@ type DeliveryEvent = {
   suppliers: string;
 };
 
-type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent | DeliveryEvent;
+type InvoiceDelivery = {
+  id: string;
+  invoice_number: number;
+  delivery_method: string | null;
+  delivery_date: string | null;
+  delivery_address: string | null;
+  site_address: string | null;
+  customers: { name: string } | null;
+};
+
+type InvoiceDeliveryEvent = {
+  kind: "invdelivery";
+  date: string;
+  id: string;
+  invoiceId: string;
+  invoiceNumber: number;
+  pickup: boolean;
+  customerName: string;
+  address: string;
+};
+
+type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent | DeliveryEvent | InvoiceDeliveryEvent;
 
 function fmtTime(t: string | null) {
   if (!t) return "";
@@ -212,6 +233,7 @@ export default function CalendarView({
   inspections = [],
   crmTasks = [],
   stockDeliveries = [],
+  invoiceDeliveries = [],
   bookingErrors = [],
   installerNote,
 }: {
@@ -223,6 +245,7 @@ export default function CalendarView({
   /** The signed-in office user's open CRM follow-ups; each links to its CRM file. */
   crmTasks?: CrmCalendarTask[];
   stockDeliveries?: StockDelivery[];
+  invoiceDeliveries?: InvoiceDelivery[];
   /** Work orders whose due inspection couldn't be booked automatically, with the reason. */
   bookingErrors?: string[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
@@ -435,6 +458,20 @@ export default function CalendarView({
       });
     }
 
+    for (const d of invoiceDeliveries) {
+      if (!d.delivery_date) continue;
+      push(d.delivery_date, {
+        kind: "invdelivery",
+        date: d.delivery_date,
+        id: d.id,
+        invoiceId: d.id,
+        invoiceNumber: d.invoice_number,
+        pickup: d.delivery_method === "pickup",
+        customerName: d.customers?.name || "—",
+        address: d.delivery_address?.replace(/\s*\n\s*/g, ", ") || d.site_address?.replace(/\s*\n\s*/g, ", ") || "—",
+      });
+    }
+
     for (const v of visits) {
       if (!v.visit_date || v.archived) continue;
       push(v.visit_date, {
@@ -502,7 +539,7 @@ export default function CalendarView({
       });
     });
     return map;
-  }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, movedDates, movedWo]);
+  }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, invoiceDeliveries, movedDates, movedWo]);
 
   const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
   const todayStr = toDateOnly(new Date());
@@ -585,6 +622,7 @@ export default function CalendarView({
               ["wo", "Work orders", "bg-orange-500"],
               ["po", "PO deliveries", "bg-blue-500"],
               ["delivery", "Stock deliveries", "bg-red-500"],
+              ...(invoiceDeliveries.length > 0 || hiddenKinds.includes("invdelivery") ? [["invdelivery", "Invoice deliveries", "bg-teal-600"]] : []),
               ["visit", "Site visits", "bg-lime-400"],
               ["inspection", "Inspections", "bg-[#1e3a8a]"],
               ...(crmTasks.length > 0 || hiddenKinds.includes("crm") ? [["crm", "My CRM tasks", "bg-purple-500"]] : []),
@@ -764,6 +802,24 @@ export default function CalendarView({
                                 {ev.suppliers && <div className="truncate font-semibold">{ev.suppliers}</div>}
                                 <div className="truncate text-red-100">
                                   {ev.customerName} — {ev.address}
+                                </div>
+                              </Link>
+                            );
+                          }
+                          if (ev.kind === "invdelivery") {
+                            return (
+                              <Link
+                                key={`invdelivery-${ev.id}`}
+                                href={`/dashboard/invoices/${ev.invoiceId}`}
+                                title={`${ev.pickup ? "Customer pick-up" : "Delivery"} — INV-${ev.invoiceNumber} — ${ev.customerName} (${ev.address})`}
+                                className="block rounded bg-teal-700 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-teal-800"
+                              >
+                                <div className="truncate font-bold">
+                                  {ev.pickup ? "Pick-up" : "Delivery"} · INV-{ev.invoiceNumber}
+                                </div>
+                                <div className="truncate text-teal-100">
+                                  {ev.customerName}
+                                  {ev.pickup ? "" : ` — ${ev.address}`}
                                 </div>
                               </Link>
                             );
