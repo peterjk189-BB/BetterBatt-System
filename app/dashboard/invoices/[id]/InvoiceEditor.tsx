@@ -34,6 +34,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [custList, setCustList] = useState<{ id: string; name: string }[]>([]);
   const [custChoice, setCustChoice] = useState("");
   const [custName, setCustName] = useState("");
+  const [discText, setDiscText] = useState<string | null>(null);
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
@@ -469,9 +470,13 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                   <input
                     className={input}
                     inputMode="decimal"
-                    value={Math.abs(Number(inv.discount_value) || 0) < 0.001 ? "" : Math.abs(Number(inv.discount_value))}
+                    value={discText ?? (Math.abs(Number(inv.discount_value) || 0) < 0.0001 ? "" : String(Math.abs(Number(inv.discount_value))))}
+                    onBlur={() => setDiscText(null)}
                     onChange={(e) => {
-                      const n = Math.abs(Number(e.target.value) || 0);
+                      // keep exactly what is typed (so "2." and "2.575" work); up to 3 decimal places
+                      const txt = e.target.value.replace(/[^0-9.]/g, "").replace(/^(\d*\.\d{0,3}).*$/, "$1");
+                      setDiscText(txt);
+                      const n = Math.abs(Number(txt) || 0);
                       setDiscount({ discount_value: Number(inv.discount_value) < 0 ? -n || -0.0001 : n });
                     }}
                   />
