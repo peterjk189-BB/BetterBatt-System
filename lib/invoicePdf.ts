@@ -156,9 +156,9 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     y += bold ? 7 : 5.5;
   };
   const disc = Number(inv.discount_ex_gst || 0);
-  if (disc > 0) {
+  if (disc !== 0) {
     row("Subtotal (ex GST)", money(Number(inv.amount_ex_gst) + disc));
-    row(`${inv.discount_label?.trim() || "Discount"}${inv.discount_type === "percent" ? ` (${Number(inv.discount_value)}%)` : ""}`, `-${money(disc)}`);
+    row(`${inv.discount_label?.trim() || (disc < 0 ? "Adjustment" : "Discount")}${inv.discount_type === "percent" ? ` (${Math.abs(Number(inv.discount_value))}%)` : ""}`, `${disc < 0 ? "+" : "-"}${money(Math.abs(disc))}`);
     row("Total ex GST", money(inv.amount_ex_gst));
   } else {
     row("Subtotal (ex GST)", money(inv.amount_ex_gst));

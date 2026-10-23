@@ -77,11 +77,15 @@ export const STATUS_STYLE: Record<DerivedStatus, string> = {
 export const money = (n: number) => Number(n || 0).toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 export const fmtDate = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU") : "—");
 
-/** Totals from a pre-discount subtotal (ex GST) and a discount that is a dollar amount or a percentage. */
+/**
+ * Totals from a pre-adjustment subtotal (ex GST) and an adjustment that is a dollar amount or a percentage.
+ * A positive value is a discount (taken off); a negative value is an extra charge (added on).
+ * discount_ex_gst holds the dollars taken off (negative when charges are added).
+ */
 export function invoiceTotals(subtotal: number, type: "amount" | "percent" | undefined, value: number | undefined) {
   const sub = round2(Number(subtotal) || 0);
-  const v = Math.max(0, Number(value) || 0);
-  const raw = type === "percent" ? (sub * Math.min(100, v)) / 100 : v;
+  const v = Number(value) || 0;
+  const raw = type === "percent" ? (sub * Math.max(-1000, Math.min(100, v))) / 100 : v;
   const discount = round2(Math.min(sub, raw));
   const ex = round2(sub - discount);
   const gst = round2(ex * 0.1);

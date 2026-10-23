@@ -147,7 +147,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         ...(hasDiscountCols
           ? {
               discount_type: inv.discount_type ?? "amount",
-              discount_value: Number(inv.discount_value) || 0,
+              discount_value: Math.abs(Number(inv.discount_value) || 0) < 0.001 ? 0 : Number(inv.discount_value),
               discount_ex_gst: discountEx,
               discount_label: inv.discount_label?.trim() || null,
             }
@@ -385,7 +385,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             <div className="mt-4 rounded-lg border border-[var(--border)] bg-black/[0.03] p-3 text-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Profit on this invoice (staff only, not on the customer copy)</p>
               <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div><div className="text-xs text-[var(--muted)]">Sales ex GST{discountEx > 0 ? " (after discount)" : ""}</div><div className="font-semibold">{money(sales)}</div></div>
+                <div><div className="text-xs text-[var(--muted)]">Sales ex GST{discountEx !== 0 ? " (after adjustment)" : ""}</div><div className="font-semibold">{money(sales)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Cost ex GST</div><div className="font-semibold">{money(cost)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Profit</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{money(profit)}</div></div>
                 <div><div className="text-xs text-[var(--muted)]">Margin</div><div className={`font-semibold ${profit < 0 ? "text-red-700" : "text-green-700"}`}>{margin.toFixed(1)}%</div></div>
@@ -444,40 +444,55 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
       <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         {!hasDiscountCols ? (
-          draft && <p className="text-xs text-amber-700">Discounts need migration 0052 to be run in Supabase first.</p>
-        ) : draft || discountEx > 0 ? (
+          draft && <p className="text-xs text-amber-700">Discounts and extra charges need migration 0052 to be run in Supabase first.</p>
+        ) : draft || discountEx !== 0 ? (
           <div className="rounded-lg border border-[var(--border)] bg-black/[0.03] p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Discount (taken off before GST)</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Discount or extra charge (before GST)</p>
             {draft ? (
-              <div className="mt-2 grid gap-3 sm:grid-cols-[8rem_8rem_1fr_auto] sm:items-end">
+              <div className="mt-2 grid gap-3 sm:grid-cols-[6rem_8rem_8rem_1fr_auto] sm:items-end">
+                <div className="text-sm">
+                  <div>Direction</div>
+                  <div className="mt-1 flex overflow-hidden rounded-lg border border-[var(--border)]">
+                    <button type="button" title="Discount: takes money off" onClick={() => setDiscount({ discount_value: Math.abs(Number(inv.discount_value) || 0) })} className={`flex-1 px-3 py-2 text-base font-bold ${Number(inv.discount_value) >= 0 ? "bg-accent text-white" : "bg-white"}`}>&minus;</button>
+                    <button type="button" title="Extra charge: adds money on" onClick={() => setDiscount({ discount_value: -Math.abs(Number(inv.discount_value) || 0) || -0.0001 })} className={`flex-1 px-3 py-2 text-base font-bold ${Number(inv.discount_value) < 0 ? "bg-accent text-white" : "bg-white"}`}>+</button>
+                  </div>
+                </div>
                 <label className="block text-sm">
                   Type
                   <select className={input} value={inv.discount_type ?? "amount"} onChange={(e) => setDiscount({ discount_type: e.target.value as "amount" | "percent" })}>
-                    <option value="amount">Dollar amount ($)</option>
-                    <option value="percent">Percentage (%)</option>
+                    <option value="amount">Dollars ($)</option>
+                    <option value="percent">Percent (%)</option>
                   </select>
                 </label>
                 <label className="block text-sm">
-                  {inv.discount_type === "percent" ? "Percent off" : "Dollars off (ex GST)"}
-                  <input className={input} inputMode="decimal" value={inv.discount_value ?? 0} onChange={(e) => setDiscount({ discount_value: e.target.value === "" ? 0 : (e.target.value as any) })} />
+                  {inv.discount_type === "percent" ? "Percent" : "Dollars (ex GST)"}
+                  <input
+                    className={input}
+                    inputMode="decimal"
+                    value={Math.abs(Number(inv.discount_value) || 0) < 0.001 ? "" : Math.abs(Number(inv.discount_value))}
+                    onChange={(e) => {
+                      const n = Math.abs(Number(e.target.value) || 0);
+                      setDiscount({ discount_value: Number(inv.discount_value) < 0 ? -n || -0.0001 : n });
+                    }}
+                  />
                 </label>
                 <label className="block text-sm">
                   Label on the invoice
-                  <input className={input} placeholder="Discount" value={inv.discount_label ?? ""} onChange={(e) => setDiscount({ discount_label: e.target.value })} />
+                  <input className={input} placeholder={discountEx < 0 ? "Adjustment" : "Discount"} value={inv.discount_label ?? ""} onChange={(e) => setDiscount({ discount_label: e.target.value })} />
                 </label>
                 <div className="pb-2 text-sm">
-                  {discountEx > 0 ? <span className="font-semibold text-red-700">-{money(discountEx)}</span> : <span className="text-[var(--muted)]">No discount</span>}
+                  {discountEx > 0 ? <span className="font-semibold text-red-700">-{money(discountEx)}</span> : discountEx < 0 ? <span className="font-semibold text-green-700">+{money(-discountEx)}</span> : <span className="text-[var(--muted)]">None</span>}
                 </div>
               </div>
             ) : (
-              <p className="mt-1 text-sm">{inv.discount_label || "Discount"}{inv.discount_type === "percent" ? ` (${Number(inv.discount_value)}%)` : ""}: <span className="font-semibold text-red-700">-{money(discountEx)}</span> ex GST</p>
+              <p className="mt-1 text-sm">{inv.discount_label || (discountEx < 0 ? "Adjustment" : "Discount")}{inv.discount_type === "percent" ? ` (${Math.abs(Number(inv.discount_value))}%)` : ""}: <span className={`font-semibold ${discountEx < 0 ? "text-green-700" : "text-red-700"}`}>{discountEx < 0 ? "+" : "-"}{money(Math.abs(discountEx))}</span> ex GST</p>
             )}
-            {draft && <p className="mt-2 text-xs text-[var(--muted)]">Press Save below to keep the discount. It comes off the items total (or the amount), and GST is worked out on what is left.</p>}
+            {draft && <p className="mt-2 text-xs text-[var(--muted)]">Use &minus; for a discount and + for an extra charge (freight, call-out). It applies to the items total (or the amount) and GST is worked out on the result. Press Save below to keep it.</p>}
           </div>
         ) : null}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">
-            {discountEx > 0 ? "Amount before discount, ex GST" : "Amount ex GST"} {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
+            {discountEx !== 0 ? "Amount before adjustment, ex GST" : "Amount ex GST"} {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
             <input className={input} inputMode="decimal" disabled={!draft || hasLines} value={subtotalEx} onChange={(e) => setAmounts(e.target.value)} />
           </label>
           <div className="text-sm">
