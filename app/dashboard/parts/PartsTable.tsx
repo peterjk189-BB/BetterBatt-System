@@ -30,6 +30,13 @@ type Part = {
 
 type Supplier = { id: string; name: string };
 
+// Any supplier other than Fletcher / CSR / Better Batt gets its own colour here (picked from its name, so it stays the same each time).
+const OTHER_SUPPLIER_TONES = [
+  "border-blue-400 bg-blue-100 text-blue-900",
+  "border-purple-400 bg-purple-100 text-purple-900",
+  "border-orange-400 bg-orange-100 text-orange-900",
+];
+
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
@@ -1306,7 +1313,7 @@ export default function PartsTable({
             ? "border-red-400 bg-red-100 text-red-900"
             : name.includes("batt")
             ? "border-yellow-400 bg-yellow-100 text-yellow-900"
-            : "border-[var(--border)]";
+            : OTHER_SUPPLIER_TONES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % OTHER_SUPPLIER_TONES.length];
           return (
             <button
               type="button"
