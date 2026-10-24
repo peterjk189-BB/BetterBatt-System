@@ -609,6 +609,11 @@ export default function CalendarView({
           >
             {fullScreen ? "Exit full screen (Esc)" : "⛶ Full screen"}
           </button>
+          {!installerNote && (
+            <Link href="/dashboard/calendar/day-sheet" className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:border-accent">
+              Print day sheet
+            </Link>
+          )}
         </div>
       </div>
 
