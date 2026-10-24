@@ -13,7 +13,7 @@ type Row = Invoice & {
 const FILTERS = ["All", "Draft", "Unpaid", "Overdue", "Paid"] as const;
 
 export default function InvoicesList({ invoices, payments, setupError }: { invoices: Row[]; payments: Payment[]; setupError: string | null }) {
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Unpaid");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
