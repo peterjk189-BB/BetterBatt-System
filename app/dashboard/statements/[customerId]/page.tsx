@@ -5,9 +5,9 @@ import { ageingOf, BUCKET_LABELS, statementRows, type StatementInvoice, type Sta
 import { fmtDate, invNo, money } from "@/lib/invoices";
 import StatementActions from "./StatementActions";
 
-export default async function StatementPage({ params, searchParams }: { params: Promise<{ customerId: string }>; searchParams: Promise<{ date?: string }> }) {
-  const { customerId } = await params;
-  const sp = await searchParams;
+export default async function StatementPage({ params, searchParams }: { params: { customerId: string }; searchParams: { date?: string } }) {
+  const { customerId } = params;
+  const sp = searchParams;
   const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
   const { data: c } = await supabase.from("customers").select("*").eq("id", customerId).single();

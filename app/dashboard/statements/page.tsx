@@ -2,8 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ageingOf, statementRows, type StatementInvoice, type StatementPayment } from "@/lib/statements";
 import StatementsList from "./StatementsList";
 
-export default async function StatementsPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
-  const sp = await searchParams;
+export default async function StatementsPage({ searchParams }: { searchParams: { date?: string } }) {
+  const sp = searchParams;
   const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : new Date().toISOString().slice(0, 10);
   const supabase = await createClient();
   const [{ data: invoices }, { data: payments }, custRes, logRes] = await Promise.all([
