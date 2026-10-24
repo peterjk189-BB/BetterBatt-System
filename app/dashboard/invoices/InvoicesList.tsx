@@ -99,9 +99,14 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
           <h1 className="text-2xl font-bold">Invoices</h1>
           <p className="mt-1 text-sm text-[var(--muted)]">Deposit and balance invoices from accepted quotes, payments, and the QuickBooks export.</p>
         </div>
-        <Link href="/dashboard/invoices/new" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
-          New invoice
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/dashboard/statements" className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">
+            Statements
+          </Link>
+          <Link href="/dashboard/invoices/new" className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+            New invoice
+          </Link>
+        </div>
       </div>
 
       {setupError && (

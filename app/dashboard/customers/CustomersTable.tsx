@@ -17,6 +17,7 @@ type Customer = {
   accounts_contact_name?: string | null;
   accounts_contact_email?: string | null;
   accounts_contact_phone?: string | null;
+  statement_account?: boolean;
   archived: boolean;
 };
 
@@ -37,6 +38,7 @@ const emptyForm = {
   accounts_contact_name: "",
   accounts_contact_email: "",
   accounts_contact_phone: "",
+  statement_account: false,
 };
 
 export default function CustomersTable({ initial, isAdmin, crmEnabled = false }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean }) {
@@ -73,16 +75,20 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
       accounts_contact_name: c.accounts_contact_name || "",
       accounts_contact_email: c.accounts_contact_email || "",
       accounts_contact_phone: c.accounts_contact_phone || "",
+      statement_account: !!c.statement_account,
     });
     setModalOpen(true);
   }
 
   async function save() {
     setSaving(true);
+    // Only send the statement flag once migration 0055 exists (or when it's being switched on).
+    const { statement_account, ...rest } = form;
+    const payload: any = statement_account || editing?.statement_account !== undefined || customers.some((c) => c.statement_account !== undefined) ? form : rest;
     if (editing) {
       const { data, error } = await supabase
         .from("customers")
-        .update(form)
+        .update(payload)
         .eq("id", editing.id)
         .select()
         .single();
@@ -94,7 +100,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
         alert(error.message);
       }
     } else {
-      const { data, error } = await supabase.from("customers").insert(form).select().single();
+      const { data, error } = await supabase.from("customers").insert(payload).select().single();
       if (!error && data) {
         setCustomers((prev) => [data as Customer, ...prev]);
         setModalOpen(false);
@@ -416,6 +422,14 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                     />
                   </label>
                 </div>
+                <label className="mt-3 flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.statement_account}
+                    onChange={(e) => setForm({ ...form, statement_account: e.target.checked })}
+                  />
+                  Account holder – send monthly statements
+                </label>
               </div>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
