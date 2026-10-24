@@ -74,6 +74,19 @@ export default function DaySheet({
   const totalM2 = stockRows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
   const jobs = new Set(rows.map((r) => r.work_orders.id)).size;
 
+  // One block per work order and contractor: the customer, site, contact and contractor print once, with each product line beneath.
+  const groups = (() => {
+    const map = new Map<string, Row[]>();
+    for (const r of rows) {
+      const key = `${r.work_orders.id}|${r.contractor?.id ?? ""}`;
+      map.set(key, [...(map.get(key) ?? []), r]);
+    }
+    const t = (r: Row) => r.task_time || "99:99";
+    return Array.from(map.values())
+      .map((rs) => ({ rows: rs.slice().sort((a, b) => t(a).localeCompare(t(b))) }))
+      .sort((a, b) => t(a.rows[0]).localeCompare(t(b.rows[0])) || String(a.rows[0].work_orders.wo_number).localeCompare(String(b.rows[0].work_orders.wo_number), undefined, { numeric: true }));
+  })();
+
   async function downloadPdf() {
     if (!printableRef.current) return;
     setDownloading(true);
@@ -143,52 +156,61 @@ export default function DaySheet({
               <th className="px-1.5 py-1">WO</th>
               <th className="px-1.5 py-1">Customer / site</th>
               <th className="px-1.5 py-1">Site contact</th>
+              {!contractorId && <th className="px-1.5 py-1">Contractor</th>}
               <th className="px-1.5 py-1">Task / product</th>
               <th className="px-1.5 py-1 text-right">m²</th>
-              {!contractorId && <th className="px-1.5 py-1">Contractor</th>}
               <th className="px-1.5 py-1">Notes</th>
               <th className="px-1.5 py-1 text-center">Done</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => {
-              const p = r.work_orders.projects;
-              const task = r.labour_items?.description || r.parts?.name || "—";
-              const notes = [r.note, r.work_orders.notes].filter(Boolean).join(" · ");
-              return (
-                <tr key={r.id} className="break-inside-avoid border-b border-gray-300 align-top">
-                  <td className="whitespace-nowrap px-1.5 py-1 font-semibold">{fmtTime(r.task_time) || "—"}</td>
-                  <td className="whitespace-nowrap px-1.5 py-1 font-semibold">{r.work_orders.wo_number}</td>
-                  <td className="px-1.5 py-1">
-                    <div className="font-semibold">{p?.customers?.name || "—"}</div>
-                    <div className="text-gray-700">{siteOf(p)}</div>
-                  </td>
-                  <td className="px-1.5 py-1">
-                    {p?.contact_name || p?.contact_phone ? (
+            {groups.map((g) =>
+              g.rows.map((r, i) => {
+                const p = r.work_orders.projects;
+                const task = r.labour_items?.description || r.parts?.name || "—";
+                const notes = [r.note, i === 0 ? r.work_orders.notes : null].filter(Boolean).join(" · ");
+                const span = g.rows.length;
+                const first = i === 0;
+                const last = i === span - 1;
+                return (
+                  <tr key={r.id} className={`break-inside-avoid align-top ${last ? "border-b border-gray-400" : "border-b border-gray-200"}`}>
+                    <td className="whitespace-nowrap px-1.5 py-1 font-semibold">{fmtTime(r.task_time) || "—"}</td>
+                    {first && (
                       <>
-                        <div>{p?.contact_name}</div>
-                        <div className="font-semibold">{p?.contact_phone}</div>
+                        <td rowSpan={span} className="whitespace-nowrap border-l border-gray-200 px-1.5 py-1 font-semibold">{r.work_orders.wo_number}</td>
+                        <td rowSpan={span} className="px-1.5 py-1">
+                          <div className="font-semibold">{p?.customers?.name || "—"}</div>
+                          <div className="text-gray-700">{siteOf(p)}</div>
+                        </td>
+                        <td rowSpan={span} className="px-1.5 py-1">
+                          {p?.contact_name || p?.contact_phone ? (
+                            <>
+                              <div>{p?.contact_name}</div>
+                              <div className="font-semibold">{p?.contact_phone}</div>
+                            </>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
+                        </td>
+                        {!contractorId && (
+                          <td rowSpan={span} className="px-1.5 py-1">
+                            <div>{r.contractor?.name || "—"}</div>
+                            {r.contractor?.phone && <div className="text-gray-600">{r.contractor.phone}</div>}
+                          </td>
+                        )}
                       </>
-                    ) : (
-                      <span className="text-gray-400">—</span>
                     )}
-                  </td>
-                  <td className="px-1.5 py-1">{task}</td>
-                  <td className="whitespace-nowrap px-1.5 py-1 text-right font-semibold">{r.parts?.is_stock_item === false ? "" : Number(r.qty) || ""}</td>
-                  {!contractorId && (
-                    <td className="px-1.5 py-1">
-                      <div>{r.contractor?.name || "—"}</div>
-                      {r.contractor?.phone && <div className="text-gray-600">{r.contractor.phone}</div>}
-                    </td>
-                  )}
-                  <td className="px-1.5 py-1 text-gray-700">{notes}</td>
-                  <td className="px-1.5 py-1 text-center">{r.completed ? "✓" : "☐"}</td>
-                </tr>
-              );
-            })}
+                    <td className="border-l border-gray-200 px-1.5 py-1">{task}</td>
+                    <td className="whitespace-nowrap px-1.5 py-1 text-right font-semibold">{r.parts?.is_stock_item === false ? "" : Number(r.qty) || ""}</td>
+                    <td className="px-1.5 py-1 text-gray-700">{notes}</td>
+                    <td className="px-1.5 py-1 text-center">{r.completed ? "✓" : "☐"}</td>
+                  </tr>
+                );
+              })
+            )}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-gray-400">
+                <td colSpan={contractorId ? 8 : 9} className="py-8 text-center text-gray-400">
                   Nothing scheduled on this day.
                 </td>
               </tr>
