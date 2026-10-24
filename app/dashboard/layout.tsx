@@ -47,7 +47,7 @@ export default async function DashboardLayout({
     label: t.label,
     group: t.group,
   }));
-  const allowedHrefs = navLinks.map((l) => l.href);
+  const allowedHrefs: string[] = navLinks.map((l) => l.href);
   // Statements live under the Invoices tab (no tab of their own).
   if (allowedHrefs.includes("/dashboard/invoices")) allowedHrefs.push("/dashboard/statements");
   const hasAnyTab = myTabs.length > 0;
