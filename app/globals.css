@@ -469,3 +469,13 @@ html[data-theme="dark"] .text-\[\#365314\]{color:#c3e29c}
 html[data-theme="dark"] .wo-chip{background-color:#c9701a}
 html[data-theme="dark"] .wo-chip:hover{background-color:#dc7f26}
 html[data-theme="dark"] .wo-chip,html[data-theme="dark"] .wo-chip div{color:#fff}
+
+/* Inventory supplier tiles (extra colours) in dark mode */
+html[data-theme="dark"] .bg-teal-100{background-color:#17413f}
+html[data-theme="dark"] .text-teal-900{color:#a8ebe4}
+html[data-theme="dark"] .bg-pink-100{background-color:#52263a}
+html[data-theme="dark"] .text-pink-900{color:#f7bcd6}
+html[data-theme="dark"] .bg-cyan-100{background-color:#143f4d}
+html[data-theme="dark"] .text-cyan-900{color:#a5e6f5}
+html[data-theme="dark"] .bg-lime-100{background-color:#2f4116}
+html[data-theme="dark"] .text-lime-900{color:#d3f09a}

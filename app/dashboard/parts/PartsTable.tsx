@@ -30,11 +30,15 @@ type Part = {
 
 type Supplier = { id: string; name: string };
 
-// Any supplier other than Fletcher / CSR / Better Batt gets its own colour here (picked from its name, so it stays the same each time).
+// Any supplier other than Fletcher / CSR / Better Batt gets its own colour here, handed out in order so no two suppliers share one.
 const OTHER_SUPPLIER_TONES = [
   "border-blue-400 bg-blue-100 text-blue-900",
   "border-purple-400 bg-purple-100 text-purple-900",
   "border-orange-400 bg-orange-100 text-orange-900",
+  "border-teal-400 bg-teal-100 text-teal-900",
+  "border-pink-400 bg-pink-100 text-pink-900",
+  "border-cyan-400 bg-cyan-100 text-cyan-900",
+  "border-lime-500 bg-lime-100 text-lime-900",
 ];
 
 function fmtCurrency(n: number) {
@@ -1072,6 +1076,7 @@ export default function PartsTable({
     }
     return Object.entries(totals).filter(([, t]) => t.value > 0);
   }, [parts, supplierById]);
+  const otherSuppliers = supplierTotals.map(([n]) => n).filter((n) => !/fletcher|csr|batt/i.test(n)).sort((a, b) => a.localeCompare(b));
   const grandTotal = supplierTotals.reduce((s, [, t]) => s + t.value, 0);
 
   return (
@@ -1313,7 +1318,7 @@ export default function PartsTable({
             ? "border-red-400 bg-red-100 text-red-900"
             : name.includes("batt")
             ? "border-yellow-400 bg-yellow-100 text-yellow-900"
-            : OTHER_SUPPLIER_TONES[[...name].reduce((a, c) => a + c.charCodeAt(0), 0) % OTHER_SUPPLIER_TONES.length];
+            : OTHER_SUPPLIER_TONES[otherSuppliers.indexOf(supplier) % OTHER_SUPPLIER_TONES.length];
           return (
             <button
               type="button"
