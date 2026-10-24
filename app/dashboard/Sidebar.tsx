@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import TabIcon from "@/lib/TabIcon";
 import { GROUP_ACCENTS, GROUP_ACCENT_TEXT } from "@/lib/tabs";
 
@@ -10,6 +11,9 @@ type NavLink = { key: string; href: string; label: string; group: string };
 
 export default function Sidebar({ links }: { links: NavLink[] }) {
   const pathname = usePathname();
+  // Highlight the tab the moment it's tapped, before the new page has finished loading.
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => setPending(null), [pathname]);
 
   const groups: string[] = [];
   for (const l of links) {
@@ -34,11 +38,13 @@ export default function Sidebar({ links }: { links: NavLink[] }) {
               {links
                 .filter((l) => l.group === g)
                 .map((l) => {
-                  const active = pathname === l.href || pathname?.startsWith(l.href + "/");
+                  const target = pending ?? pathname;
+                  const active = target === l.href || !!target?.startsWith(l.href + "/");
                   return (
                     <Link
                       key={l.href}
                       href={l.href}
+                      onClick={() => setPending(l.href)}
                       style={active ? { backgroundColor: accent, color: accentText } : undefined}
                       className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
                         active ? "" : "text-[var(--muted)] hover:bg-white hover:text-[var(--text)]"
