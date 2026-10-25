@@ -153,7 +153,7 @@ export default function PurchaseOrderEditor({
     setSaving(true);
     setError(null);
 
-    // po_number is auto-assigned by the database (a sequence, like "PO1001") — it's never
+    // po_number is auto-assigned by the database (a sequence, like "BB18143") — it's never
     // sent here, so a new row gets its default and an existing one keeps whatever it has.
     const payload = {
       supplier_id: form.supplier_id || null,
