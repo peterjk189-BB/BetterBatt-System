@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -113,6 +113,16 @@ export default function PurchaseOrderEditor({
   });
 
   const [saving, setSaving] = useState(false);
+  // The number this order is about to get (shown on a new order so it can be quoted when phoning it through).
+  const [nextPo, setNextPo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!purchaseOrder) {
+      supabase.rpc("next_po_number_preview").then(({ data, error }) => {
+        if (!error && typeof data === "string") setNextPo(data);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -361,7 +371,18 @@ export default function PurchaseOrderEditor({
         <label className="flex flex-col gap-1 text-sm">
           P/O number
           <div className="flex items-center rounded-lg border border-[var(--border)] bg-[#f2f0ec] px-3 py-2 text-[var(--muted)]">
-            {isNew ? "Assigned automatically on save" : purchaseOrder!.po_number || "—"}
+            {isNew ? (
+              nextPo ? (
+                <span>
+                  <span className="text-lg font-bold text-[var(--text)]">{nextPo}</span>
+                  <span className="ml-2 text-xs">confirmed when you save</span>
+                </span>
+              ) : (
+                "Assigned automatically on save"
+              )
+            ) : (
+              <span className="text-lg font-bold text-[var(--text)]">{purchaseOrder!.po_number || "—"}</span>
+            )}
           </div>
         </label>
         <label className="flex flex-col gap-1 text-sm">
