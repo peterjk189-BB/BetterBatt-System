@@ -23,7 +23,7 @@ type PurchaseOrder = {
   notes: string | null;
   fuel_levy_type?: string | null;
   fuel_levy_value?: number | null;
-  suppliers: { name: string } | null;
+  suppliers: { name: string; address?: string | null } | null;
 };
 
 function fmtCurrency(n: number) {
@@ -112,6 +112,7 @@ export default function PurchaseOrderPrintView({
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Supplier</div>
             <div className="mt-0.5 font-semibold">{purchaseOrder.suppliers?.name || "—"}</div>
+            {purchaseOrder.suppliers?.address && <div className="whitespace-pre-line text-sm font-normal text-gray-600">{purchaseOrder.suppliers.address}</div>}
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Order date</div>

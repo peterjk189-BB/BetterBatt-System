@@ -9,6 +9,7 @@ type Supplier = {
   name: string;
   phone: string | null;
   email: string | null;
+  address?: string | null;
   notes: string | null;
   archived: boolean;
   // Added by migration 0043 — absent until it's been run.
@@ -42,6 +43,7 @@ const emptyForm = {
   name: "",
   phone: "",
   email: "",
+  address: "",
   notes: "",
   accounts_contact_name: "",
   accounts_contact_email: "",
@@ -55,7 +57,7 @@ const emptyForm = {
 const inputCls = "rounded-lg border border-[var(--border)] px-3 py-2.5 text-base sm:py-2 sm:text-sm";
 
 /** Only the base columns exist until migration 0043 is run, so the new ones are sent only when they hold something or the table already has them. */
-function buildPayload(form: typeof emptyForm, columnsExist: boolean, emailColumnExists: boolean) {
+function buildPayload(form: typeof emptyForm, columnsExist: boolean, emailColumnExists: boolean, addressColumnExists: boolean) {
   const base = { name: form.name, phone: form.phone, email: form.email, notes: form.notes };
   const extras = {
     accounts_contact_name: form.accounts_contact_name.trim() || null,
@@ -69,6 +71,7 @@ function buildPayload(form: typeof emptyForm, columnsExist: boolean, emailColumn
   const contacts = form.email_contacts.map((c) => ({ label: c.label.trim(), email: c.email.trim(), po: c.po })).filter((c) => c.email);
   return {
     ...base,
+    ...(addressColumnExists || form.address.trim() ? { address: form.address.trim() || null } : {}),
     ...(columnsExist || anySet ? extras : {}),
     ...(emailColumnExists || contacts.length > 0 ? { email_contacts: contacts } : {}),
   };
@@ -84,6 +87,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
   const [saving, setSaving] = useState(false);
   const columnsExist = suppliers.length > 0 && "rep_name" in suppliers[0];
   const emailColumnExists = suppliers.length > 0 && "email_contacts" in suppliers[0];
+  const addressColumnExists = suppliers.length > 0 && "address" in suppliers[0];
 
   function openNew() {
     setEditing(null);
@@ -97,6 +101,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
       name: s.name,
       phone: s.phone || "",
       email: s.email || "",
+      address: s.address || "",
       notes: s.notes || "",
       accounts_contact_name: s.accounts_contact_name || "",
       accounts_contact_email: s.accounts_contact_email || "",
@@ -124,7 +129,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
     if (editing) {
       const { data, error } = await supabase
         .from("suppliers")
-        .update(buildPayload(form, columnsExist, emailColumnExists))
+        .update(buildPayload(form, columnsExist, emailColumnExists, addressColumnExists))
         .eq("id", editing.id)
         .select()
         .single();
@@ -134,7 +139,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
         logAudit(supabase, { eventType: "update", entityType: "supplier", entityId: data.id, entityLabel: data.name });
       } else if (error) alert(error.message);
     } else {
-      const { data, error } = await supabase.from("suppliers").insert(buildPayload(form, columnsExist, emailColumnExists)).select().single();
+      const { data, error } = await supabase.from("suppliers").insert(buildPayload(form, columnsExist, emailColumnExists, addressColumnExists)).select().single();
       if (!error && data) {
         setSuppliers((prev) => [data as Supplier, ...prev]);
         setModalOpen(false);
@@ -188,6 +193,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
             <tr>
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Phone</th>
+              <th className="px-4 py-2">Address</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2">Accounts</th>
               <th className="px-4 py-2">Sales rep</th>
@@ -200,6 +206,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
               <tr key={s.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">{s.name}</td>
                 <td className="px-4 py-2">{s.phone || "—"}</td>
+                <td className="px-4 py-2 whitespace-pre-line">{s.address || "—"}</td>
                 <td className="px-4 py-2">{s.email || "—"}</td>
                 <td className="px-4 py-2">
                   <Contact name={s.accounts_contact_name} email={s.accounts_contact_email} phone={s.accounts_contact_phone} />
@@ -259,6 +266,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
                 )}
               </div>
             </div>
+            {s.address && <div className="mt-1 whitespace-pre-line text-sm text-[var(--muted)]">{s.address}</div>}
             <CardRow label="Main" name={null} phone={s.phone} email={s.email} />
             <CardRow label="Accounts" name={s.accounts_contact_name} phone={s.accounts_contact_phone} email={s.accounts_contact_email} />
             <CardRow label="Sales rep" name={s.rep_name} phone={s.rep_phone} email={s.rep_email} />
@@ -293,6 +301,7 @@ export default function SuppliersTable({ initial, isAdmin }: { initial: Supplier
                 <Txt label="Name" value={form.name} onChange={(v) => setForm({ ...form, name: v })} className="sm:col-span-2" />
                 <Txt label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
                 <Txt label="Email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+                <Txt label="Address" value={form.address} onChange={(v) => setForm({ ...form, address: v })} className="sm:col-span-2" />
               </div>
 
               <div>
