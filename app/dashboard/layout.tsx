@@ -68,7 +68,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen">
       <header className="border-b border-[var(--border)] bg-[var(--surface)] print:hidden">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between px-6 py-4">
+        <div className="flex w-full items-center justify-between px-6 py-4">
           <Link href="/dashboard" className="font-bold">
             Better Batt System
           </Link>
@@ -84,12 +84,12 @@ export default async function DashboardLayout({
           </div>
         </div>
         {hasAnyTab && (
-          <div className="mx-auto max-w-[1600px] px-6 pb-3 sm:hidden">
+          <div className="w-full px-6 pb-3 sm:hidden">
             <NavTabs links={navLinks} />
           </div>
         )}
       </header>
-      <div className="mx-auto flex max-w-[1600px] items-start">
+      <div className="flex w-full items-start">
         {hasAnyTab && <Sidebar links={navLinks} />}
         <main className="min-w-0 flex-1 px-6 py-8">
           <AccessGuard allowedHrefs={allowedHrefs} />
