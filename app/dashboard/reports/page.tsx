@@ -76,10 +76,15 @@ export default async function ReportsPage() {
   const excluded = await unacceptedOptionLineIds(supabase);
   const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));
 
+  // Fuel levies per purchase order (columns exist only after migration 0058).
+  const fuelRes = await supabase.from("purchase_orders").select("id, fuel_levy_type, fuel_levy_value");
+  const poFuel = fuelRes.error ? [] : fuelRes.data ?? [];
+
   return (
     <ReportsView
       parts={(parts ?? []) as any}
       poLines={(poLines ?? []) as any}
+      poFuel={poFuel as any}
       woLines={(woLines ?? []) as any}
       projects={(projects ?? []) as any}
       projectLines={countedProjectLines as any}

@@ -3,6 +3,7 @@
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment } from "./ProfitLossReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
+import { fuelLevyAmount } from "@/lib/poFuel";
 import { useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
@@ -431,11 +432,18 @@ function CustomerReport({ projects, projectLines }: { projects: Project[]; proje
 // Supplier spend
 // ---------------------------------------------------------------------------
 
-function SupplierReport({ poLines }: { poLines: PoLine[] }) {
+type PoFuel = { id: string; fuel_levy_type: string | null; fuel_levy_value: number | null };
+
+function SupplierReport({ poLines, poFuel }: { poLines: PoLine[]; poFuel: PoFuel[] }) {
   const { preset, setPreset, customStart, setCustomStart, customEnd, setCustomEnd, range } = useDateRange();
 
   const rows = useMemo(() => {
     const bySupplier = new Map<string, { name: string; poNumbers: Set<string>; spend: number }>();
+    // Each PO's goods subtotal, so a % fuel levy can be worked out; the levy is added once per PO.
+    const poSub = new Map<string, number>();
+    for (const l of poLines) poSub.set(l.purchase_order_id, (poSub.get(l.purchase_order_id) || 0) + (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0));
+    const fuelById = new Map(poFuel.map((f) => [f.id, f]));
+    const levyDone = new Set<string>();
     for (const l of poLines) {
       const po = l.purchase_orders;
       if (!po || po.archived) continue;
@@ -446,11 +454,16 @@ function SupplierReport({ poLines }: { poLines: PoLine[] }) {
       const row = bySupplier.get(name)!;
       if (po.po_number) row.poNumbers.add(po.po_number);
       row.spend += (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0);
+      if (!levyDone.has(l.purchase_order_id)) {
+        levyDone.add(l.purchase_order_id);
+        const f = fuelById.get(l.purchase_order_id);
+        if (f) row.spend += fuelLevyAmount(poSub.get(l.purchase_order_id) || 0, f.fuel_levy_type, f.fuel_levy_value);
+      }
     }
     return Array.from(bySupplier.values())
       .map((r) => ({ name: r.name, poCount: r.poNumbers.size, spend: r.spend }))
       .sort((a, b) => b.spend - a.spend);
-  }, [poLines, range.start, range.end]);
+  }, [poLines, poFuel, range.start, range.end]);
 
   const totalSpend = rows.reduce((s, r) => s + r.spend, 0);
   const totalPOs = rows.reduce((s, r) => s + r.poCount, 0);
@@ -458,7 +471,7 @@ function SupplierReport({ poLines }: { poLines: PoLine[] }) {
   return (
     <div>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        Purchase order spend (ex GST) per supplier, by order date.
+        Purchase order spend (ex GST, including any fuel levy) per supplier, by order date.
       </p>
       <div className="mt-4">
         <DateFilter
@@ -522,6 +535,7 @@ type Tab = "inventory" | "customers" | "suppliers" | "jobs" | "pnl";
 export default function ReportsView({
   parts,
   poLines,
+  poFuel = [],
   woLines,
   projects,
   projectLines,
@@ -533,6 +547,7 @@ export default function ReportsView({
 }: {
   parts: Part[];
   poLines: PoLine[];
+  poFuel?: PoFuel[];
   woLines: WoLine[];
   projects: Project[];
   projectLines: ProjectLine[];
@@ -578,7 +593,7 @@ export default function ReportsView({
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
       {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
-      {tab === "suppliers" && <SupplierReport poLines={poLines} />}
+      {tab === "suppliers" && <SupplierReport poLines={poLines} poFuel={poFuel} />}
       {tab === "pnl" && <ProfitLossReport {...pl} />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
