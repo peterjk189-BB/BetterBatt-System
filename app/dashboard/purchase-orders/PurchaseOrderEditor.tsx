@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { fuelLevyAmount } from "@/lib/poFuel";
 
 type Supplier = { id: string; name: string };
 
@@ -29,6 +30,8 @@ type PurchaseOrder = {
   delivery_date: string | null;
   delivery_time: string | null;
   notes: string | null;
+  fuel_levy_type?: string | null;
+  fuel_levy_value?: number | null;
   archived: boolean;
 };
 
@@ -85,6 +88,8 @@ export default function PurchaseOrderEditor({
     delivery_date: purchaseOrder?.delivery_date || "",
     delivery_time: purchaseOrder?.delivery_time || "",
     notes: purchaseOrder?.notes || (isNew ? initial?.notes : undefined) || "",
+    fuel_levy_type: (purchaseOrder?.fuel_levy_type === "percent" ? "percent" : "amount") as "amount" | "percent",
+    fuel_levy_value: purchaseOrder?.fuel_levy_value ? String(Number(purchaseOrder.fuel_levy_value)) : "",
   });
 
   // Only the selected supplier's own products should be pickable on a line item — with no
@@ -156,8 +161,9 @@ export default function PurchaseOrderEditor({
 
   const showJobs = lineItems.some((l) => !!l.work_order_id);
   const subtotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
-  const gst = subtotal * 0.1;
-  const grandTotal = subtotal + gst;
+  const fuelLevy = fuelLevyAmount(subtotal, form.fuel_levy_type, form.fuel_levy_value);
+  const gst = (subtotal + fuelLevy) * 0.1;
+  const grandTotal = subtotal + fuelLevy + gst;
 
   async function save() {
     setSaving(true);
@@ -175,6 +181,10 @@ export default function PurchaseOrderEditor({
       delivery_date: form.delivery_date || null,
       delivery_time: form.delivery_time || null,
       notes: form.notes || null,
+      // Only sent when used (or already set), so saving still works before migration 0058 is run.
+      ...(Number(form.fuel_levy_value) > 0 || purchaseOrder?.fuel_levy_type !== undefined
+        ? { fuel_levy_type: form.fuel_levy_type, fuel_levy_value: Number(form.fuel_levy_value) || 0 }
+        : {}),
     };
 
     let poId = purchaseOrder?.id;
@@ -580,6 +590,29 @@ export default function PurchaseOrderEditor({
             <div className="flex items-center gap-3 text-[var(--muted)]">
               <span>Subtotal (ex GST)</span>
               <span className="text-[var(--text)]">{fmtCurrency(subtotal)}</span>
+            </div>
+            <div className="flex items-center gap-3 text-[var(--muted)]">
+              <span>Fuel levy (ex GST)</span>
+              <select
+                className="rounded-md border border-[var(--border)] px-1.5 py-1 text-[var(--text)]"
+                value={form.fuel_levy_type}
+                onChange={(e) => setForm({ ...form, fuel_levy_type: e.target.value as "amount" | "percent" })}
+              >
+                <option value="amount">$</option>
+                <option value="percent">%</option>
+              </select>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                className="w-20 rounded-md border border-[var(--border)] px-2 py-1 text-right text-[var(--text)]"
+                value={form.fuel_levy_value}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^\d*\.?\d{0,3}$/.test(v)) setForm({ ...form, fuel_levy_value: v });
+                }}
+              />
+              <span className="w-24 text-right text-[var(--text)]">{fmtCurrency(fuelLevy)}</span>
             </div>
             <div className="flex items-center gap-3 text-[var(--muted)]">
               <span>GST (10%)</span>

@@ -1,5 +1,7 @@
 "use client";
 
+import { fuelLevyAmount } from "@/lib/poFuel";
+
 import Link from "next/link";
 
 type Line = {
@@ -19,6 +21,8 @@ type PurchaseOrder = {
   delivery_date: string | null;
   delivery_time: string | null;
   notes: string | null;
+  fuel_levy_type?: string | null;
+  fuel_levy_value?: number | null;
   suppliers: { name: string } | null;
 };
 
@@ -54,8 +58,9 @@ export default function PurchaseOrderPrintView({
     lineTotal: (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0),
   }));
   const subtotal = computed.reduce((s, l) => s + l.lineTotal, 0);
-  const gst = subtotal * 0.1;
-  const total = subtotal + gst;
+  const fuelLevy = fuelLevyAmount(subtotal, purchaseOrder.fuel_levy_type, purchaseOrder.fuel_levy_value);
+  const gst = (subtotal + fuelLevy) * 0.1;
+  const total = subtotal + fuelLevy + gst;
 
   const deliveryWhen = [fmtDate(purchaseOrder.delivery_date), fmtTime(purchaseOrder.delivery_time)]
     .filter(Boolean)
@@ -172,6 +177,14 @@ export default function PurchaseOrderPrintView({
               <span>Subtotal (ex GST)</span>
               <span className="text-black">{fmtCurrency(subtotal)}</span>
             </div>
+            {fuelLevy > 0 && (
+              <div className="flex justify-between py-0.5 text-gray-500">
+                <span>
+                  Fuel levy{purchaseOrder.fuel_levy_type === "percent" ? ` (${Number(purchaseOrder.fuel_levy_value)}%)` : ""} (ex GST)
+                </span>
+                <span className="text-black">{fmtCurrency(fuelLevy)}</span>
+              </div>
+            )}
             <div className="flex justify-between py-0.5 text-gray-500">
               <span>GST (10%)</span>
               <span className="text-black">{fmtCurrency(gst)}</span>

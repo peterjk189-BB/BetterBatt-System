@@ -2,10 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { fuelLevyAmount } from "@/lib/poFuel";
 
 type PO = {
   id: string;
   po_number: string | null;
+  fuel_levy_type?: string | null;
+  fuel_levy_value?: number | null;
   status: "Draft" | "Ordered" | "Received";
   order_date: string | null;
   delivery_address: string | null;
@@ -55,11 +58,12 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
     for (const l of lines) {
       map[l.purchase_order_id] = (map[l.purchase_order_id] || 0) + l.qty_pks * (l.unit_cost || 0);
     }
-    for (const key of Object.keys(map)) {
-      map[key] = map[key] * 1.1;
+    for (const po of initial) {
+      const sub = map[po.id] || 0;
+      map[po.id] = (sub + fuelLevyAmount(sub, po.fuel_levy_type, po.fuel_levy_value)) * 1.1;
     }
     return map;
-  }, [lines]);
+  }, [lines, initial]);
 
   const visible = initial
     .filter((p) => p.archived === showArchived)
