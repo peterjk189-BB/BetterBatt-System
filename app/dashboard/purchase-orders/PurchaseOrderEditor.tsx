@@ -118,6 +118,32 @@ export default function PurchaseOrderEditor({
   });
 
   const [saving, setSaving] = useState(false);
+  // Regular delivery addresses (table exists after migration 0060; the picker just stays hidden until then).
+  const [addresses, setAddresses] = useState<{ id: string; label: string; address: string }[]>([]);
+  useEffect(() => {
+    supabase
+      .from("delivery_addresses")
+      .select("id, label, address")
+      .order("label")
+      .then(({ data, error }) => {
+        if (!error && data) setAddresses(data as any);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const savedAddress = addresses.find((a) => a.address.trim().toLowerCase() === form.delivery_address.trim().toLowerCase());
+  async function saveAddress() {
+    const address = form.delivery_address.trim();
+    if (!address) return;
+    const label = (window.prompt("Name for this address (e.g. Warehouse)", "") ?? "").trim();
+    const { data, error: e } = await supabase.from("delivery_addresses").insert({ label, address }).select("id, label, address").single();
+    if (e) return setError(`Couldn't save the address: ${e.message}`);
+    setAddresses((a) => [...a, data as any].sort((x, y) => x.label.localeCompare(y.label)));
+  }
+  async function removeAddress(id: string) {
+    if (!window.confirm("Remove this address from the list? Existing orders keep their address.")) return;
+    const { error: e } = await supabase.from("delivery_addresses").delete().eq("id", id);
+    if (!e) setAddresses((a) => a.filter((x) => x.id !== id));
+  }
   // The number this order is about to get (shown on a new order so it can be quoted when phoning it through).
   const [nextPo, setNextPo] = useState<string | null>(null);
   useEffect(() => {
@@ -406,12 +432,41 @@ export default function PurchaseOrderEditor({
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Deliver to (address)
+          {addresses.length > 0 && (
+            <select
+              className="rounded-lg border border-[var(--border)] px-3 py-2"
+              value={savedAddress?.id ?? ""}
+              onChange={(e) => {
+                const a = addresses.find((x) => x.id === e.target.value);
+                if (a) setForm({ ...form, delivery_address: a.address });
+              }}
+            >
+              <option value="">Pick a regular address…</option>
+              {addresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label ? `${a.label} – ${a.address}` : a.address}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.delivery_address}
             onChange={(e) => setForm({ ...form, delivery_address: e.target.value })}
             placeholder="Site address the order should be delivered to"
           />
+          <span className="flex gap-3 text-xs">
+            {form.delivery_address.trim() && !savedAddress && (
+              <button type="button" onClick={saveAddress} className="text-accent hover:underline">
+                Save this address to the list
+              </button>
+            )}
+            {savedAddress && (
+              <button type="button" onClick={() => removeAddress(savedAddress.id)} className="text-[var(--muted)] hover:underline">
+                Remove from list
+              </button>
+            )}
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Site contact name
