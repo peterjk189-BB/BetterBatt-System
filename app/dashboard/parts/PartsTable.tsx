@@ -639,9 +639,35 @@ export default function PartsTable({
         try {
           const rows = results.data;
           const supplierMap = new Map(supplierList.map((s) => [s.name.trim().toLowerCase(), s.id]));
-          const newSuppliers: Supplier[] = [];
           const toInsert: Omit<Part, "id" | "stock_on_hand" | "archived">[] = [];
           let skipped = 0;
+          const unknown = new Map<string, number[]>(); // supplier name as typed -> row numbers
+
+          // Check every supplier name first. A name that isn't already in Suppliers stops the whole import,
+          // so a typo can never create a duplicate supplier.
+          rows.forEach((row, idx) => {
+            const nm = (row.name || "").trim();
+            const sup = (row.supplier || "").trim();
+            if (nm && sup && !supplierMap.has(sup.toLowerCase())) {
+              unknown.set(sup, [...(unknown.get(sup) ?? []), idx + 2]); // +2: header row, then 1-based
+            }
+          });
+          if (unknown.size > 0) {
+            const known = supplierList.map((s) => s.name);
+            const lines = Array.from(unknown.entries()).map(([name, rowNums]) => {
+              const key = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+              const near = known.find((k) => {
+                const kk = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+                return kk.includes(key) || key.includes(kk) || (kk.length > 3 && key.length > 3 && kk.slice(0, 4) === key.slice(0, 4));
+              });
+              const where = rowNums.length > 3 ? `rows ${rowNums.slice(0, 3).join(", ")}…` : `row${rowNums.length > 1 ? "s" : ""} ${rowNums.join(", ")}`;
+              return `• "${name}" (${where})${near ? ` — did you mean "${near}"?` : ""}`;
+            });
+            alert(
+              `Nothing was imported. These supplier names don't match any supplier:\n\n${lines.join("\n")}\n\nCorrect the spelling in the file (or add the supplier on the Suppliers page first), then import again.`
+            );
+            return;
+          }
 
           for (const row of rows) {
             const name = (row.name || "").trim();
@@ -650,25 +676,8 @@ export default function PartsTable({
               continue;
             }
 
-            let supplierId: string | null = null;
             const supplierName = (row.supplier || "").trim();
-            if (supplierName) {
-              const key = supplierName.toLowerCase();
-              if (supplierMap.has(key)) {
-                supplierId = supplierMap.get(key)!;
-              } else {
-                const { data, error } = await supabase
-                  .from("suppliers")
-                  .insert({ name: supplierName })
-                  .select()
-                  .single();
-                if (!error && data) {
-                  supplierId = data.id;
-                  supplierMap.set(key, data.id);
-                  newSuppliers.push({ id: data.id, name: data.name });
-                }
-              }
-            }
+            const supplierId: string | null = supplierName ? supplierMap.get(supplierName.toLowerCase()) ?? null : null;
 
             toInsert.push({
               code: (row.code || "").trim() || null,
@@ -696,10 +705,8 @@ export default function PartsTable({
               alert(`Import failed: ${error.message}`);
             } else if (data) {
               setParts((prev) => [...(data as Part[]), ...prev]);
-              if (newSuppliers.length > 0) setSupplierList((prev) => [...prev, ...newSuppliers]);
               alert(
                 `Imported ${data.length} item(s).` +
-                  (newSuppliers.length > 0 ? ` Created ${newSuppliers.length} new supplier(s).` : "") +
                   (skipped > 0 ? ` Skipped ${skipped} row(s) with no item name.` : "")
               );
               logAudit(supabase, {
@@ -707,7 +714,6 @@ export default function PartsTable({
                 entityType: "part",
                 entityLabel: `CSV import — ${data.length} item(s)`,
                 details:
-                  (newSuppliers.length > 0 ? `${newSuppliers.length} new supplier(s). ` : "") +
                   (skipped > 0 ? `${skipped} row(s) skipped.` : ""),
               });
             }
