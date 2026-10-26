@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SpellCheck from "./SpellCheck";
 
 export const metadata: Metadata = {
   title: "Better Batt System",
@@ -18,11 +19,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-AU" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <SpellCheck />
+        {children}
+      </body>
     </html>
   );
 }
