@@ -993,17 +993,17 @@ export default function QuoteEditor({
           />
         </label>
 
-        <label className="flex items-center gap-2 text-sm sm:col-span-3">
+        <div className="flex items-center gap-2 text-sm sm:col-span-3">
           <input
             type="checkbox"
             checked={form.show_qty_on_quote}
             onChange={(e) => setForm({ ...form, show_qty_on_quote: e.target.checked })}
           />
-          Show m² quantities to the customer on the printed quote
+          <span>Show m² quantities to the customer on the printed quote</span>
           <span className="text-xs font-normal text-[var(--muted)]">
             (off by default — hides exact measurements so the quote can&apos;t be easily shopped around)
           </span>
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1 text-sm sm:col-span-3">
           Notes
@@ -1048,13 +1048,13 @@ export default function QuoteEditor({
 
       {/* Optional extras */}
       <div className="mt-6 rounded-xl border border-[var(--border)] p-5">
-        <label className="flex items-center gap-2 text-sm font-medium">
+        <div className="flex items-center gap-2 text-sm font-medium">
           <input type="checkbox" checked={optionKeys.length > 0} onChange={(e) => toggleOptions(e.target.checked)} />
-          Customer wants optional extras
+          <span>Customer wants optional extras</span>
           <span className="font-normal text-[var(--muted)]">
             (shown on the quote as separate options priced on their own, not added to the main total)
           </span>
-        </label>
+        </div>
 
         {optionKeys.map((k) => {
           const ot = optionTotals[k];
@@ -1068,7 +1068,7 @@ export default function QuoteEditor({
                   value={optTitles[k] || ""}
                   onChange={(e) => setOptTitles((prev) => ({ ...prev, [k]: e.target.value }))}
                 />
-                <label className="flex items-center gap-1.5 text-sm">
+                <div className="flex items-center gap-1.5 text-sm">
                   <input
                     type="checkbox"
                     checked={optAccepted.includes(k)}
@@ -1076,8 +1076,8 @@ export default function QuoteEditor({
                       setOptAccepted((prev) => (e.target.checked ? [...prev, k] : prev.filter((x) => x !== k)))
                     }
                   />
-                  Accepted
-                </label>
+                  <span>Accepted</span>
+                </div>
                 <button onClick={() => addLine(k)} className="text-sm text-accent hover:underline">
                   + Add line
                 </button>
