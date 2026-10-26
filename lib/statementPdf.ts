@@ -4,7 +4,7 @@ import { BUCKET_LABELS, type Ageing, type StatementRow } from "@/lib/statements"
 import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 
 export type StatementPdfInput = {
-  customer: { name: string; accounts_contact_name?: string | null; accounts_contact_email?: string | null; contact_email?: string | null; payment_terms?: string | null };
+  customer: { name: string; address?: string | null; accounts_contact_name?: string | null; accounts_contact_email?: string | null; contact_email?: string | null; payment_terms?: string | null };
   asOf: string;
   rows: StatementRow[];
   ageing: Ageing;
@@ -63,6 +63,9 @@ export async function buildStatementPdf(input: StatementPdfInput): Promise<Uint8
   y += 5;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
+  if (customer.address) {
+    for (const line of doc.splitTextToSize(customer.address, 90) as string[]) { doc.text(line, M, y); y += 4.8; }
+  }
   if (customer.accounts_contact_name) { doc.text(`Attn: ${customer.accounts_contact_name}`, M, y); y += 4.8; }
 
   // amount owing banner

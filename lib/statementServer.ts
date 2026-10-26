@@ -5,7 +5,7 @@ import { buildStatementPdf } from "@/lib/statementPdf";
 export async function loadStatement(supabase: any, customerId: string, asOf: string) {
   const { data: customer } = await supabase
     .from("customers")
-    .select("id, name, payment_terms, contact_name, contact_email, accounts_contact_name, accounts_contact_email, accounts_contact_phone")
+    .select("*") // all columns, so the address shows once migration 0063 is run
     .eq("id", customerId)
     .single();
   if (!customer) return null;

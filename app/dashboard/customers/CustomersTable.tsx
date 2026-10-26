@@ -12,6 +12,7 @@ type Customer = {
   discount_pct: number;
   payment_terms: "7 Days" | "COD" | "30 Days";
   contact_name: string | null;
+  address?: string | null;
   contact_phone: string | null;
   contact_email: string | null;
   accounts_contact_name?: string | null;
@@ -33,6 +34,7 @@ const emptyForm = {
   discount_pct: 0,
   payment_terms: "7 Days" as Customer["payment_terms"],
   contact_name: "",
+  address: "",
   contact_phone: "",
   contact_email: "",
   accounts_contact_name: "",
@@ -70,6 +72,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
       discount_pct: c.discount_pct,
       payment_terms: c.payment_terms,
       contact_name: c.contact_name || "",
+      address: c.address || "",
       contact_phone: c.contact_phone || "",
       contact_email: c.contact_email || "",
       accounts_contact_name: c.accounts_contact_name || "",
@@ -83,8 +86,13 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   async function save() {
     setSaving(true);
     // Only send the statement flag once migration 0055 exists (or when it's being switched on).
-    const { statement_account, ...rest } = form;
-    const payload: any = statement_account || editing?.statement_account !== undefined || customers.some((c) => c.statement_account !== undefined) ? form : rest;
+    const { statement_account, address, ...rest } = form;
+    const payload: any = {
+      ...rest,
+      // Statement flag (migration 0055) and address (0063) are only sent once those columns exist or are used.
+      ...(statement_account || customers.some((c) => c.statement_account !== undefined) ? { statement_account } : {}),
+      ...(address.trim() || customers.some((c) => c.address !== undefined) ? { address: address.trim() || null } : {}),
+    };
     if (editing) {
       const { data, error } = await supabase
         .from("customers")
@@ -217,6 +225,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
             <tr>
               <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-2">Address</th>
               <th className="px-4 py-2">Category</th>
               <th className="px-4 py-2">Terms</th>
               <th className="px-4 py-2">Discount</th>
@@ -230,13 +239,14 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
               <Fragment key={c.id}>
               {(i === 0 || visible[i - 1].category !== c.category) && (
                 <tr className="border-t border-[var(--border)] bg-[#f7f5f1]">
-                  <td colSpan={7} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                  <td colSpan={8} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
                     {c.category === "Builder" ? "Builders" : c.category} ({visible.filter((x) => x.category === c.category).length})
                   </td>
                 </tr>
               )}
               <tr className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-medium">{c.name}</td>
+                <td className="px-4 py-2 whitespace-pre-line text-[var(--muted)]">{c.address || "—"}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLORS[c.category]}`}>
                     {c.category}
@@ -269,7 +279,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} customers found.
                 </td>
               </tr>
@@ -349,6 +359,16 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                   </select>
                 </label>
               </div>
+              <label className="flex flex-col gap-1 text-sm">
+                Address (where they are located)
+                <textarea
+                  rows={2}
+                  placeholder="Street, suburb, state, postcode"
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={form.address}
+                  onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+              </label>
               <label className="flex flex-col gap-1 text-sm">
                 Standing discount %
                 <input
