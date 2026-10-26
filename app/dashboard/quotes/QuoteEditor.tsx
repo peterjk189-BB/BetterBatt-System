@@ -273,14 +273,14 @@ export default function QuoteEditor({
   const [adjustMode, setAdjustMode] = useState<"amount" | "percent">("amount");
   const [adjustPercent, setAdjustPercent] = useState(0);
   // What's typed in the adjustment box, kept as text so "-" (before the digits) isn't wiped while typing.
-  const [markupText, setMarkupText] = useState(form.quote_markup ? String(form.quote_markup) : "0");
-  const [percentText, setPercentText] = useState(adjustPercent ? String(adjustPercent) : "0");
+  const [markupText, setMarkupText] = useState(form.quote_markup ? String(form.quote_markup) : "");
+  const [percentText, setPercentText] = useState(adjustPercent ? String(adjustPercent) : "");
   useEffect(() => {
-    if (Number(markupText) !== Number(form.quote_markup || 0)) setMarkupText(String(form.quote_markup ?? 0));
+    if ((Number(markupText) || 0) !== Number(form.quote_markup || 0)) setMarkupText(form.quote_markup ? String(form.quote_markup) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.quote_markup]);
   useEffect(() => {
-    if (Number(percentText) !== Number(adjustPercent || 0)) setPercentText(String(adjustPercent ?? 0));
+    if ((Number(percentText) || 0) !== Number(adjustPercent || 0)) setPercentText(adjustPercent ? String(adjustPercent) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adjustPercent]);
 
@@ -1138,6 +1138,8 @@ export default function QuoteEditor({
               <input
                 type="text"
                 inputMode="decimal"
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
                 className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
                 value={markupText}
                 onChange={(e) => {
@@ -1155,6 +1157,8 @@ export default function QuoteEditor({
               <input
                 type="text"
                 inputMode="decimal"
+                placeholder="0"
+                onFocus={(e) => e.target.select()}
                 className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
                 value={percentText}
                 onChange={(e) => {
