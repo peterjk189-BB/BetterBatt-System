@@ -76,7 +76,7 @@ export default async function CalendarPage() {
       <LiveRefresh />
       <TodaysJobs jobs={todaysJobs} />
       <CalendarView
-        woLines={(await withTimes(supabase, woLines as any)) as any}
+        woLines={(await withTimes(supabase, ((woLines ?? []) as any[]).filter((l) => l.work_orders && !l.work_orders.archived) as any)) as any}
         pos={[]}
         visits={[]}
         installerNote={

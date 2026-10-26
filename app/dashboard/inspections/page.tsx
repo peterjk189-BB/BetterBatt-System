@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
 import { jobProgress } from "@/lib/jobProgress";
+import { getInstallerScope, inScope } from "@/lib/installerScope";
 import InspectionsList, { type DueJob } from "./InspectionsList";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bookDueInspections } from "@/lib/inspectionPrefill";
@@ -18,7 +19,7 @@ export default async function InspectionsPage() {
     supabase
       .from("inspections")
       .select(
-        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number)"
+        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, created_by, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number)"
       )
       .order("inspection_date", { ascending: false })
       .order("inspection_number", { ascending: false }),
@@ -62,6 +63,8 @@ export default async function InspectionsPage() {
   due.sort((a, b) => (a.booked?.date || "9999").localeCompare(b.booked?.date || "9999") || (a.since || "").localeCompare(b.since || ""));
 
   const staff = role === "admin" || role === "office";
-  const rows = (records ?? []).map((r: any) => (staff ? r : { ...r, projects: null }));
-  return <InspectionsList initial={rows as any} due={due} />;
+  const scope = await getInstallerScope(supabase);
+  const visible = (records ?? []).filter((r: any) => !scope || (!r.archived && inScope(scope, r)));
+  const rows = visible.map((r: any) => (staff ? r : { ...r, projects: null }));
+  return <InspectionsList initial={rows as any} due={scope ? [] : due} />;
 }
