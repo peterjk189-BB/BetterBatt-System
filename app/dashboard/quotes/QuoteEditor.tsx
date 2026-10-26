@@ -81,7 +81,7 @@ export type QuotePrefill = {
   lines: Line[];
 };
 
-const JOB_TYPES = ["S+F QUOTE", "SUPPLY & INSTALL", "SUPPLY ONLY", "MATERIAL QUOTE", "OPTION QUOTE"];
+const JOB_TYPES = ["SUPPLY & INSTALL", "SUPPLY ONLY"];
 const CATEGORIES = ["Builder", "Retro Fit", "Private"];
 const OUTCOMES = ["Open", "Accepted", "Lost", "Cancelled"];
 
@@ -896,7 +896,7 @@ export default function QuoteEditor({
             value={form.job_type}
             onChange={(e) => setForm({ ...form, job_type: e.target.value })}
           >
-            {JOB_TYPES.map((j) => (
+            {(JOB_TYPES.includes(form.job_type) || !form.job_type ? JOB_TYPES : [...JOB_TYPES, form.job_type]).map((j) => (
               <option key={j}>{j}</option>
             ))}
           </select>
