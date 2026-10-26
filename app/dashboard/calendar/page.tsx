@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
+import { getInstallerScope } from "@/lib/installerScope";
 import CalendarView from "./CalendarView";
 import TodaysJobs from "./TodaysJobs";
 import LiveRefresh from "./LiveRefresh";
@@ -47,13 +48,15 @@ export default async function CalendarPage() {
       sampleName = (upcoming as any)?.subcontractors?.name ?? null;
     }
 
+    // Only authorised, non-archived jobs reach a contractor (mirrors the database rule, so "Preview as" matches too).
+    const scope = await getInstallerScope(supabase);
     const { data: woLines } = subId
       ? await supabase.from("work_order_lines").select(WO_LINE_SELECT).eq("subcontractor_id", subId).not("task_date", "is", null).order("task_date")
       : { data: [] };
 
     // Today's jobs (Melbourne time) get a "Start SWMS" button at the top of the schedule.
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
-    const todayLines = ((woLines ?? []) as any[]).filter((l) => l.task_date === today && l.work_orders && !l.work_orders.archived);
+    const todayLines = ((woLines ?? []) as any[]).filter((l) => l.task_date === today && l.work_orders && !l.work_orders.archived && (!scope || scope.woIds.includes(l.work_order_id)));
     const woIds = Array.from(new Set(todayLines.map((l) => l.work_order_id as string)));
     const { data: swmsRows } = woIds.length
       ? await supabase.from("swms").select("id, status, work_order_id, job_date").in("work_order_id", woIds).eq("archived", false).order("created_at", { ascending: false })
@@ -76,7 +79,7 @@ export default async function CalendarPage() {
       <LiveRefresh />
       <TodaysJobs jobs={todaysJobs} />
       <CalendarView
-        woLines={(await withTimes(supabase, ((woLines ?? []) as any[]).filter((l) => l.work_orders && !l.work_orders.archived) as any)) as any}
+        woLines={(await withTimes(supabase, ((woLines ?? []) as any[]).filter((l) => l.work_orders && !l.work_orders.archived && (!scope || scope.woIds.includes(l.work_order_id))) as any)) as any}
         pos={[]}
         visits={[]}
         installerNote={
