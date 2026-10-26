@@ -139,7 +139,7 @@ export default function QuotesList({
                 <td className="px-4 py-2">{p.customers?.name || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{p.job_type}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{p.suburb || "—"}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{p.entry_date}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{p.entry_date ? new Date(p.entry_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU") : "—"}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${OUTCOME_COLORS[p.outcome]}`}>
                     {p.outcome}

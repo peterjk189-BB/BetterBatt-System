@@ -123,7 +123,7 @@ function workOrderStatus(wo: QuoteWorkOrder) {
 
 function shortDate(d: string | null) {
   if (!d) return null;
-  return new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(`${d.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export default function QuoteEditor({
