@@ -29,6 +29,7 @@ type Part = {
   price_regency?: number | null;
   supply_install_rate_per_m2: number;
   is_stock_item: boolean;
+  supplier_id?: string | null;
 };
 
 type Project = {
@@ -148,6 +149,46 @@ export default function QuoteEditor({
   const supabase = createClient();
   const router = useRouter();
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
+
+  // Supplier buttons above the line items: pick a supplier to shorten the product list (most quotes use Fletchers).
+  const [supplierNames, setSupplierNames] = useState<Record<string, string>>({});
+  const [supplierPick, setSupplierPick] = useState<string>(""); // supplier id, "" = all products
+  const SUPPLIER_PICK_KEY = "coverage-quote-supplier";
+  useEffect(() => {
+    supabase
+      .from("suppliers")
+      .select("id, name")
+      .eq("archived", false)
+      .order("name")
+      .then(({ data }) => {
+        const names: Record<string, string> = Object.fromEntries((data ?? []).map((s: any) => [s.id, s.name]));
+        setSupplierNames(names);
+        let saved: string | null = null;
+        try {
+          saved = localStorage.getItem(SUPPLIER_PICK_KEY);
+        } catch {
+          // storage unavailable — just use the default
+        }
+        if (saved !== null && (saved === "" || names[saved])) setSupplierPick(saved);
+        else {
+          const fletcher = Object.entries(names).find(([, n]) => n.toLowerCase().includes("fletcher"));
+          if (fletcher) setSupplierPick(fletcher[0]);
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function chooseSupplier(id: string) {
+    setSupplierPick(id);
+    try {
+      localStorage.setItem(SUPPLIER_PICK_KEY, id);
+    } catch {
+      // ignore
+    }
+  }
+  const supplierButtons = useMemo(() => {
+    const ids = Array.from(new Set(parts.map((p) => p.supplier_id).filter((x): x is string => !!x && !!supplierNames[x])));
+    return ids.map((id) => ({ id, name: supplierNames[id] })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [parts, supplierNames]);
   const isNew = !project;
   const [tab, setTab] = useState<"details" | "crm">("details");
 
@@ -566,11 +607,13 @@ export default function QuoteEditor({
                       onChange={(e) => updateLine(idx, { part_id: e.target.value })}
                     >
                       <option value="">Select product...</option>
-                      {parts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
+                      {parts
+                        .filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
                     </select>
                   </td>
                   <td className="px-3 py-2">
@@ -965,7 +1008,26 @@ export default function QuoteEditor({
       {/* Line items */}
       <div className="mt-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Line items</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="mr-1 text-lg font-bold">Line items</h2>
+            {supplierButtons.length > 0 && (
+              <>
+                <span className="text-xs text-[var(--muted)]">Products from:</span>
+                {[{ id: "", name: "All" }, ...supplierButtons].map((b) => (
+                  <button
+                    key={b.id || "all"}
+                    type="button"
+                    onClick={() => chooseSupplier(b.id)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                      supplierPick === b.id ? "border-[#201f1c] bg-[#201f1c] text-white" : "border-[var(--border)] bg-white text-[var(--muted)] hover:text-[var(--text)]"
+                    }`}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
           <button onClick={() => addLine(null)} className="text-sm text-accent hover:underline">
             + Add line
           </button>
