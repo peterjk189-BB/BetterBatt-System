@@ -23,6 +23,8 @@ export type Previewing = { id: string; label: string; role: string } | null;
 // useful for seeing what a role looks like before anyone's actually been
 // invited as one.
 export const SAMPLE_PREFIX = "role:";
+// "sub:<subcontractor id>" previews a contractor exactly as their own jobs are filtered, whether or not they have a login yet.
+export const SUB_PREFIX = "sub:";
 const SAMPLE_ROLES = ["office", "installer"];
 
 // defaultTabsForRole("installer") is deliberately empty — a *real* new
@@ -57,6 +59,21 @@ export async function resolveTabsForRequest(
             label: `Sample ${sampleRole} view (no login)`,
             role: sampleRole,
           },
+        };
+      }
+    } else if (previewValue && previewValue.startsWith(SUB_PREFIX)) {
+      const subId = previewValue.slice(SUB_PREFIX.length);
+      const supabase = await createClient();
+      const [{ data: sub }, { data: linked }] = await Promise.all([
+        supabase.from("subcontractors").select("id, name").eq("id", subId).single(),
+        supabase.from("profiles").select("role, allowed_tabs").eq("subcontractor_id", subId).limit(1),
+      ]);
+      if (sub) {
+        // Use the tabs ticked for this contractor's own login when they have one, otherwise the typical installer set.
+        const login = (linked ?? [])[0] as { role: string; allowed_tabs: string[] | null } | undefined;
+        return {
+          tabs: login ? effectiveTabs(login.role, login.allowed_tabs ?? null) : effectiveTabs("installer", SAMPLE_TABS.installer),
+          previewing: { id: previewValue, label: `${sub.name} (contractor)`, role: "installer" },
         };
       }
     } else if (previewValue && previewValue !== realUserId) {

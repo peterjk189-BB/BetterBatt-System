@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { resolveTabsForRequest, SAMPLE_PREFIX } from "@/lib/preview";
+import { resolveTabsForRequest, SAMPLE_PREFIX, SUB_PREFIX } from "@/lib/preview";
 
 /** The signed-in user's actual role, or null if not signed in / no profile row yet. */
 export async function getCurrentUserRole(): Promise<string | null> {
@@ -45,6 +45,7 @@ export async function getEffectiveSubcontractorId(): Promise<string | null> {
   const { previewing } = await resolveTabsForRequest(profile?.role ?? null, profile?.allowed_tabs ?? null, user.id);
   if (!previewing) return profile?.subcontractor_id ?? null;
   if (previewing.id.startsWith(SAMPLE_PREFIX)) return null;
+  if (previewing.id.startsWith(SUB_PREFIX)) return previewing.id.slice(SUB_PREFIX.length);
   const { data: target } = await supabase.from("profiles").select("subcontractor_id").eq("id", previewing.id).single();
   return target?.subcontractor_id ?? null;
 }

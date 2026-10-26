@@ -22,6 +22,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   const userId = typeof body.user_id === "string" ? body.user_id : null;
   const sampleRole = typeof body.sample_role === "string" ? body.sample_role : null;
+  const subId = typeof body.subcontractor_id === "string" ? body.subcontractor_id : null;
 
   let cookieValue: string;
   if (sampleRole) {
@@ -29,6 +30,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid sample role" }, { status: 400 });
     }
     cookieValue = `role:${sampleRole}`;
+  } else if (subId) {
+    cookieValue = `sub:${subId}`;
   } else if (userId) {
     cookieValue = userId;
   } else {

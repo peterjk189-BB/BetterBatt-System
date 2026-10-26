@@ -12,9 +12,11 @@ const SAMPLE_OPTIONS = [
 
 export default function PreviewBar({
   users,
+  contractors = [],
   previewing,
 }: {
   users: Option[];
+  contractors?: Option[];
   previewing: { id: string; label: string } | null;
 }) {
   const router = useRouter();
@@ -24,10 +26,11 @@ export default function PreviewBar({
     if (!value) return;
     setLoading(true);
     const isSample = value.startsWith("sample:");
+    const isSub = value.startsWith("sub:");
     await fetch("/api/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(isSample ? { sample_role: value.slice("sample:".length) } : { user_id: value }),
+      body: JSON.stringify(isSample ? { sample_role: value.slice("sample:".length) } : isSub ? { subcontractor_id: value.slice("sub:".length) } : { user_id: value }),
     });
     router.refresh();
     setLoading(false);
@@ -66,6 +69,15 @@ export default function PreviewBar({
           </option>
         ))}
       </optgroup>
+      {contractors.length > 0 && (
+        <optgroup label="Contractors (what they see)">
+          {contractors.map((c) => (
+            <option key={c.id} value={`sub:${c.id}`}>
+              {c.label}
+            </option>
+          ))}
+        </optgroup>
+      )}
       {users.length > 0 && (
         <optgroup label="Real users">
           {users.map((u) => (

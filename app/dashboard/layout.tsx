@@ -53,12 +53,15 @@ export default async function DashboardLayout({
   const hasAnyTab = myTabs.length > 0;
 
   let previewOptions: { id: string; label: string }[] = [];
+  let contractorOptions: { id: string; label: string }[] = [];
   if (isAdmin) {
     const { data: otherProfiles } = await supabase
       .from("profiles")
       .select("id, full_name, role")
       .neq("id", user.id)
       .order("full_name");
+    const { data: subs } = await supabase.from("subcontractors").select("id, name").eq("archived", false).order("name");
+    contractorOptions = (subs ?? []).map((s: any) => ({ id: s.id, label: s.name }));
     previewOptions = (otherProfiles ?? []).map((p) => ({
       id: p.id,
       label: `${p.full_name || "Unnamed user"} (${p.role})`,
@@ -73,7 +76,7 @@ export default async function DashboardLayout({
             Better Batt System
           </Link>
           <div className="flex items-center gap-3 text-sm text-[var(--muted)]">
-            {isAdmin && <PreviewBar users={previewOptions} previewing={previewing} />}
+            {isAdmin && <PreviewBar users={previewOptions} contractors={contractorOptions} previewing={previewing} />}
             <span>
               {profile?.full_name || user.email}
               {isAdmin ? " (admin)" : isOffice ? " (office)" : " (installer)"}
