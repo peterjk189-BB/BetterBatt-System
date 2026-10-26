@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
 import TabIcon from "@/lib/TabIcon";
+import { getInstallerScope } from "@/lib/installerScope";
 
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
@@ -54,16 +55,26 @@ export default async function DashboardHome() {
   const showPurchaseOrdersKpi = myTabs.includes("purchase-orders");
   const showContractorPaymentsKpi = myTabs.includes("contractor-payments");
 
+  // A contractor (or "Preview as" one) only counts their own authorised, non-archived jobs.
+  const scope = await getInstallerScope(supabase);
   const [openQuotesRes, activeWorkOrdersRes, posAwaitingRes, unpaidLinesRes] = await Promise.all([
     showQuotesKpi
       ? supabase.from("projects").select("id", { count: "exact", head: true }).eq("archived", false).eq("outcome", "Open")
       : Promise.resolve({ count: 0 } as { count: number | null }),
     showWorkOrdersKpi
-      ? supabase
-          .from("work_orders")
-          .select("id", { count: "exact", head: true })
-          .eq("archived", false)
-          .is("completed_date", null)
+      ? scope
+        ? scope.woIds.length
+          ? supabase
+              .from("work_orders")
+              .select("id", { count: "exact", head: true })
+              .in("id", scope.woIds)
+              .is("completed_date", null)
+          : Promise.resolve({ count: 0 } as { count: number | null })
+        : supabase
+            .from("work_orders")
+            .select("id", { count: "exact", head: true })
+            .eq("archived", false)
+            .is("completed_date", null)
       : Promise.resolve({ count: 0 } as { count: number | null }),
     showPurchaseOrdersKpi
       ? supabase
@@ -73,11 +84,15 @@ export default async function DashboardHome() {
           .neq("status", "Received")
       : Promise.resolve({ count: 0 } as { count: number | null }),
     showContractorPaymentsKpi
-      ? supabase
-          .from("work_order_lines")
-          .select("*, labour_items(contractor_rate), parts(installer_rate_per_m2), work_orders!inner(archived)")
-          .eq("paid", false)
-          .eq("work_orders.archived", false)
+      ? (() => {
+          let q = supabase
+            .from("work_order_lines")
+            .select("*, labour_items(contractor_rate), parts(installer_rate_per_m2), work_orders!inner(archived)")
+            .eq("paid", false)
+            .eq("work_orders.archived", false);
+          if (scope) q = scope.subId ? q.eq("subcontractor_id", scope.subId) : q.in("work_order_id", []);
+          return q;
+        })()
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
