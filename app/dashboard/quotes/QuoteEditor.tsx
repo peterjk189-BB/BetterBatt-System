@@ -272,6 +272,17 @@ export default function QuoteEditor({
   // the business has always tracked it. Percent is just a convenience for entering it.
   const [adjustMode, setAdjustMode] = useState<"amount" | "percent">("amount");
   const [adjustPercent, setAdjustPercent] = useState(0);
+  // What's typed in the adjustment box, kept as text so "-" (before the digits) isn't wiped while typing.
+  const [markupText, setMarkupText] = useState(form.quote_markup ? String(form.quote_markup) : "0");
+  const [percentText, setPercentText] = useState(adjustPercent ? String(adjustPercent) : "0");
+  useEffect(() => {
+    if (Number(markupText) !== Number(form.quote_markup || 0)) setMarkupText(String(form.quote_markup ?? 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.quote_markup]);
+  useEffect(() => {
+    if (Number(percentText) !== Number(adjustPercent || 0)) setPercentText(String(adjustPercent ?? 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjustPercent]);
 
   const [lineItems, setLineItems] = useState<Line[]>(
     lines.length > 0
@@ -1125,22 +1136,33 @@ export default function QuoteEditor({
             <label className="flex flex-col gap-1 text-sm">
               Adjustment ($, can be negative)
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
-                value={form.quote_markup}
-                onChange={(e) => setForm({ ...form, quote_markup: Number(e.target.value) })}
+                value={markupText}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  // allows a leading minus and a half-typed number like "-" or "-100."
+                  if (!/^-?\d*\.?\d{0,2}$/.test(v)) return;
+                  setMarkupText(v);
+                  setForm({ ...form, quote_markup: Number(v) || 0 });
+                }}
               />
             </label>
           ) : (
             <label className="flex flex-col gap-1 text-sm">
               Adjustment (%, can be negative)
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 className="w-48 rounded-lg border border-[var(--border)] px-3 py-2"
-                value={adjustPercent}
-                onChange={(e) => setAdjustPercent(Number(e.target.value))}
+                value={percentText}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^-?\d*\.?\d{0,2}$/.test(v)) return;
+                  setPercentText(v);
+                  setAdjustPercent(Number(v) || 0);
+                }}
               />
             </label>
           )}
