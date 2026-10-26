@@ -14,7 +14,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       supabase.from("work_orders").select("id, wo_number, notes, projects(address, suburb)").eq("id", params.id).single(),
       (async () => {
         // "rate" only exists once migration 0045 is run: fall back to the product's rate without it.
-        const sel = "id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2)";
+        const sel = "id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item)";
         const r = await supabase.from("work_order_lines").select(sel + ", rate").eq("work_order_id", params.id).order("sort_order");
         if (!r.error) return r;
         return supabase.from("work_order_lines").select(sel).eq("work_order_id", params.id).order("sort_order");
@@ -60,7 +60,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       .order("quote_number", { ascending: false }),
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
-    supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2, installer_rate_per_m2"),
+    supabase.from("parts").select("id, name, coverage_m2, is_stock_item, supply_charge_per_pack, supply_install_rate_per_m2, installer_rate_per_m2"),
     supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
     supabase
       .from("inspections")

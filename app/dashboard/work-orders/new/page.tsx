@@ -39,7 +39,7 @@ export default async function NewWorkOrderPage({
       .order("quote_number", { ascending: false }),
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
-    supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2, installer_rate_per_m2"),
+    supabase.from("parts").select("id, name, coverage_m2, is_stock_item, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2, installer_rate_per_m2"),
     getEffectiveRole(),
   ]);
   // Contractors can't create work orders.

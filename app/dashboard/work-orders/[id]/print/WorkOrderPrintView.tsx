@@ -4,13 +4,14 @@ import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { lineRate } from "@/lib/woRate";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
+import { woLinePacks } from "@/lib/picking";
 
 type Line = {
   task_date: string | null;
   qty: number;
   note: string | null;
   rate?: number | null;
-  parts: { name: string; installer_rate_per_m2?: number } | null;
+  parts: { name: string; installer_rate_per_m2?: number; coverage_m2?: number | null; is_stock_item?: boolean | null } | null;
   labour_items: { code: string; description: string; contractor_rate: number } | null;
   subcontractors: { name: string } | null;
 };
@@ -181,6 +182,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
               <th className="px-2 py-1.5">Product</th>
               <th className="px-2 py-1.5">Notes</th>
               <th className="px-2 py-1.5 text-right">Qty</th>
+              <th className="px-2 py-1.5 text-right">Packs</th>
               <th className="rounded-r-lg px-2 py-1.5 text-right">Contractor $</th>
             </tr>
           </thead>
@@ -191,12 +193,13 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
                 <td className="px-2 py-2 text-gray-600">{l.parts?.name || "—"}</td>
                 <td className="px-2 py-2">{l.note || "—"}</td>
                 <td className="px-2 py-2 text-right">{l.qty}</td>
+                <td className="px-2 py-2 text-right">{woLinePacks(l.qty, l.parts) ?? ""}</td>
                 <td className="px-2 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
               </tr>
             ))}
             {computed.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-gray-400">
+                <td colSpan={6} className="py-6 text-center text-gray-400">
                   No task lines.
                 </td>
               </tr>

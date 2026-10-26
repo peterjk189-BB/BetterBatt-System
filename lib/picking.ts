@@ -34,6 +34,14 @@ export function packsNeeded(qtyM2: number, coverageM2: number): number {
   return Math.ceil(qtyM2 / coverageM2 - 1e-9);
 }
 
+/** Packs for a work order line, or null when it shouldn't show one (no product, a non-stock item, or no coverage set). */
+export function woLinePacks(qtyM2: number, part: { coverage_m2?: number | null; is_stock_item?: boolean | null } | null | undefined): number | null {
+  if (!part || part.is_stock_item === false) return null;
+  const cov = Number(part.coverage_m2) || 0;
+  if (cov <= 0) return null;
+  return packsNeeded(Number(qtyM2) || 0, cov);
+}
+
 /** Suggested quantity to actually pick — same as packsNeeded, kept as a separate name for where it's used as a default. */
 export function suggestedPick(qtyM2: number, coverageM2: number): number {
   return packsNeeded(qtyM2, coverageM2);

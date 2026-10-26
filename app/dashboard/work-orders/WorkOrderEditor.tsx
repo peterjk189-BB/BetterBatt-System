@@ -20,8 +20,9 @@ type Project = {
 
 type Sub = { id: string; name: string; phone: string | null; email: string | null };
 type LabourItem = { id: string; code: string; description: string; contractor_rate: number };
-type Part = { id: string; name: string; installer_rate_per_m2?: number };
+type Part = { id: string; name: string; installer_rate_per_m2?: number; coverage_m2?: number | null; is_stock_item?: boolean | null };
 import { lineRate } from "@/lib/woRate";
+import { woLinePacks } from "@/lib/picking";
 import PartPicker from "../PartPicker";
 
 type WorkOrder = {
@@ -848,6 +849,11 @@ export default function WorkOrderEditor({
                           value={l.qty}
                           onChange={(e) => updateLine(idx, { qty: Number(e.target.value) })}
                         />
+                        {l.part_id && woLinePacks(l.qty, partById[l.part_id]) !== null && (
+                          <span className="mt-0.5 block text-center text-[11px] text-[var(--muted)]">
+                            {woLinePacks(l.qty, partById[l.part_id])} packs
+                          </span>
+                        )}
                       </label>
                       <div className="text-center text-sm font-medium">
                         <span className={lab}>Contractor $</span>

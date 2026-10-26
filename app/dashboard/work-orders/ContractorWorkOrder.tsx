@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { lineRate } from "@/lib/woRate";
+import { woLinePacks } from "@/lib/picking";
 import JobProgressStrip from "./JobProgressStrip";
 import type { ProgressInspection, ProgressSwms } from "@/lib/jobProgress";
 
@@ -16,7 +17,7 @@ type WoLine = {
   completed: boolean | null;
   note: string | null;
   rate?: number | null;
-  parts: { name: string; installer_rate_per_m2?: number | null } | null;
+  parts: { name: string; installer_rate_per_m2?: number | null; coverage_m2?: number | null; is_stock_item?: boolean | null } | null;
 };
 type Extra = {
   id: string;
@@ -126,6 +127,7 @@ export default function ContractorWorkOrder({
             <tr>
               <th className="px-3 py-2">Product</th>
               <th className="px-3 py-2 text-right">m²</th>
+              <th className="px-3 py-2 text-right">Packs</th>
               <th className="px-3 py-2 text-right">Rate</th>
               <th className="px-3 py-2 text-right">Total</th>
               <th className="px-3 py-2">Date</th>
@@ -137,6 +139,7 @@ export default function ContractorWorkOrder({
               <tr key={l.id} className="border-t border-[var(--border)]">
                 <td className="px-3 py-2">{l.parts?.name || "—"}</td>
                 <td className="px-3 py-2 text-right">{l.qty}</td>
+                <td className="px-3 py-2 text-right">{woLinePacks(l.qty, l.parts) ?? ""}</td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">{money(l.rate)}</td>
                 <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{money(l.amount)}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
@@ -148,7 +151,7 @@ export default function ContractorWorkOrder({
             ))}
             {lines.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-[var(--muted)]">
+                <td colSpan={7} className="px-3 py-6 text-center text-[var(--muted)]">
                   No items yet.
                 </td>
               </tr>
@@ -157,7 +160,7 @@ export default function ContractorWorkOrder({
           {priced.length > 0 && (
             <tfoot>
               <tr className="border-t-2 border-[var(--border)] bg-[#f6f5f2] font-bold">
-                <td className="px-3 py-2" colSpan={3}>
+                <td className="px-3 py-2" colSpan={4}>
                   Total (ex GST)
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">{money(total)}</td>
