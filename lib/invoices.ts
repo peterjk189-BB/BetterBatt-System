@@ -40,6 +40,7 @@ export type InvoiceLine = { id: string; invoice_id: string; part_id: string | nu
 export const PAY_METHODS = ["Bank transfer", "Card", "Cash", "Cheque", "Other"] as const;
 export const invNo = (n: number) => `INV-${n}`;
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+export const round4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 export const today = () => new Date().toISOString().slice(0, 10);
 
 export function addDays(iso: string, days: number) {

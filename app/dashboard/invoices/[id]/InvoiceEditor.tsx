@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
-import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
+import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, round4, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 
 type Full = Invoice & {
@@ -58,10 +58,10 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   }
 
   async function addItem(p: PartOpt) {
-    const unit = round2(supplyPackPrice(p, tier === "standard" ? null : tier));
+    const unit = round4(supplyPackPrice(p, tier === "standard" ? null : tier));
     const { data, error } = await supabase
       .from("invoice_lines")
-      .insert({ invoice_id: inv.id, part_id: p.id, description: `${p.code ? p.code + " - " : ""}${p.name}`, qty: 1, unit_price: unit, line_ex: unit, sort_order: lines.length })
+      .insert({ invoice_id: inv.id, part_id: p.id, description: `${p.code ? p.code + " - " : ""}${p.name}`, qty: 1, unit_price: unit, line_ex: round2(unit), sort_order: lines.length })
       .select()
       .single();
     if (error || !data) return setMsg({ ok: false, text: (error?.message || "Could not add the item") + " (has migration 0033 been run?)" });
@@ -180,7 +180,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         next.push(l);
         continue;
       }
-      const unit = round2(supplyPackPrice(part, nextTier === "standard" ? null : nextTier));
+      const unit = round4(supplyPackPrice(part, nextTier === "standard" ? null : nextTier));
       const merged = { ...l, unit_price: unit, line_ex: round2(Number(l.qty || 0) * unit) };
       const { error } = await supabase.from("invoice_lines").update({ unit_price: merged.unit_price, line_ex: merged.line_ex }).eq("id", l.id);
       if (error) return setMsg({ ok: false, text: error.message });

@@ -126,7 +126,9 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
       }
       doc.text(wrapped, M + 2, y);
       doc.text(num(l.qty), W - M - 78, y, { align: "right" });
-      doc.text(money(l.unit_price), W - M - 32, y, { align: "right" });
+      // Whole-dollar GST-inclusive prices are held ex GST to 4 decimals, so show them as they are (e.g. $41.8182).
+      const up = Number(l.unit_price) || 0;
+      doc.text(Math.abs(up * 100 - Math.round(up * 100)) > 1e-6 ? `$${up.toFixed(4)}` : money(up), W - M - 32, y, { align: "right" });
       doc.text(money(l.line_ex), W - M - 2, y, { align: "right" });
       y += h + 2;
     }
