@@ -285,6 +285,19 @@ function sellFromCost(cost: number, pctText: string, basis: SellBasis): number |
   return Math.round(cost * (1 + pct / 100) * 100) / 100;
 }
 
+/**
+ * The price to store (ex GST) for one price point. With roundUp on, Retail and Trade are worked out
+ * inc GST, rounded UP to a whole dollar (e.g. $45.10 -> $46.00), then stored ex GST to 4 decimals so
+ * inc GST comes back as exactly that dollar figure. Regency is never rounded.
+ */
+function sellPriceFor(cost: number, pctText: string, basis: SellBasis, key: "retail" | "trade" | "regency", roundUp: boolean) {
+  const ex = sellFromCost(cost, pctText, basis);
+  if (ex === null) return null;
+  if (!roundUp || key === "regency") return { ex, inc: Math.round(ex * 1.1 * 100) / 100 };
+  const inc = Math.ceil(Math.round(ex * 1.1 * 100) / 100 - 1e-9);
+  return { ex: Math.round((inc / 1.1) * 10000) / 10000, inc };
+}
+
 const COL_WIDTHS_KEY = "coverage-inventory-col-widths";
 const COL_ORDER_KEY = "coverage-inventory-col-order";
 const DEFAULT_COL_ORDER = INVENTORY_COLS.map((c) => c.key);
@@ -964,6 +977,7 @@ export default function PartsTable({
   const [basis, setBasis] = useState<SellBasis>("margin");
   const [priceScope, setPriceScope] = useState<"shown" | "all">("shown");
   const [onlyBlank, setOnlyBlank] = useState(false);
+  const [roundUpInc, setRoundUpInc] = useState(true);
   const [pricing, setPricing] = useState(false);
   const [pricerMsg, setPricerMsg] = useState<string | null>(null);
 
@@ -975,6 +989,7 @@ export default function PartsTable({
         if (v && typeof v === "object") {
           setPct({ retail: String(v.retail ?? ""), trade: String(v.trade ?? ""), regency: String(v.regency ?? "") });
           if (v.basis === "margin" || v.basis === "markup") setBasis(v.basis);
+          if (typeof v.roundUp === "boolean") setRoundUpInc(v.roundUp);
         }
       }
     } catch {
@@ -982,9 +997,9 @@ export default function PartsTable({
     }
   }, []);
 
-  function savePricer(nextPct: typeof pct, nextBasis: SellBasis) {
+  function savePricer(nextPct: typeof pct, nextBasis: SellBasis, nextRoundUp: boolean = roundUpInc) {
     try {
-      localStorage.setItem(SELL_PCT_KEY, JSON.stringify({ ...nextPct, basis: nextBasis }));
+      localStorage.setItem(SELL_PCT_KEY, JSON.stringify({ ...nextPct, basis: nextBasis, roundUp: nextRoundUp }));
     } catch {
       // ignore — remembering the percentages is a convenience only
     }
@@ -1009,10 +1024,11 @@ export default function PartsTable({
     for (const part of priceTargets) {
       const patchObj: Record<string, number> = {};
       for (const f of fields) {
-        const price = sellFromCost(Number(part.pack_cost_ex_gst) || 0, pct[f.key], basis);
-        if (price === null) continue;
+        const res = sellPriceFor(Number(part.pack_cost_ex_gst) || 0, pct[f.key], basis, f.key, roundUpInc);
+        if (res === null) continue;
+        const price = res.ex;
         if (onlyBlank && Number(part[f.col]) > 0) continue;
-        if (Number(part[f.col]) === price) continue;
+        if (Math.abs(Number(part[f.col]) - price) < 0.005) continue;
         patchObj[f.col] = price;
       }
       if (Object.keys(patchObj).length > 0) updates.push({ part, patch: patchObj });
@@ -1247,7 +1263,7 @@ export default function PartsTable({
                 ["regency", basis === "margin" ? "Regency margin %" : "Regency markup %"],
               ] as ["retail" | "trade" | "regency", string][]
             ).map(([k, label]) => {
-              const example = sellFromCost(sampleCost, pct[k], basis);
+              const example = sellPriceFor(sampleCost, pct[k], basis, k, roundUpInc);
               return (
                 <label key={k} className="flex flex-col gap-1 text-sm">
                   {label}
@@ -1265,7 +1281,7 @@ export default function PartsTable({
                     className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5 text-right"
                   />
                   <span className="h-4 text-xs text-[var(--muted)]">
-                    {example !== null ? `$${sampleCost.toFixed(2)} → $${example.toFixed(2)}` : ""}
+                    {example !== null ? `$${sampleCost.toFixed(2)} → $${example.inc.toFixed(2)} inc GST` : ""}
                   </span>
                 </label>
               );
@@ -1281,6 +1297,17 @@ export default function PartsTable({
                 <option value="all">All active items ({parts.filter((p) => !p.archived).length})</option>
               </select>
               <span className="h-4" />
+            </label>
+            <label className="mb-5 flex items-center gap-2 text-sm text-[var(--muted)]" title="Retail and Trade only: work out the price inc GST and round it up to the next whole dollar">
+              <input
+                type="checkbox"
+                checked={roundUpInc}
+                onChange={(e) => {
+                  setRoundUpInc(e.target.checked);
+                  savePricer(pct, basis, e.target.checked);
+                }}
+              />
+              Round Retail/Trade up to whole $ inc GST
             </label>
             <label className="mb-5 flex items-center gap-2 text-sm text-[var(--muted)]">
               <input type="checkbox" checked={onlyBlank} onChange={(e) => setOnlyBlank(e.target.checked)} />
@@ -1298,7 +1325,7 @@ export default function PartsTable({
             {basis === "margin"
               ? "Margin: the percentage is the profit share of the sell price, so 30% on a $70 cost gives $100."
               : "Markup: the percentage is added on top of cost, so 30% on a $100 cost gives $130."}{" "}
-            Works from the Pack cost ex column and fills Retail ex GST, Trade ex GST and Regency ex GST, rounded to the cent. Leave a box
+            Works from the Pack cost ex column and fills Retail, Trade and Regency (stored ex GST). With the round-up box ticked, Retail and Trade are worked out inc GST and rounded up to a whole dollar (so $45.10 becomes $46.00); Regency is rounded to the cent. Leave a box
             empty to leave that price alone. Items with no pack cost are skipped, and non-stock items are always left alone so you can price them by hand. You can still edit any price by hand afterwards.
           </p>
           {pricerMsg && <p className="mt-2 text-sm font-medium">{pricerMsg}</p>}
