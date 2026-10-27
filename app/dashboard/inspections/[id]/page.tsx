@@ -41,6 +41,7 @@ export default async function InspectionRecordPage({ params }: { params: { id: s
       photos={(photos ?? []) as any}
       prefill={null}
       isAdmin={role === "admin"}
+      canRelink={role === "admin" || role === "office"}
       staff={(staffRows ?? []) as any}
       subcontractors={(subRows ?? []) as any}
       related={{ parent, children: (children ?? []) as any }}

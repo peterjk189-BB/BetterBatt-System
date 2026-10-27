@@ -47,6 +47,7 @@ export default function InspectionEditor({
   photos,
   prefill,
   isAdmin,
+  canRelink = false,
   related,
   staff = [],
   subcontractors = [],
@@ -57,6 +58,8 @@ export default function InspectionEditor({
   isAdmin: boolean;
   /** People an inspection can be assigned to (they get an alert). */
   staff?: { id: string; full_name: string | null }[];
+  /** Office/admin only: may move this inspection to a different work order. */
+  canRelink?: boolean;
   /** The subcontractor list the installer is picked from. */
   subcontractors?: { id: string; name: string }[];
   /** For a saved inspection: the FAILed one it re-inspects, and any re-inspections of it. */
@@ -64,6 +67,48 @@ export default function InspectionEditor({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+
+  // Move an inspection that was attached to the wrong job onto the right work order.
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveOptions, setMoveOptions] = useState<any[]>([]);
+  const [moveTo, setMoveTo] = useState("");
+  const [moving, setMoving] = useState(false);
+  const [moveErr, setMoveErr] = useState<string | null>(null);
+  const [linkedNums, setLinkedNums] = useState<{ wo?: string | null; q?: number | null } | null>(null);
+  async function openMove() {
+    setMoveOpen(true);
+    setMoveErr(null);
+    if (moveOptions.length) return;
+    const { data } = await supabase
+      .from("work_orders")
+      .select("id, wo_number, project_id, po_number, projects(address, suburb, quote_number, customers(name)), subcontractors(name, company_name)")
+      .eq("archived", false)
+      .order("wo_number", { ascending: false })
+      .limit(400);
+    setMoveOptions(data ?? []);
+  }
+  function applyMove() {
+    const wo: any = moveOptions.find((w) => w.id === moveTo);
+    if (!wo) return;
+    if (!confirm(`Move this inspection to work order ${wo.wo_number}? The job details (builder, address, work order) will change; your inspection results stay.`)) return;
+    setMoving(true);
+    const pr = wo.projects;
+    const sub = wo.subcontractors;
+    setForm((f) => ({
+      ...f,
+      work_order_id: wo.id,
+      project_id: wo.project_id || "",
+      site_address: pr?.address || "",
+      suburb: pr?.suburb || "",
+      builder_name: pr?.customers?.name || "",
+      contractor: sub?.company_name || sub?.name || f.contractor,
+      sales_order: wo.po_number || wo.wo_number || "",
+    }));
+    setLinkedNums({ wo: wo.wo_number, q: pr?.quote_number ?? null });
+    setMoveOpen(false);
+    setMoveTo("");
+    setMoving(false);
+  }
 
   const [id, setId] = useState<string | null>(record?.id ?? null);
   const [number, setNumber] = useState<number | null>(record?.inspection_number ?? null);
@@ -286,8 +331,8 @@ export default function InspectionEditor({
   }
 
   const included = SECTIONS.filter((s) => form[s.includeField]);
-  const woNumber = record?.work_orders?.wo_number;
-  const quoteNumber = record?.projects?.quote_number;
+  const woNumber = linkedNums ? linkedNums.wo : record?.work_orders?.wo_number;
+  const quoteNumber = linkedNums ? linkedNums.q : record?.projects?.quote_number;
   const statusLine =
     saveState === "saving"
       ? "Saving…"
@@ -314,6 +359,11 @@ export default function InspectionEditor({
         </div>
         {id && (
           <div className="flex flex-wrap items-center gap-2">
+            {canRelink && (
+              <button onClick={openMove} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]">
+                Move to another job
+              </button>
+            )}
             {isAdmin && (
               <button onClick={toggleArchive} className="px-2 text-sm text-[var(--muted)] hover:underline">
                 {record?.archived ? "Restore" : "Archive"}
@@ -354,6 +404,35 @@ export default function InspectionEditor({
           </div>
         )}
       </div>
+
+      {moveOpen && (
+        <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="text-sm font-semibold">Move INS{number} to the correct work order</div>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Currently on {woNumber ? `work order ${woNumber}` : "no work order"}. The inspection results, photos and signature stay; the builder, site address and work order change to the job you pick.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <select className={`${inputCls} max-w-xl flex-1`} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+              <option value="">{moveOptions.length ? "Select the correct work order…" : "Loading work orders…"}</option>
+              {moveOptions
+                .filter((w) => w.id !== form.work_order_id)
+                .map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.wo_number} — {w.projects?.customers?.name || "No customer"} — {w.projects?.address || "No address"}
+                    {w.projects?.suburb ? `, ${w.projects.suburb}` : ""}
+                  </option>
+                ))}
+            </select>
+            <button onClick={applyMove} disabled={!moveTo || moving} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              Move inspection
+            </button>
+            <button onClick={() => setMoveOpen(false)} className="px-2 text-sm text-[var(--muted)] hover:underline">
+              Cancel
+            </button>
+          </div>
+          {moveErr && <div className="mt-2 text-sm text-red-700">{moveErr}</div>}
+        </div>
+      )}
 
       {error && <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>}
 
