@@ -402,8 +402,10 @@ export default function QuoteEditor({
     return { ...l, ...c, grossCharge, discountAmount, tierMissing };
   });
   const mainLines = computedLines.filter((l) => !l.option_key);
-  const materialCost = mainLines.reduce((s, l) => s + l.materialCost, 0);
-  const labourCost = isSupplyOnly ? 0 : mainLines.reduce((s, l) => s + l.labourCost, 0);
+  // Costs cover the main quote plus any option the customer has accepted (ticked "Accepted").
+  const costLines = computedLines.filter((l) => !l.option_key || optAccepted.includes(l.option_key));
+  const materialCost = costLines.reduce((s, l) => s + l.materialCost, 0);
+  const labourCost = isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0);
   const chargeBeforeMarkup = mainLines.reduce((s, l) => s + l.grossCharge, 0);
   const customerDiscountTotal = mainLines.reduce((s, l) => s + l.discountAmount, 0);
   // Per-option totals (customer discount applies; the flat discount/markup above is main-quote only).
@@ -419,12 +421,14 @@ export default function QuoteEditor({
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
-  const profit = subtotal - materialCost - labourCost;
-  const marginPct = subtotal ? (profit / subtotal) * 100 : 0;
+  const acceptedSubForProfit = optionKeys.filter((k) => optAccepted.includes(k)).reduce((a, k) => a + optionTotals[k].sub, 0);
+  const profitRevenue = subtotal + acceptedSubForProfit;
+  const profit = profitRevenue - materialCost - labourCost;
+  const marginPct = profitRevenue ? (profit / profitRevenue) * 100 : 0;
   // Total m² to be installed (stock items only: delivery fees, labour and other non-stock lines are not counted). Internal reference.
   const stockM2 = (ls: typeof computedLines) => ls.reduce((a, l) => a + (partById[l.part_id || ""]?.is_stock_item === false ? 0 : Number(l.qty_m2) || 0), 0);
-  const installedM2 = stockM2(mainLines);
-  const optionsM2 = stockM2(computedLines.filter((l) => l.option_key));
+  const installedM2 = stockM2(costLines);
+  const optionsM2 = stockM2(computedLines.filter((l) => l.option_key && !optAccepted.includes(l.option_key)));
   const acceptedOptKeys = optionKeys.filter((k) => optAccepted.includes(k));
   const acceptedOptSub = acceptedOptKeys.reduce((a, k) => a + optionTotals[k].sub, 0);
   const grandTotal = (subtotal + acceptedOptSub) * 1.1;
@@ -1230,7 +1234,7 @@ export default function QuoteEditor({
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Total installed m²</div>
               <div className="font-medium">{installedM2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m²</div>
-              {optionsM2 > 0 && <div className="text-xs text-[var(--muted)]">+ {optionsM2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m² in options</div>}
+              {optionsM2 > 0 && <div className="text-xs text-[var(--muted)]">+ {optionsM2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m² in unaccepted options</div>}
             </div>
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Material cost</div>
