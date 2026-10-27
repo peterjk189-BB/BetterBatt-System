@@ -302,8 +302,9 @@ export default function QuotePrintView({
 
         {optionData.length > 0 && (
           <div className="mt-6">
-            <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8c887f]">
-              Optional extras — not included in the total above
+            <div className="border-b-2 border-[#201f1c] pb-1">
+              <div className="text-lg font-extrabold uppercase tracking-wide text-[#201f1c]">Optional extras</div>
+              <div className="text-xs font-semibold text-[#4a4842]">Not included in the total above</div>
             </div>
             {optionData.map((o) => (
               <div key={o.key} className="quote-totals mt-3">
