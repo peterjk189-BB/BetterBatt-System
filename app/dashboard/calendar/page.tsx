@@ -116,6 +116,22 @@ export default async function CalendarPage() {
     }
   }
 
+  // Time away (holidays, appointments) and the people it can be booked for. The table exists after migration 0064.
+  let timeAway: any[] = [];
+  let awayPeople: { key: string; name: string; group: string }[] = [];
+  if (role === "admin" || role === "office") {
+    const [taRes, staffRes, subRes] = await Promise.all([
+      supabase.from("time_away").select("*").order("start_date"),
+      supabase.from("profiles").select("id, full_name, role").in("role", ["admin", "office"]).order("full_name"),
+      supabase.from("subcontractors").select("id, name").eq("archived", false).order("name"),
+    ]);
+    timeAway = taRes.error ? [] : taRes.data ?? [];
+    awayPeople = [
+      ...((staffRes.data ?? []) as any[]).map((u) => ({ key: `u:${u.id}`, name: u.full_name || "Unnamed user", group: "Office" })),
+      ...((subRes.data ?? []) as any[]).map((c) => ({ key: `s:${c.id}`, name: c.name, group: "Contractors" })),
+    ];
+  }
+
   const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }, invoiceDeliveries] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
@@ -159,6 +175,8 @@ export default async function CalendarPage() {
       stockDeliveries={(stockDeliveries ?? []) as any}
       invoiceDeliveries={invoiceDeliveries as any}
       bookingErrors={bookingErrors}
+      timeAway={timeAway as any}
+      awayPeople={awayPeople}
       installerNote={null}
     />
     </>

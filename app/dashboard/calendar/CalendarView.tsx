@@ -224,6 +224,28 @@ function addDays(d: Date, n: number) {
   return copy;
 }
 
+export type TimeAway = {
+  id: string;
+  user_id: string | null;
+  subcontractor_id: string | null;
+  kind: "Holiday" | "Appointment" | "Sick" | "Training" | "Other";
+  start_date: string;
+  end_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  note: string | null;
+};
+export type AwayPerson = { key: string; name: string; group: string };
+
+const AWAY_KINDS = ["Holiday", "Appointment", "Sick", "Training", "Other"] as const;
+const AWAY_STYLE: Record<string, string> = {
+  Holiday: "bg-teal-100 text-teal-900 border-teal-300 hover:bg-teal-200",
+  Appointment: "bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200",
+  Sick: "bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200",
+  Training: "bg-sky-100 text-sky-900 border-sky-300 hover:bg-sky-200",
+  Other: "bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300",
+};
+
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export default function CalendarView({
@@ -235,6 +257,8 @@ export default function CalendarView({
   stockDeliveries = [],
   invoiceDeliveries = [],
   bookingErrors = [],
+  timeAway = [],
+  awayPeople = [],
   installerNote,
 }: {
   woLines: WoLine[];
@@ -248,6 +272,9 @@ export default function CalendarView({
   invoiceDeliveries?: InvoiceDelivery[];
   /** Work orders whose due inspection couldn't be booked automatically, with the reason. */
   bookingErrors?: string[];
+  /** Holidays / appointments for office staff and contractors (office view only). */
+  timeAway?: TimeAway[];
+  awayPeople?: AwayPerson[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
   installerNote?: string | null;
 }) {
@@ -553,6 +580,69 @@ export default function CalendarView({
     return map;
   }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, invoiceDeliveries, movedDates, movedWo]);
 
+  // ---- Time away (holidays, appointments) ----
+  const [awayEdit, setAwayEdit] = useState<
+    null | { id: string | null; who: string; kind: string; from: string; to: string; start: string; end: string; note: string }
+  >(null);
+  const [awayBusy, setAwayBusy] = useState(false);
+  const [awayError, setAwayError] = useState<string | null>(null);
+  const awayNameByKey = useMemo(() => Object.fromEntries(awayPeople.map((p) => [p.key, p.name])), [awayPeople]);
+  const awayKey = (a: TimeAway) => (a.user_id ? `u:${a.user_id}` : `s:${a.subcontractor_id}`);
+  const awayOn = (dateStr: string) => timeAway.filter((a) => a.start_date <= dateStr && a.end_date >= dateStr);
+
+  function openAway(a?: TimeAway, date?: string) {
+    setAwayError(null);
+    const day = date || todayStr;
+    setAwayEdit(
+      a
+        ? { id: a.id, who: awayKey(a), kind: a.kind, from: a.start_date, to: a.end_date, start: a.start_time?.slice(0, 5) || "", end: a.end_time?.slice(0, 5) || "", note: a.note || "" }
+        : { id: null, who: awayPeople[0]?.key || "", kind: "Holiday", from: day, to: day, start: "", end: "", note: "" }
+    );
+  }
+
+  async function saveAway() {
+    if (!awayEdit) return;
+    if (!awayEdit.who) return setAwayError("Choose who is away.");
+    if (!awayEdit.from || !awayEdit.to) return setAwayError("Choose the dates.");
+    if (awayEdit.to < awayEdit.from) return setAwayError("The last day can't be before the first day.");
+    setAwayBusy(true);
+    setAwayError(null);
+    const row = {
+      user_id: awayEdit.who.startsWith("u:") ? awayEdit.who.slice(2) : null,
+      subcontractor_id: awayEdit.who.startsWith("s:") ? awayEdit.who.slice(2) : null,
+      kind: awayEdit.kind,
+      start_date: awayEdit.from,
+      end_date: awayEdit.to,
+      start_time: awayEdit.start || null,
+      end_time: awayEdit.end || null,
+      note: awayEdit.note.trim() || null,
+    };
+    const { error } = awayEdit.id
+      ? await supabase.from("time_away").update(row).eq("id", awayEdit.id)
+      : await supabase.from("time_away").insert(row);
+    setAwayBusy(false);
+    if (error) {
+      setAwayError(
+        /time_away/.test(error.message) && /(relation|schema cache|does not exist)/i.test(error.message)
+          ? "Time away needs one more setup step (migration 0064 in Supabase)."
+          : error.message
+      );
+      return;
+    }
+    setAwayEdit(null);
+    router.refresh();
+  }
+
+  async function deleteAway() {
+    if (!awayEdit?.id) return;
+    setAwayBusy(true);
+    const { error } = await supabase.from("time_away").delete().eq("id", awayEdit.id);
+    setAwayBusy(false);
+    if (error) return setAwayError(error.message);
+    setAwayEdit(null);
+    router.refresh();
+  }
+
   const weekStarts = Array.from({ length: weeksShown }, (_, i) => addDays(centerWeekStart, i * 7));
   const todayStr = toDateOnly(new Date());
   const thisWeekStartStr = toDateOnly(mondayOf(new Date()));
@@ -588,6 +678,14 @@ export default function CalendarView({
             >
               + Add site visit
             </Link>
+          )}
+          {!installerNote && awayPeople.length > 0 && (
+            <button
+              onClick={() => openAway()}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:border-accent"
+            >
+              + Add time away
+            </button>
           )}
           <button
             onClick={() => setShowWeekends((s) => !s)}
@@ -766,6 +864,29 @@ export default function CalendarView({
                           {d.getDate()}
                         </span>
                       </div>
+                      {!installerNote && awayOn(dateStr).length > 0 && (
+                        <div className="mt-1 flex flex-col gap-1">
+                          {awayOn(dateStr).map((a) => {
+                            const who = awayNameByKey[awayKey(a)] || "Someone";
+                            const times = a.start_time ? `${fmtTime(a.start_time)}${a.end_time ? "–" + fmtTime(a.end_time) : ""}` : "";
+                            return (
+                              <button
+                                key={`away-${a.id}`}
+                                type="button"
+                                onClick={() => openAway(a)}
+                                title={`${who} — ${a.kind}${times ? " " + times : ""}${a.note ? " — " + a.note : ""} (click to edit)`}
+                                className={`block w-full rounded border px-1.5 py-1 text-left text-[11px] leading-tight ${AWAY_STYLE[a.kind] || AWAY_STYLE.Other}`}
+                              >
+                                <div className="truncate font-medium">
+                                  {who.split(" ")[0]} · {a.kind}
+                                  {times ? ` · ${times}` : ""}
+                                </div>
+                                {a.note && <div className="truncate">{a.note}</div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="mt-1 flex flex-col gap-1">
                         {events.length === 0 && <span className="text-xs text-[var(--border)]">&nbsp;</span>}
                         {events.map((ev) => {
@@ -911,6 +1032,64 @@ export default function CalendarView({
           );
         })}
       </div>
+
+      {awayEdit && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setAwayEdit(null)}>
+          <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-white p-5 text-black shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold">{awayEdit.id ? "Edit time away" : "Add time away"}</h2>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <label className="col-span-2 flex flex-col gap-1">
+                Who
+                <select value={awayEdit.who} onChange={(e) => setAwayEdit({ ...awayEdit, who: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2">
+                  {["Office", "Contractors"].map((g) => (
+                    <optgroup key={g} label={g}>
+                      {awayPeople.filter((p) => p.group === g).map((p) => (
+                        <option key={p.key} value={p.key}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+              <label className="col-span-2 flex flex-col gap-1">
+                Type
+                <select value={awayEdit.kind} onChange={(e) => setAwayEdit({ ...awayEdit, kind: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2">
+                  {AWAY_KINDS.map((k) => <option key={k}>{k}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                First day
+                <input type="date" value={awayEdit.from} onChange={(e) => setAwayEdit({ ...awayEdit, from: e.target.value, to: awayEdit.to < e.target.value ? e.target.value : awayEdit.to })} className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="flex flex-col gap-1">
+                Last day
+                <input type="date" value={awayEdit.to} min={awayEdit.from} onChange={(e) => setAwayEdit({ ...awayEdit, to: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="flex flex-col gap-1">
+                Start time (optional)
+                <input type="time" value={awayEdit.start} onChange={(e) => setAwayEdit({ ...awayEdit, start: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="flex flex-col gap-1">
+                End time (optional)
+                <input type="time" value={awayEdit.end} onChange={(e) => setAwayEdit({ ...awayEdit, end: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+              <label className="col-span-2 flex flex-col gap-1">
+                Note (optional)
+                <input value={awayEdit.note} onChange={(e) => setAwayEdit({ ...awayEdit, note: e.target.value })} placeholder="e.g. Dentist, Fiji trip" className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+            </div>
+            {awayError && <p className="mt-3 text-sm text-red-600">{awayError}</p>}
+            <div className="mt-4 flex items-center gap-2">
+              <button onClick={saveAway} disabled={awayBusy} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {awayBusy ? "Saving..." : "Save"}
+              </button>
+              <button onClick={() => setAwayEdit(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button>
+              {awayEdit.id && (
+                <button onClick={deleteAway} disabled={awayBusy} className="ml-auto text-sm text-red-600 hover:underline">Delete</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

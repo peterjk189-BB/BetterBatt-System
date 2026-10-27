@@ -84,6 +84,8 @@ export default function SiteVisitEditor({
   crmEnabled?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  // Warn if the person this visit is assigned to has time away booked on the visit date.
+  const [awayWarn, setAwayWarn] = useState<string | null>(null);
   const router = useRouter();
 
   const [visitId, setVisitId] = useState<string | null>(visit?.id ?? null);
@@ -112,6 +114,28 @@ export default function SiteVisitEditor({
   const creating = useRef<Promise<string | null> | null>(null);
   // Who has already been emailed about this visit (so autosaves don't email them again).
   const notifiedTo = useRef<string>(visit?.assigned_to || "");
+  useEffect(() => {
+    let cancelled = false;
+    if (!form.assigned_to || !form.visit_date) {
+      setAwayWarn(null);
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from("time_away")
+        .select("kind, start_time, end_time")
+        .eq("user_id", form.assigned_to)
+        .lte("start_date", form.visit_date)
+        .gte("end_date", form.visit_date)
+        .limit(1);
+      if (cancelled) return;
+      const a = !error ? (data ?? [])[0] : null;
+      setAwayWarn(a ? `Heads up: this person has ${String(a.kind).toLowerCase()} booked on that day${a.start_time ? " (" + a.start_time.slice(0, 5) + (a.end_time ? "–" + a.end_time.slice(0, 5) : "") + ")" : ""}.` : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.assigned_to, form.visit_date, supabase]);
   // Set once the office team has been told this visit is done.
   const notifiedVisited = useRef<boolean>(visit?.status === "Visited");
   const notifyVisited = useCallback((id: string, status: string) => {
@@ -540,6 +564,7 @@ export default function SiteVisitEditor({
                 </option>
               ))}
             </select>
+            {awayWarn && <p className="mt-1 text-xs font-medium text-amber-700">{awayWarn}</p>}
           </Field>
           <Field label={builder ? "Builder / company" : "Customer name"} className="col-span-2">
             <input className={inputCls} value={form.customer_name} onChange={(e) => set("customer_name", e.target.value)} autoComplete="off" />
