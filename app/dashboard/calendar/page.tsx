@@ -127,6 +127,7 @@ export default async function CalendarPage() {
     ]);
     timeAway = taRes.error ? [] : taRes.data ?? [];
     awayPeople = [
+      { key: "all", name: "Whole business (closed)", group: "Everyone" },
       ...((staffRes.data ?? []) as any[]).map((u) => ({ key: `u:${u.id}`, name: u.full_name || "Unnamed user", group: "Office" })),
       ...((subRes.data ?? []) as any[]).map((c) => ({ key: `s:${c.id}`, name: c.name, group: "Contractors" })),
     ];

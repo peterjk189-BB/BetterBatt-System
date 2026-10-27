@@ -228,7 +228,8 @@ export type TimeAway = {
   id: string;
   user_id: string | null;
   subcontractor_id: string | null;
-  kind: "Holiday" | "Appointment" | "Sick" | "Training" | "Other";
+  all_staff?: boolean;
+  kind: "Holiday" | "Appointment" | "Sick" | "Training" | "Other" | "Closed";
   start_date: string;
   end_date: string;
   start_time: string | null;
@@ -237,13 +238,14 @@ export type TimeAway = {
 };
 export type AwayPerson = { key: string; name: string; group: string };
 
-const AWAY_KINDS = ["Holiday", "Appointment", "Sick", "Training", "Other"] as const;
+const AWAY_KINDS = ["Holiday", "Appointment", "Sick", "Training", "Other", "Closed"] as const;
 const AWAY_STYLE: Record<string, string> = {
   Holiday: "bg-teal-100 text-teal-900 border-teal-300 hover:bg-teal-200",
   Appointment: "bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200",
   Sick: "bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200",
   Training: "bg-sky-100 text-sky-900 border-sky-300 hover:bg-sky-200",
   Other: "bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300",
+  Closed: "bg-red-700 text-white border-red-800 hover:bg-red-800",
 };
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -338,6 +340,8 @@ export default function CalendarView({
 
   async function moveInspection(id: string, number: number, from: string, to: string) {
     if (!to || to === from) return;
+    const closed = closedOn(to);
+    if (closed && !window.confirm(`The business is closed on that day${closed.note ? " (" + closed.note + ")" : ""}. Move it there anyway?`)) return;
     setMoveError(null);
     setMovedDates((m) => ({ ...m, [id]: to }));
     const { error } = await supabase.from("inspections").update({ inspection_date: to }).eq("id", id);
@@ -352,6 +356,8 @@ export default function CalendarView({
 
   async function moveWorkOrder(woId: string, label: string, from: string, to: string, subIds: string[]) {
     if (!to || to === from) return;
+    const closed = closedOn(to);
+    if (closed && !window.confirm(`The business is closed on that day${closed.note ? " (" + closed.note + ")" : ""}. Move it there anyway?`)) return;
     setMoveError(null);
     setMovedWo((m) => ({ ...m, [`${from}|${woId}`]: to }));
     const { error } = await supabase.from("work_order_lines").update({ task_date: to }).eq("work_order_id", woId).eq("task_date", from);
@@ -587,7 +593,8 @@ export default function CalendarView({
   const [awayBusy, setAwayBusy] = useState(false);
   const [awayError, setAwayError] = useState<string | null>(null);
   const awayNameByKey = useMemo(() => Object.fromEntries(awayPeople.map((p) => [p.key, p.name])), [awayPeople]);
-  const awayKey = (a: TimeAway) => (a.user_id ? `u:${a.user_id}` : `s:${a.subcontractor_id}`);
+  const awayKey = (a: TimeAway) => (a.all_staff ? "all" : a.user_id ? `u:${a.user_id}` : `s:${a.subcontractor_id}`);
+  const closedOn = (dateStr: string) => timeAway.find((a) => a.kind === "Closed" && a.start_date <= dateStr && a.end_date >= dateStr);
   const awayOn = (dateStr: string) => timeAway.filter((a) => a.start_date <= dateStr && a.end_date >= dateStr);
 
   function openAway(a?: TimeAway, date?: string) {
@@ -608,6 +615,7 @@ export default function CalendarView({
     setAwayBusy(true);
     setAwayError(null);
     const row = {
+      ...(awayEdit.who === "all" ? { all_staff: true } : {}),
       user_id: awayEdit.who.startsWith("u:") ? awayEdit.who.slice(2) : null,
       subcontractor_id: awayEdit.who.startsWith("s:") ? awayEdit.who.slice(2) : null,
       kind: awayEdit.kind,
@@ -623,8 +631,8 @@ export default function CalendarView({
     setAwayBusy(false);
     if (error) {
       setAwayError(
-        /time_away/.test(error.message) && /(relation|schema cache|does not exist)/i.test(error.message)
-          ? "Time away needs one more setup step (migration 0064 in Supabase)."
+        (/time_away/.test(error.message) && /(relation|schema cache|does not exist)/i.test(error.message)) || /all_staff|time_away_kind_ck|time_away_who_ck|check constraint/i.test(error.message)
+          ? "Time away needs one more setup step (migrations 0064 and 0067 in Supabase)."
           : error.message
       );
       return;
@@ -830,7 +838,7 @@ export default function CalendarView({
                   return (
                     <div
                       key={dateStr}
-                      className={`min-h-[110px] p-2 ${isToday ? "bg-amber-50" : ""} ${
+                      className={`min-h-[110px] p-2 ${closedOn(dateStr) ? "bg-red-100/60" : isToday ? "bg-amber-50" : ""} ${
                         (dragId || woDrag) && dropDate === dateStr ? "bg-blue-50 ring-2 ring-inset ring-[#1e3a8a]" : ""
                       }`}
                       onDragOver={(e) => {
@@ -878,7 +886,7 @@ export default function CalendarView({
                                 className={`block w-full rounded border px-1.5 py-1 text-left text-[11px] leading-tight ${AWAY_STYLE[a.kind] || AWAY_STYLE.Other}`}
                               >
                                 <div className="truncate font-medium">
-                                  {who.split(" ")[0]} · {a.kind}
+                                  {a.kind === "Closed" ? "CLOSED — nothing to be booked" : `${who.split(" ")[0]} · ${a.kind}`}
                                   {times ? ` · ${times}` : ""}
                                 </div>
                                 {a.note && <div className="truncate">{a.note}</div>}
@@ -1040,8 +1048,8 @@ export default function CalendarView({
             <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <label className="col-span-2 flex flex-col gap-1">
                 Who
-                <select value={awayEdit.who} onChange={(e) => setAwayEdit({ ...awayEdit, who: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2">
-                  {["Office", "Contractors"].map((g) => (
+                <select value={awayEdit.who} onChange={(e) => setAwayEdit({ ...awayEdit, who: e.target.value, kind: e.target.value === "all" ? "Closed" : awayEdit.kind === "Closed" ? "Holiday" : awayEdit.kind })} className="rounded-lg border border-gray-300 px-3 py-2">
+                  {["Everyone", "Office", "Contractors"].map((g) => (
                     <optgroup key={g} label={g}>
                       {awayPeople.filter((p) => p.group === g).map((p) => (
                         <option key={p.key} value={p.key}>{p.name}</option>
@@ -1052,7 +1060,7 @@ export default function CalendarView({
               </label>
               <label className="col-span-2 flex flex-col gap-1">
                 Type
-                <select value={awayEdit.kind} onChange={(e) => setAwayEdit({ ...awayEdit, kind: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2">
+                <select value={awayEdit.kind} onChange={(e) => setAwayEdit({ ...awayEdit, kind: e.target.value, who: e.target.value === "Closed" ? "all" : awayEdit.who === "all" ? awayPeople.find((p) => p.key !== "all")?.key || "" : awayEdit.who })} className="rounded-lg border border-gray-300 px-3 py-2">
                   {AWAY_KINDS.map((k) => <option key={k}>{k}</option>)}
                 </select>
               </label>

@@ -104,7 +104,21 @@ export async function bookDueInspections(admin: any): Promise<{ booked: string[]
   if (woIds.length === 0) return { booked, errors };
 
   const { data: wos } = await admin.from("work_orders").select("id, wo_number, archived").in("id", woIds);
-  const date = nextInspectionDate();
+  let date = nextInspectionDate();
+  // Skip any day the business is closed (Calendar > Add time away > Closed).
+  try {
+    const { data: closed } = await admin.from("time_away").select("start_date, end_date").eq("kind", "Closed").gte("end_date", date);
+    const ranges = (closed ?? []) as { start_date: string; end_date: string }[];
+    for (let i = 0; i < 60; i++) {
+      const dow = new Date(date + "T12:00:00Z").getUTCDay();
+      if (dow !== 0 && dow !== 6 && !ranges.some((r) => r.start_date <= date && r.end_date >= date)) break;
+      const d = new Date(date + "T12:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 1);
+      date = d.toISOString().slice(0, 10);
+    }
+  } catch {
+    /* table not created yet */
+  }
 
   for (const wo of ((wos ?? []) as any[]).filter((w) => !w.archived)) {
     const prefill = await prefillFromWorkOrder(admin, wo.id);

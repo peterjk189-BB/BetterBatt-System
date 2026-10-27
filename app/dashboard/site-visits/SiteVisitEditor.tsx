@@ -116,21 +116,30 @@ export default function SiteVisitEditor({
   const notifiedTo = useRef<string>(visit?.assigned_to || "");
   useEffect(() => {
     let cancelled = false;
-    if (!form.assigned_to || !form.visit_date) {
+    if (!form.visit_date) {
       setAwayWarn(null);
       return;
     }
     (async () => {
+      const who = form.assigned_to ? `user_id.eq.${form.assigned_to},all_staff.eq.true` : "all_staff.eq.true";
       const { data, error } = await supabase
         .from("time_away")
-        .select("kind, start_time, end_time")
-        .eq("user_id", form.assigned_to)
+        .select("kind, note, start_time, end_time, all_staff")
+        .or(who)
         .lte("start_date", form.visit_date)
         .gte("end_date", form.visit_date)
-        .limit(1);
+        .limit(5);
       if (cancelled) return;
-      const a = !error ? (data ?? [])[0] : null;
-      setAwayWarn(a ? `Heads up: this person has ${String(a.kind).toLowerCase()} booked on that day${a.start_time ? " (" + a.start_time.slice(0, 5) + (a.end_time ? "–" + a.end_time.slice(0, 5) : "") + ")" : ""}.` : null);
+      const rows = !error ? ((data ?? []) as any[]) : [];
+      const closed = rows.find((r) => r.kind === "Closed" || r.all_staff);
+      const a = rows.find((r) => !(r.kind === "Closed" || r.all_staff));
+      setAwayWarn(
+        closed
+          ? `The business is closed on that day${closed.note ? " (" + closed.note + ")" : ""}. Pick another date.`
+          : a
+            ? `Heads up: this person has ${String(a.kind).toLowerCase()} booked on that day${a.start_time ? " (" + a.start_time.slice(0, 5) + (a.end_time ? "–" + a.end_time.slice(0, 5) : "") + ")" : ""}.`
+            : null
+      );
     })();
     return () => {
       cancelled = true;
