@@ -293,6 +293,8 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
                       <option>7 Days</option>
                       <option>COD</option>
                       <option>30 Days</option>
+                      <option>Payment in advance</option>
+                      <option>Deposit Account</option>
                     </select>
                   </label>
                   <label className="block">

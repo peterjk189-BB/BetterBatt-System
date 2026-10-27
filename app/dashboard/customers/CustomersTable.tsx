@@ -10,7 +10,7 @@ type Customer = {
   name: string;
   category: "Builder" | "Retro Fit" | "Private";
   discount_pct: number;
-  payment_terms: "7 Days" | "COD" | "30 Days";
+  payment_terms: "7 Days" | "COD" | "30 Days" | "Payment in advance" | "Deposit Account";
   contact_name: string | null;
   address?: string | null;
   contact_phone: string | null;
@@ -356,6 +356,8 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                     <option>7 Days</option>
                     <option>COD</option>
                     <option>30 Days</option>
+                    <option>Payment in advance</option>
+                    <option>Deposit Account</option>
                   </select>
                 </label>
               </div>

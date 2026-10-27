@@ -49,12 +49,12 @@ export function addDays(iso: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Due date from a customer's payment terms ('7 Days' | '30 Days' | 'COD'). Deposits are due on issue. */
+/** Due date from a customer's payment terms ('7 Days' | '30 Days' | 'COD' | 'Payment in advance' | 'Deposit Account'). Deposits, COD, payment in advance and deposit accounts are all due on issue. */
 export function dueFromTerms(kind: string, terms: string | null | undefined, invoiceDate: string) {
   if (kind === "Deposit") return invoiceDate;
   if (terms === "30 Days") return addDays(invoiceDate, 30);
   if (terms === "7 Days") return addDays(invoiceDate, 7);
-  return invoiceDate; // COD: due on completion / on issue
+  return invoiceDate; // COD, payment in advance, deposit account: due on issue
 }
 
 export type DerivedStatus = "Draft" | "Sent" | "Part paid" | "Paid" | "Overdue" | "Void";
