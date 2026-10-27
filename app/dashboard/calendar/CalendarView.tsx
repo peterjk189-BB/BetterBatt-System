@@ -265,6 +265,18 @@ export default function CalendarView({
       try { localStorage.setItem("bb-cal-weekends", next ? "1" : "0"); } catch {}
       return next;
     });
+  // How many weeks are on screen (3 by default); the choice is remembered on this device.
+  const [weeksShown, setWeeksShownState] = useState(3);
+  useEffect(() => {
+    try {
+      const n = Number(localStorage.getItem("bb-cal-weeks"));
+      if ([3, 4, 6, 8, 12].includes(n)) setWeeksShownState(n);
+    } catch {}
+  }, []);
+  const setWeeksShown = (n: number) => {
+    setWeeksShownState(n);
+    try { localStorage.setItem("bb-cal-weeks", String(n)); } catch {}
+  };
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   // Inspection dates moved here, shown straight away while the save happens.
@@ -541,7 +553,7 @@ export default function CalendarView({
     return map;
   }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, invoiceDeliveries, movedDates, movedWo]);
 
-  const weekStarts = [centerWeekStart, addDays(centerWeekStart, 7), addDays(centerWeekStart, 14)];
+  const weekStarts = Array.from({ length: weeksShown }, (_, i) => addDays(centerWeekStart, i * 7));
   const todayStr = toDateOnly(new Date());
   const thisWeekStartStr = toDateOnly(mondayOf(new Date()));
   const dayCount = showWeekends ? 7 : 5;
@@ -583,6 +595,25 @@ export default function CalendarView({
           >
             {showWeekends ? "Hide weekends" : "Show weekends"}
           </button>
+          <select
+            value={weeksShown}
+            onChange={(e) => setWeeksShown(Number(e.target.value))}
+            title="How many weeks to show"
+            className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm hover:border-accent"
+          >
+            {[3, 4, 6, 8, 12].map((n) => (
+              <option key={n} value={n}>
+                {n} weeks
+              </option>
+            ))}
+          </select>
+          <input
+            type="date"
+            title="Jump to the week of a date"
+            aria-label="Jump to date"
+            onChange={(e) => e.target.value && setCenterWeekStart(mondayOf(new Date(e.target.value + "T00:00:00")))}
+            className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm"
+          />
           <button
             onClick={() => shiftWeeks(-1)}
             className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:border-accent"
