@@ -56,6 +56,7 @@ type Project = {
   accepted_name?: string | null;
   option_titles?: Record<string, string> | null;
   option_accepted?: string[] | null;
+  option_adjust?: Record<string, number> | null;
 };
 
 type Line = {
@@ -296,12 +297,17 @@ export default function QuoteEditor({
   const [optionKeys, setOptionKeys] = useState<string[]>(() => usedOptionKeys(lineItems, project?.option_titles));
   const [optTitles, setOptTitles] = useState<Record<string, string>>(project?.option_titles ?? {});
   const [optAccepted, setOptAccepted] = useState<string[]>(project?.option_accepted ?? []);
+  // Per-option discount/markup. Entered as $ or %, saved as a $ amount per option (option_adjust).
+  const [optAdjMode, setOptAdjMode] = useState<Record<string, "amount" | "percent">>({});
+  const [optAdjText, setOptAdjText] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(project?.option_adjust ?? {}).filter(([, v]) => Number(v)).map(([k, v]) => [k, String(v)]))
+  );
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-save (existing quotes only): a few seconds after you stop typing, changes are saved quietly.
-  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted]);
+  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted, optAdjMode, optAdjText]);
   const [savedSnap, setSavedSnap] = useState(snapshot);
   const saveRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
   const savingRef = useRef(false);
@@ -319,6 +325,11 @@ export default function QuoteEditor({
     setOptionKeys((prev) => prev.filter((k) => k !== key));
     setLineItems((prev) => prev.filter((l) => l.option_key !== key));
     setOptAccepted((prev) => prev.filter((k) => k !== key));
+    setOptAdjText((prev) => {
+      const n = { ...prev };
+      delete n[key];
+      return n;
+    });
     setOptTitles((prev) => {
       const n = { ...prev };
       delete n[key];
@@ -332,6 +343,7 @@ export default function QuoteEditor({
       setOptionKeys([]);
       setOptTitles({});
       setOptAccepted([]);
+      setOptAdjText({});
       setLineItems((prev) => prev.filter((l) => !l.option_key));
     }
   }
@@ -412,8 +424,11 @@ export default function QuoteEditor({
   const optionTotals = Object.fromEntries(
     optionKeys.map((k) => {
       const ls = computedLines.filter((l) => l.option_key === k);
-      const sub = ls.reduce((a, l) => a + l.grossCharge - l.discountAmount, 0);
-      return [k, { sub, gst: sub * 0.1, total: sub * 1.1, cost: ls.reduce((a, l) => a + l.materialCost + (isSupplyOnly ? 0 : l.labourCost), 0) }];
+      const lineSub = ls.reduce((a, l) => a + l.grossCharge - l.discountAmount, 0);
+      const adjIn = Number(optAdjText[k]) || 0;
+      const adj = (optAdjMode[k] ?? "amount") === "percent" ? Math.round(lineSub * adjIn) / 100 : adjIn;
+      const sub = lineSub + adj;
+      return [k, { lineSub, adj, sub, gst: sub * 0.1, total: sub * 1.1, cost: ls.reduce((a, l) => a + l.materialCost + (isSupplyOnly ? 0 : l.labourCost), 0) }];
     })
   );
   const adjustmentAmount =
@@ -463,6 +478,10 @@ export default function QuoteEditor({
       // Only sent when options are in use, so quotes still save before the option columns exist.
       ...(optionKeys.length > 0 || project?.option_titles || project?.option_accepted?.length
         ? { option_titles: optTitles, option_accepted: optAccepted.filter((k) => optionKeys.includes(k)) }
+        : {}),
+      // Option adjustments need migration 0070; only sent once used (or already present) so saving still works before it is run.
+      ...(optionKeys.some((k) => optionTotals[k].adj) || project?.option_adjust
+        ? { option_adjust: Object.fromEntries(optionKeys.map((k) => [k, optionTotals[k].adj]).filter(([, v]) => v)) }
         : {}),
     };
 
@@ -1094,6 +1113,40 @@ export default function QuoteEditor({
                 </button>
               </div>
               {lineTable(k)}
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+                <span className="font-medium">Option {k} discount / markup</span>
+                <div className="flex overflow-hidden rounded-lg border border-[var(--border)] text-xs">
+                  {(["amount", "percent"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setOptAdjMode((prev) => ({ ...prev, [k]: m }));
+                        setOptAdjText((prev) => ({ ...prev, [k]: "" }));
+                      }}
+                      className={`px-3 py-1.5 ${(optAdjMode[k] ?? "amount") === m ? "bg-accent text-white" : "text-[var(--muted)]"}`}
+                    >
+                      {m === "amount" ? "$ Amount" : "% Percent"}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5"
+                  placeholder={(optAdjMode[k] ?? "amount") === "percent" ? "e.g. -10" : "e.g. -50"}
+                  value={optAdjText[k] ?? ""}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (/^-?\d*\.?\d*$/.test(v)) setOptAdjText((prev) => ({ ...prev, [k]: v }));
+                  }}
+                />
+                <span className="text-xs text-[var(--muted)]">
+                  {(optAdjMode[k] ?? "amount") === "percent" ? "% of option total, negative = discount" : "$, negative = discount"}
+                  {ot.adj ? ` · = ${ot.adj > 0 ? "+" : ""}${fmtCurrency(ot.adj)} ${ot.adj > 0 ? "markup" : "discount"}` : ""}
+                </span>
+              </div>
               <div className="mt-2 text-right text-sm text-[var(--muted)]">
                 {optionTitle(optTitles, k)}: {fmtCurrency(ot.sub)} ex GST · GST {fmtCurrency(ot.gst)} ·{" "}
                 <span className="font-semibold text-[var(--text)]">{fmtCurrency(ot.total)} inc GST</span>

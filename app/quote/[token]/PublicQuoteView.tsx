@@ -39,6 +39,7 @@ type Project = {
   accepted_name: string | null;
   option_titles?: Record<string, string> | null;
   option_accepted?: string[] | null;
+  option_adjust?: Record<string, number> | null;
   customers: { name: string; discount_pct: number | null } | null;
 };
 
@@ -80,7 +81,7 @@ export default function PublicQuoteView({
   const optionKeys = usedOptionKeys(lines, project.option_titles);
   const optionData = optionKeys.map((k) => {
     const ls = computed.filter((l) => l.option_key === k);
-    const sub = ls.reduce((a, l) => a + l.charge, 0) * (1 - customerDiscountPct / 100);
+    const sub = ls.reduce((a, l) => a + l.charge, 0) * (1 - customerDiscountPct / 100) + Number(project.option_adjust?.[k] || 0);
     return { key: k, lines: ls, sub, gst: sub * 0.1, total: sub * 1.1 };
   });
   const chargeBeforeMarkup = mainComputed.reduce((s, l) => s + l.charge, 0);
