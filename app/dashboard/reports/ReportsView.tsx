@@ -526,11 +526,241 @@ function SupplierReport({ poLines, poFuel }: { poLines: PoLine[]; poFuel: PoFuel
   );
 }
 
+
+// ---------------------------------------------------------------------------
+// Quotes win / loss
+// ---------------------------------------------------------------------------
+
+type QPreset = "week" | "lastweek" | "month" | "lastmonth" | "quarter" | "year" | "all" | "custom";
+
+function mondayOf(d: Date) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+function quoteRange(preset: QPreset, customStart: string, customEnd: string): { start: string | null; end: string | null } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  if (preset === "week") {
+    const mon = mondayOf(now);
+    return { start: toDateOnly(mon), end: toDateOnly(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6)) };
+  }
+  if (preset === "lastweek") {
+    const mon = mondayOf(now);
+    return {
+      start: toDateOnly(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - 7)),
+      end: toDateOnly(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - 1)),
+    };
+  }
+  if (preset === "lastmonth") return { start: toDateOnly(new Date(y, m - 1, 1)), end: toDateOnly(new Date(y, m, 0)) };
+  if (preset === "month" || preset === "quarter" || preset === "year" || preset === "all" || preset === "custom") {
+    return presetRange(preset as Preset, customStart, customEnd);
+  }
+  return { start: null, end: null };
+}
+
+function pct(n: number, d: number) {
+  return d > 0 ? `${((n / d) * 100).toFixed(0)}%` : "—";
+}
+
+function QuotesReport({ projects, projectLines }: { projects: Project[]; projectLines: ProjectLine[] }) {
+  const [preset, setPreset] = useState<QPreset>("month");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [includeArchived, setIncludeArchived] = useState(false);
+  const range = quoteRange(preset, customStart, customEnd);
+
+  const linesByProject = useMemo(() => {
+    const m = new Map<string, ProjectLine[]>();
+    for (const l of projectLines) {
+      if (!m.has(l.project_id)) m.set(l.project_id, []);
+      m.get(l.project_id)!.push(l);
+    }
+    return m;
+  }, [projectLines]);
+
+  type Tally = { quotes: number; value: number; won: number; wonValue: number; lost: number; lostValue: number; open: number; openValue: number; cancelled: number };
+  const blank = (): Tally => ({ quotes: 0, value: 0, won: 0, wonValue: 0, lost: 0, lostValue: 0, open: 0, openValue: 0, cancelled: 0 });
+  const add = (t: Tally, outcome: string, value: number) => {
+    t.quotes += 1;
+    t.value += value;
+    if (outcome === "Accepted") { t.won += 1; t.wonValue += value; }
+    else if (outcome === "Lost") { t.lost += 1; t.lostValue += value; }
+    else if (outcome === "Cancelled") { t.cancelled += 1; }
+    else { t.open += 1; t.openValue += value; }
+  };
+
+  const { total, byPeriod, byType, monthly } = useMemo(() => {
+    const total = blank();
+    const inScope = projects.filter((p) => (includeArchived || !p.archived) && inRange((p.entry_date || "").slice(0, 10), range.start, range.end));
+    // Weekly rows for ranges up to ~4 months, otherwise monthly.
+    const dates = inScope.map((p) => (p.entry_date || "").slice(0, 10)).sort();
+    const span = range.start && range.end ? (new Date(range.end).getTime() - new Date(range.start).getTime()) / 86400000 : dates.length ? (new Date(dates[dates.length - 1]).getTime() - new Date(dates[0]).getTime()) / 86400000 : 0;
+    const monthly = span > 125;
+    const periods = new Map<string, { label: string; t: Tally }>();
+    const types = new Map<string, Tally>();
+    for (const p of inScope) {
+      const value = computeProjectValue(p, linesByProject.get(p.id) || []);
+      add(total, p.outcome, value);
+      const d = new Date((p.entry_date || "").slice(0, 10) + "T00:00:00");
+      let key: string;
+      let label: string;
+      if (monthly) {
+        key = toDateOnly(new Date(d.getFullYear(), d.getMonth(), 1));
+        label = d.toLocaleDateString("en-AU", { month: "short", year: "numeric" });
+      } else {
+        const mon = mondayOf(d);
+        key = toDateOnly(mon);
+        label = "Week of " + mon.toLocaleDateString("en-AU");
+      }
+      if (!periods.has(key)) periods.set(key, { label, t: blank() });
+      add(periods.get(key)!.t, p.outcome, value);
+      const jt = p.job_type || "Unknown";
+      if (!types.has(jt)) types.set(jt, blank());
+      add(types.get(jt)!, p.outcome, value);
+    }
+    return {
+      total,
+      monthly,
+      byPeriod: Array.from(periods.entries()).sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([, v]) => v),
+      byType: Array.from(types.entries()).sort((a, b) => b[1].value - a[1].value),
+    };
+  }, [projects, linesByProject, range.start, range.end, includeArchived]);
+
+  const btn = (p: QPreset, label: string) => (
+    <button
+      key={p}
+      onClick={() => setPreset(p)}
+      className={`rounded-lg px-3 py-1.5 text-sm ${preset === p ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}
+    >
+      {label}
+    </button>
+  );
+  const decided = total.won + total.lost;
+  const decidedValue = total.wonValue + total.lostValue;
+  const card = (label: string, value: string, sub?: string) => (
+    <div className="rounded-xl border border-[var(--border)] px-4 py-3">
+      <div className="text-xs uppercase text-[var(--muted)]">{label}</div>
+      <div className="text-xl font-semibold">{value}</div>
+      {sub && <div className="text-xs text-[var(--muted)]">{sub}</div>}
+    </div>
+  );
+  const rowCells = (t: Tally) => (
+    <>
+      <td className="px-3 py-2 text-right">{t.quotes}</td>
+      <td className="px-3 py-2 text-right">{fmtCurrency(t.value)}</td>
+      <td className="px-3 py-2 text-right">{t.won}</td>
+      <td className="px-3 py-2 text-right">{fmtCurrency(t.wonValue)}</td>
+      <td className="px-3 py-2 text-right">{t.lost}</td>
+      <td className="px-3 py-2 text-right">{fmtCurrency(t.lostValue)}</td>
+      <td className="px-3 py-2 text-right">{t.open}</td>
+      <td className="px-3 py-2 text-right font-medium">{pct(t.won, t.won + t.lost)}</td>
+      <td className="px-3 py-2 text-right font-medium">{pct(t.wonValue, t.wonValue + t.lostValue)}</td>
+    </>
+  );
+  const head = (first: string) => (
+    <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
+      <tr>
+        <th className="px-3 py-2">{first}</th>
+        <th className="px-3 py-2 text-right">Quotes</th>
+        <th className="px-3 py-2 text-right">Value</th>
+        <th className="px-3 py-2 text-right">Won</th>
+        <th className="px-3 py-2 text-right">Won value</th>
+        <th className="px-3 py-2 text-right">Lost</th>
+        <th className="px-3 py-2 text-right">Lost value</th>
+        <th className="px-3 py-2 text-right">Open</th>
+        <th className="px-3 py-2 text-right">Win rate (no.)</th>
+        <th className="px-3 py-2 text-right">Win rate ($)</th>
+      </tr>
+    </thead>
+  );
+
+  return (
+    <div>
+      <p className="mt-1 text-sm text-[var(--muted)]">
+        Quotes by the date they were created, with how many were won (Accepted), lost, or are still open, and their value (inc GST).
+        Win rate = won ÷ (won + lost), so open and cancelled quotes don&apos;t count against you.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        {btn("week", "This week")}
+        {btn("lastweek", "Last week")}
+        {btn("month", "This month")}
+        {btn("lastmonth", "Last month")}
+        {btn("quarter", "This quarter")}
+        {btn("year", "This year")}
+        {btn("all", "All time")}
+        {btn("custom", "Custom range")}
+        {preset === "custom" && (
+          <span className="flex items-center gap-2">
+            <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
+            <span className="text-[var(--muted)]">to</span>
+            <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm" />
+          </span>
+        )}
+        <span className="flex items-center gap-2 text-sm text-[var(--muted)]">
+          <input type="checkbox" checked={includeArchived} onChange={(e) => setIncludeArchived(e.target.checked)} />
+          <span>Include archived quotes</span>
+        </span>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-4">
+        {card("Quotes created", String(total.quotes), fmtCurrency(total.value))}
+        {card("Won", String(total.won), fmtCurrency(total.wonValue))}
+        {card("Lost", String(total.lost), fmtCurrency(total.lostValue))}
+        {card("Still open", String(total.open), fmtCurrency(total.openValue))}
+        {card("Win rate (by number)", pct(total.won, decided), `${total.won} of ${decided} decided`)}
+        {card("Win rate (by value)", pct(total.wonValue, decidedValue), `${fmtCurrency(total.wonValue)} of ${fmtCurrency(decidedValue)}`)}
+      </div>
+      {total.cancelled > 0 && <p className="mt-2 text-xs text-[var(--muted)]">{total.cancelled} cancelled quote(s) are counted in &quot;Quotes created&quot; but not in won, lost or open.</p>}
+
+      <h3 className="mt-6 text-sm font-semibold">{monthly ? "By month" : "By week"}</h3>
+      <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
+        <table className="w-full text-sm">
+          {head(monthly ? "Month" : "Week")}
+          <tbody>
+            {byPeriod.map((r) => (
+              <tr key={r.label} className="border-t border-[var(--border)]">
+                <td className="px-3 py-2 font-medium">{r.label}</td>
+                {rowCells(r.t)}
+              </tr>
+            ))}
+            {byPeriod.length === 0 && (
+              <tr>
+                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">No quotes in this period.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h3 className="mt-6 text-sm font-semibold">By job type</h3>
+      <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
+        <table className="w-full text-sm">
+          {head("Job type")}
+          <tbody>
+            {byType.map(([name, t]) => (
+              <tr key={name} className="border-t border-[var(--border)]">
+                <td className="px-3 py-2 font-medium">{name}</td>
+                {rowCells(t)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-2 text-xs text-[var(--muted)]">
+        Quotes are grouped by the date they were created, so a quote created last month and accepted this week counts in last month.
+      </p>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "customers" | "suppliers" | "jobs" | "pnl";
+type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl";
 
 export default function ReportsView({
   parts,
@@ -585,6 +815,7 @@ export default function ReportsView({
       <h1 className="text-2xl font-bold">Reports</h1>
       <div className="mt-4 flex flex-wrap gap-2">
         {tabBtn("inventory", "Inventory movement")}
+        {tabBtn("quotes", "Quotes win/loss")}
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
         {tabBtn("pnl", "Profit & loss")}
@@ -592,6 +823,7 @@ export default function ReportsView({
       </div>
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
+      {tab === "quotes" && <QuotesReport projects={projects} projectLines={projectLines} />}
       {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
       {tab === "suppliers" && <SupplierReport poLines={poLines} poFuel={poFuel} />}
       {tab === "pnl" && <ProfitLossReport {...pl} />}
