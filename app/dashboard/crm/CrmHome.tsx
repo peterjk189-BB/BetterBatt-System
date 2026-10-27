@@ -346,6 +346,12 @@ function Tasks({
   const dueToday = mine.filter((t) => !t.done && t.due_date === today);
   const upcoming = mine.filter((t) => !t.done && t.due_date > today);
 
+  async function moveTask(t: Task, date: string) {
+    const { error: err } = await supabase.from("crm_tasks").update({ due_date: date }).eq("id", t.id);
+    if (err) return setError(err.message);
+    setTasks((all) => all.map((x) => (x.id === t.id ? { ...x, due_date: date } : x)));
+  }
+
   async function complete(t: Task, againInDays?: number) {
     setError(null);
     const { error } = await supabase
@@ -437,7 +443,17 @@ function Tasks({
             {staffName(staff, t.assigned_to)}
           </div>
         </div>
-        <span className={`text-xs font-medium ${d.overdue && !t.done ? "text-[#b91c1c]" : "text-[var(--muted)]"}`}>{t.done ? "Done" : d.text}</span>
+        {t.done ? (
+                  <span className="text-xs font-medium text-[var(--muted)]">Done</span>
+                ) : (
+                  <input
+                    type="date"
+                    title="Click to change the due date"
+                    value={t.due_date}
+                    onChange={(e) => e.target.value && moveTask(t, e.target.value)}
+                    className={`rounded border border-[var(--border)] px-1.5 py-0.5 text-xs font-medium ${d.overdue ? "text-[#b91c1c]" : "text-[var(--muted)]"}`}
+                  />
+                )}
         {!t.done && (
           <div className="flex gap-1.5">
             <button onClick={() => complete(t, 3)} className="rounded border border-[var(--border)] px-2 py-1 text-xs hover:border-[var(--brand-gold-dark)]">

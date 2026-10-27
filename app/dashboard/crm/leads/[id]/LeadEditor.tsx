@@ -170,6 +170,12 @@ export default function LeadEditor({
     setTaskTitle("");
   }
 
+  async function moveTask(t: Task, date: string) {
+    const { error: err } = await supabase.from("crm_tasks").update({ due_date: date }).eq("id", t.id);
+    if (err) return setError(err.message);
+    setTasks((all) => all.map((x) => (x.id === t.id ? { ...x, due_date: date } : x)));
+  }
+
   async function completeTask(t: Task) {
     const { error: err } = await supabase
       .from("crm_tasks")
@@ -354,7 +360,17 @@ export default function LeadEditor({
                 <input type="checkbox" className="h-5 w-5 accent-[#b1841f]" checked={t.done} disabled={t.done} onChange={() => completeTask(t)} aria-label={`Mark done: ${t.title}`} />
                 <span className={`min-w-0 flex-1 ${t.done ? "text-[var(--muted)] line-through" : "font-medium"}`}>{t.title}</span>
                 <span className="text-xs text-[var(--muted)]">{staffName(staff, t.assigned_to)}</span>
-                <span className={`text-xs font-medium ${d.overdue && !t.done ? "text-[#b91c1c]" : "text-[var(--muted)]"}`}>{t.done ? "Done" : d.text}</span>
+                {t.done ? (
+                  <span className="text-xs font-medium text-[var(--muted)]">Done</span>
+                ) : (
+                  <input
+                    type="date"
+                    title="Click to change the due date"
+                    value={t.due_date}
+                    onChange={(e) => e.target.value && moveTask(t, e.target.value)}
+                    className={`rounded border border-[var(--border)] px-1.5 py-0.5 text-xs font-medium ${d.overdue ? "text-[#b91c1c]" : "text-[var(--muted)]"}`}
+                  />
+                )}
               </div>
             );
           })}
