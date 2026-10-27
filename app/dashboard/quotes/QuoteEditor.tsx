@@ -942,16 +942,20 @@ export default function QuoteEditor({
 
         <label className="flex flex-col gap-1 text-sm">
           Lot no.
+          <span className="text-xs font-normal text-[var(--muted)]">Use this field only for the lot number</span>
           <input
             className="rounded-lg border border-[var(--border)] px-3 py-2"
+            placeholder="e.g. 12"
             value={form.lot_no}
             onChange={(e) => setForm({ ...form, lot_no: e.target.value })}
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Address
+          <span className="text-xs font-normal text-[var(--muted)]">Full street address: house number and street name (suburb goes in the Suburb box)</span>
           <input
             className="rounded-lg border border-[var(--border)] px-3 py-2"
+            placeholder="e.g. 375 Swansea Road"
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
           />
