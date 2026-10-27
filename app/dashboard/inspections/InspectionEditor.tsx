@@ -112,6 +112,27 @@ export default function InspectionEditor({
       body: JSON.stringify({ inspection_id: insId }),
     }).catch(() => {});
   }, []);
+  const failReported = useRef<boolean>(((record as any)?.result as string | null) === "FAIL");
+  useEffect(() => {
+    if (form.result !== "FAIL" || failReported.current || !id) return;
+    failReported.current = true;
+    // Wait for the auto-save to store the FAIL first; if it hasn't landed yet, try again on the next change.
+    const t = setTimeout(() => {
+      fetch("/api/inspections/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inspection_id: id, event: "failed" }),
+      })
+        .then((r) => r.json())
+        .then((j) => {
+          if (j?.reason === "Not failed yet") failReported.current = false;
+        })
+        .catch(() => {
+          failReported.current = false;
+        });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [form.result, id]);
   const firstRender = useRef(true);
 
   const payload = useCallback(

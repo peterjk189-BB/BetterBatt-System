@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 import { sendPushToUser } from "@/lib/push";
+import { recordAlert } from "@/lib/alerts";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -26,10 +27,39 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data: ins } = await admin
     .from("inspections")
-    .select("id, inspection_number, inspection_date, inspection_time, status, site_address, suburb, builder_name, assigned_to, archived")
+    .select("id, inspection_number, inspection_date, inspection_time, status, result, site_address, suburb, builder_name, assigned_to, archived")
     .eq("id", id)
     .single();
   if (!ins) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!ins.archived) {
+    const siteText = [ins.site_address, ins.suburb].filter(Boolean).join(", ");
+    const whenText = ins.inspection_date
+      ? new Date(`${ins.inspection_date}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })
+      : "";
+    if (body.event === "failed") {
+      if ((ins as any).result !== "FAIL") return NextResponse.json({ ok: true, sent: false, reason: "Not failed yet" });
+      await recordAlert(admin, {
+        kind: "inspection_failed",
+        title: `Inspection FAILED — INS${ins.inspection_number}`,
+        body: [ins.builder_name, siteText].filter(Boolean).join(" · ") || `INS${ins.inspection_number}`,
+        path: `/dashboard/inspections/${ins.id}`,
+        dedupeKey: `ins-fail-${ins.id}`,
+        forUsers: ins.assigned_to ? [ins.assigned_to] : [],
+        actor: user.id,
+      });
+      return NextResponse.json({ ok: true, sent: false, reason: "Failure alert saved" });
+    }
+    await recordAlert(admin, {
+      kind: "inspection_booked",
+      title: `Inspection booked — ${whenText}${ins.inspection_time ? " " + String(ins.inspection_time).slice(0, 5) : ""}`,
+      body: [ins.builder_name, siteText].filter(Boolean).join(" · ") || `INS${ins.inspection_number}`,
+      path: `/dashboard/inspections/${ins.id}`,
+      dedupeKey: `ins-booked-${ins.id}-${ins.assigned_to || "none"}`,
+      forUsers: ins.assigned_to ? [ins.assigned_to] : [],
+      actor: user.id,
+    });
+  }
+  if (body.event === "failed") return NextResponse.json({ ok: true, sent: false });
   if (!ins.assigned_to) return NextResponse.json({ ok: true, sent: false, reason: "No one assigned" });
   if (ins.assigned_to === user.id) return NextResponse.json({ ok: true, sent: false, reason: "Assigned to yourself" });
   if (ins.archived) return NextResponse.json({ ok: true, sent: false, reason: "Archived" });

@@ -1,3 +1,4 @@
+import { recordAlert } from "@/lib/alerts";
 // Builds a new inspection's starting values from its work order and the
 // installer's SWMS. Used by the "New inspection" page and by the automatic
 // scheduling that happens when a SWMS is completed. Works with either the
@@ -118,6 +119,13 @@ export async function bookDueInspections(admin: any): Promise<{ booked: string[]
       continue;
     }
     booked.push(wo.wo_number);
+    await recordAlert(admin, {
+      kind: "inspection_booked",
+      title: `Inspection booked — INS${inserted.inspection_number}`,
+      body: [prefill.builder_name, prefill.site_address].filter(Boolean).join(" · ") || `Work order ${wo.wo_number}`,
+      path: `/dashboard/inspections/${inserted.id}`,
+      dedupeKey: `ins-booked-${inserted.id}-none`,
+    });
     await admin
       .from("swms")
       .update({ inspection_notified_at: new Date().toISOString() })

@@ -8,6 +8,7 @@ import NavTabs from "./NavTabs";
 import Sidebar from "./Sidebar";
 import SelectNumberOnFocus from "./SelectNumberOnFocus";
 import PushToggle from "./PushToggle";
+import AlertCentre from "./AlertCentre";
 import ThemeToggle from "./ThemeToggle";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
@@ -50,6 +51,8 @@ export default async function DashboardLayout({
   const allowedHrefs: string[] = navLinks.map((l) => l.href);
   // Statements live under the Invoices tab (no tab of their own).
   if (allowedHrefs.includes("/dashboard/invoices")) allowedHrefs.push("/dashboard/statements");
+  // Everyone signed in can open their Alerts page (it only lists what they are meant to see).
+  allowedHrefs.push("/dashboard/alerts");
   const hasAnyTab = myTabs.length > 0;
 
   let previewOptions: { id: string; label: string }[] = [];
@@ -81,6 +84,7 @@ export default async function DashboardLayout({
               {profile?.full_name || user.email}
               {isAdmin ? " (admin)" : isOffice ? " (office)" : " (installer)"}
             </span>
+            <AlertCentre userId={user.id} suppressPopup={!!previewing} />
             <ThemeToggle />
             <PushToggle />
             <SignOutButton />

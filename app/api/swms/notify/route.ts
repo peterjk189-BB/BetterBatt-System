@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyStaff } from "@/lib/notifyStaff";
 import { siteUrl } from "@/lib/email";
+import { recordAlert } from "@/lib/alerts";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -57,6 +58,15 @@ export async function POST(req: Request) {
   const hasLoc = typeof s.start_lat === "number" && typeof s.start_lng === "number";
   const mapUrl = hasLoc ? `https://www.google.com/maps?q=${s.start_lat},${s.start_lng}` : "";
   const link = `${siteUrl()}/dashboard/swms/${s.id}`;
+
+  await recordAlert(admin, {
+    kind: event === "started" ? "swms_started" : "swms_completed",
+    title: event === "started" ? `${who} has started their SWMS` : `SWMS completed — ${who}`,
+    body: `${where || "SWMS" + s.swms_number} · ${time}${event === "completed" ? " · cleared to start installing" : ""}`,
+    path: `/dashboard/swms/${s.id}`,
+    dedupeKey: `swms-${event}-${s.id}`,
+    actor: user.id,
+  });
 
   if (event === "started") {
     await notifyStaff(admin, {

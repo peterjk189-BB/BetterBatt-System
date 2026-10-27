@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 import { sendPushToUser } from "@/lib/push";
+import { recordAlert } from "@/lib/alerts";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -39,6 +40,14 @@ export async function POST(req: Request) {
   // except the person who just saved it.
   if (body.event === "visited") {
     if (v.status !== "Visited") return NextResponse.json({ ok: true, sent: false, reason: "Not marked Visited" });
+    await recordAlert(admin, {
+      kind: "site_visit_done",
+      title: `Site visit done — SV${v.visit_number}`,
+      body: [custName || v.phone, [v.address, v.suburb].filter(Boolean).join(", ")].filter(Boolean).join(" · "),
+      path: `/dashboard/site-visits/${v.id}`,
+      dedupeKey: `sv-done-${v.id}`,
+      actor: user.id,
+    });
     const [{ data: team }, { data: byProfile }] = await Promise.all([
       admin.from("profiles").select("id, full_name, role").in("role", ["office", "admin"]),
       admin.from("profiles").select("full_name").eq("id", user.id).single(),
@@ -82,6 +91,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, sent: pushedCount + emailed > 0, pushed: pushedCount, emailed });
   }
 
+  if (v.status !== "Cancelled") {
+    const whenText = new Date(`${v.visit_date}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+    await recordAlert(admin, {
+      kind: "site_visit_booked",
+      title: `Site visit booked — ${whenText}${v.visit_time ? " " + String(v.visit_time).slice(0, 5) : ""}`,
+      body: [custName || v.phone, [v.address, v.suburb].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || `SV${v.visit_number}`,
+      path: `/dashboard/site-visits/${v.id}`,
+      dedupeKey: `sv-booked-${v.id}-${v.assigned_to || "none"}-${v.visit_date}`,
+      forUsers: v.assigned_to ? [v.assigned_to] : [],
+      actor: user.id,
+    });
+  }
   if (!v.assigned_to) return NextResponse.json({ ok: true, sent: false, reason: "No one assigned" });
   if (v.assigned_to === user.id) return NextResponse.json({ ok: true, sent: false, reason: "Assigned to yourself" });
   if (v.status === "Cancelled") return NextResponse.json({ ok: true, sent: false, reason: "Cancelled" });
