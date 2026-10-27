@@ -3,6 +3,8 @@
 import { lineRate } from "@/lib/woRate";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import { STAGE_LABEL, STAGE_STYLE, jobProgress, type ProgressInspection, type ProgressSwms } from "@/lib/jobProgress";
 
 type WorkOrder = {
@@ -49,6 +51,18 @@ export default function WorkOrdersList({
 }) {
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+  const [restored, setRestored] = useState<string[]>([]);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  async function restore(w: WorkOrder) {
+    setRestoreError(null);
+    const { error } = await supabase.from("work_orders").update({ archived: false }).eq("id", w.id);
+    if (error) return setRestoreError(error.message);
+    setRestored((r) => [...r, w.id]);
+    router.refresh();
+  }
 
   const rateById = useMemo(() => Object.fromEntries(labourItems.map((l) => [l.id, l.contractor_rate])), [labourItems]);
 
@@ -64,7 +78,7 @@ export default function WorkOrdersList({
   }, [lines, rateById]);
 
   const visible = initial
-    .filter((w) => w.archived === showArchived)
+    .filter((w) => (w.archived && !restored.includes(w.id)) === showArchived)
     .filter((w) => {
       const q = search.toLowerCase();
       if (!q) return true;
@@ -110,6 +124,7 @@ export default function WorkOrdersList({
         </button>
       </div>
 
+      {restoreError && <p className="mt-3 text-sm text-red-600">Couldn&apos;t restore: {restoreError}</p>}
       <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
@@ -123,6 +138,7 @@ export default function WorkOrdersList({
               <th className="px-4 py-2 text-right">Contractor cost</th>
               <th className="px-4 py-2">JSA</th>
               <th className="px-4 py-2">Job status</th>
+              {showArchived && isStaff && <th className="px-4 py-2"></th>}
             </tr>
           </thead>
           <tbody>
@@ -159,12 +175,19 @@ export default function WorkOrdersList({
                       {STAGE_LABEL[stage]}
                     </span>
                   </td>
+                  {showArchived && isStaff && (
+                    <td className="px-4 py-2 text-right">
+                      <button onClick={() => restore(w)} className="rounded border border-[var(--border)] px-2 py-1 text-xs hover:border-accent">
+                        Restore
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} work orders found — open an accepted quote and start
                   one, or add manually.
                 </td>
