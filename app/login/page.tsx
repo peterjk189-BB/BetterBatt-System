@@ -81,12 +81,12 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px]">
         <div className="mb-7 flex flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Better Batt Insulation" className="h-16 w-auto rounded-xl bg-white p-2 shadow-lg" />
+          <img src="/logo.png" alt="Better Batt Insulation" className="h-16 w-auto rounded-xl p-2 shadow-lg" style={{ backgroundColor: "#ffffff" }} />
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#fdb930]">Better Batt Insulation</p>
           <p className="mt-1 text-sm text-[#a9a69d]">Job management system</p>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#3a3833] bg-[#201f1c] shadow-2xl">
+        <div className="overflow-hidden rounded-2xl border border-[#3a3833] shadow-2xl" style={{ backgroundColor: "#21201d" }}>
           <div className="h-1 bg-[#fdb930]" />
           <div className="p-7">
             <h1 className="text-xl font-bold text-[#f4f2ec]">{mode === "signin" ? "Welcome back" : mode === "forgot" ? "Reset your password" : "Create an account"}</h1>
@@ -98,7 +98,7 @@ export default function LoginPage() {
               {mode === "signup" && (
                 <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
                   Full name
-                  <input className={field} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required />
+                  <input className={field} style={{ backgroundColor: "#2a2926", color: "#f4f2ec" }} value={fullName} onChange={(e) => setFullName(e.target.value)} autoComplete="name" required />
                 </label>
               )}
 
@@ -106,7 +106,7 @@ export default function LoginPage() {
                 Email
                 <input
                   type="email"
-                  className={field}
+                  className={field} style={{ backgroundColor: "#2a2926", color: "#f4f2ec" }}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   autoComplete="email"
@@ -122,6 +122,7 @@ export default function LoginPage() {
                   <input
                     type={showPw ? "text" : "password"}
                     className={`${field} pr-16`}
+                    style={{ backgroundColor: "#2a2926", color: "#f4f2ec" }}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}

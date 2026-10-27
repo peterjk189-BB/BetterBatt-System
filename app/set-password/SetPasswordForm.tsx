@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
-import AuthShell, { authButton, authField } from "../AuthShell";
+import AuthShell, { authButton, authField, authFieldStyle } from "../AuthShell";
 
 type EmailOtpType = "invite" | "recovery" | "email" | "signup" | "email_change";
 
@@ -137,12 +137,12 @@ export default function SetPasswordForm() {
           {error && <p className="rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm text-red-300">{error}</p>}
           <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
             New password
-            <input type="password" className={authField} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} />
+            <input type="password" className={authField} style={authFieldStyle} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} />
             <span className="text-xs font-normal text-[#8a877f]">At least 8 characters.</span>
           </label>
           <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
             Confirm password
-            <input type="password" className={authField} value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required minLength={8} />
+            <input type="password" className={authField} style={authFieldStyle} value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required minLength={8} />
           </label>
           <button type="submit" disabled={saving} className={authButton}>
             {saving ? "Saving..." : "Save password & continue"}
