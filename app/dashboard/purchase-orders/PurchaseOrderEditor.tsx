@@ -145,6 +145,31 @@ export default function PurchaseOrderEditor({
     const { error: e } = await supabase.from("delivery_addresses").delete().eq("id", id);
     if (!e) setAddresses((a) => a.filter((x) => x.id !== id));
   }
+  // Regular site contacts (table exists after migration 0065; the picker just stays hidden until then).
+  const [contacts, setContacts] = useState<{ id: string; name: string; phone: string }[]>([]);
+  useEffect(() => {
+    supabase
+      .from("site_contacts")
+      .select("id, name, phone")
+      .order("name")
+      .then(({ data, error }) => {
+        if (!error && data) setContacts(data as any);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const savedContact = contacts.find((c) => c.name.trim().toLowerCase() === form.site_contact_name.trim().toLowerCase());
+  async function saveContact() {
+    const name = form.site_contact_name.trim();
+    if (!name) return;
+    const { data, error: e } = await supabase.from("site_contacts").insert({ name, phone: form.site_contact_phone.trim() }).select("id, name, phone").single();
+    if (e) return setError(`Couldn't save the contact: ${e.message}`);
+    setContacts((c) => [...c, data as any].sort((x, y) => x.name.localeCompare(y.name)));
+  }
+  async function removeContact(id: string) {
+    if (!window.confirm("Remove this contact from the list? Existing orders keep their contact.")) return;
+    const { error: e } = await supabase.from("site_contacts").delete().eq("id", id);
+    if (!e) setContacts((c) => c.filter((x) => x.id !== id));
+  }
   // The number this order is about to get (shown on a new order so it can be quoted when phoning it through).
   const [nextPo, setNextPo] = useState<string | null>(null);
   useEffect(() => {
@@ -472,11 +497,41 @@ export default function PurchaseOrderEditor({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Site contact name
+          {contacts.length > 0 && (
+            <select
+              className="rounded-lg border border-[var(--border)] px-3 py-2"
+              value={savedContact?.id ?? ""}
+              onChange={(e) => {
+                const c = contacts.find((x) => x.id === e.target.value);
+                if (c) setForm({ ...form, site_contact_name: c.name, site_contact_phone: c.phone });
+              }}
+            >
+              <option value="">Pick a regular contact…</option>
+              {contacts.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.phone ? `${c.name} – ${c.phone}` : c.name}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.site_contact_name}
             onChange={(e) => setForm({ ...form, site_contact_name: e.target.value })}
+            placeholder="Or type a different name"
           />
+          <span className="flex gap-3 text-xs">
+            {form.site_contact_name.trim() && !savedContact && (
+              <button type="button" onClick={saveContact} className="text-accent hover:underline">
+                Save this contact to the list
+              </button>
+            )}
+            {savedContact && (
+              <button type="button" onClick={() => removeContact(savedContact.id)} className="text-[var(--muted)] hover:underline">
+                Remove from list
+              </button>
+            )}
+          </span>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Site contact phone
