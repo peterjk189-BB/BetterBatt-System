@@ -213,6 +213,8 @@ export default function WorkOrderEditor({
   // Before migration 0046 the column does not exist: treat the work order as authorised so nothing changes.
   const authColumn = !!workOrder && "authorised_at" in workOrder;
   const [authorising, setAuthorising] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendNote, setResendNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [autoState, setAutoState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // If a column from a newer migration is missing, retry the write without it.
@@ -375,6 +377,41 @@ export default function WorkOrderEditor({
       details: "Authorised — contractor emailed",
     });
     setAuthorising(false);
+  }
+
+  /** Email the contractor(s) their upcoming job dates again (after authorising). */
+  async function resendToContractor() {
+    if (!workOrder) return;
+    setResending(true);
+    setResendNote(null);
+    while (autoBusy.current) await new Promise((r) => setTimeout(r, 100));
+    const { form: f, lineItems: items } = latest.current;
+    const bySub: Record<string, Set<string>> = {};
+    for (const l of items) {
+      const sid = l.subcontractor_id || f.contractor_id;
+      if (!l.task_date || !sid) continue;
+      (bySub[sid] ||= new Set()).add(l.task_date);
+    }
+    const notifyItems = Object.entries(bySub).map(([subcontractor_id, d]) => ({ subcontractor_id, dates: Array.from(d) }));
+    if (notifyItems.length === 0) {
+      setResendNote({ ok: false, text: "No scheduled dates on this work order to send." });
+      setResending(false);
+      return;
+    }
+    try {
+      const r = await fetch("/api/work-orders/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems, resend: true }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setResendNote({ ok: false, text: j.error || "Couldn't send the email." });
+      else if (!j.sent) setResendNote({ ok: false, text: "Nothing sent: there are no upcoming dates, or the contractor has no email on file." });
+      else setResendNote({ ok: true, text: `Emailed ${(j.to as string[]).join(", ")}.` });
+    } catch (e: any) {
+      setResendNote({ ok: false, text: e?.message || "Couldn't send the email." });
+    }
+    setResending(false);
   }
 
   async function saveExisting() {
@@ -576,6 +613,15 @@ export default function WorkOrderEditor({
               Print picking slip
             </Link>
           )}
+          {!isNew && (
+            <Link
+              href={`/dashboard/work-orders/${workOrder!.id}/print?download=1`}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+              title="Saves the work order as a PDF you can email to the contractor"
+            >
+              Download PDF
+            </Link>
+          )}
           {!isNew && distinctLineContractorIds.length <= 1 && (
             <Link
               href={`/dashboard/work-orders/${workOrder!.id}/print`}
@@ -618,6 +664,17 @@ export default function WorkOrderEditor({
           {!isNew && authColumn && authorisedAt && (
             <span className="text-xs text-[var(--muted)]">Authorised {new Date(authorisedAt).toLocaleDateString("en-AU")}</span>
           )}
+          {!isNew && authColumn && authorisedAt && (
+            <button
+              onClick={resendToContractor}
+              disabled={resending}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
+              title="Email the contractor their upcoming job dates again"
+            >
+              {resending ? "Sending..." : "Re-email contractor"}
+            </button>
+          )}
+          {resendNote && <span className={`text-xs ${resendNote.ok ? "text-green-700" : "text-red-700"}`}>{resendNote.text}</span>}
           {!isNew && (
             <span className={`text-xs ${autoState === "error" ? "text-red-700" : "text-[var(--muted)]"}`}>
               {autoState === "saving" && "Saving…"}

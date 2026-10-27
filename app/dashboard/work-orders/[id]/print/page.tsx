@@ -8,7 +8,7 @@ export default async function WorkOrderPrintPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams: { contractor_id?: string };
+  searchParams: { contractor_id?: string; download?: string };
 }) {
   const supabase = await createClient();
   const [{ data: workOrder }, { data: lines }] = await Promise.all([
@@ -58,7 +58,7 @@ export default async function WorkOrderPrintPage({
           {distinctContractors.map((c) => (
             <Link
               key={c.id}
-              href={`/dashboard/work-orders/${params.id}/print?contractor_id=${c.id}`}
+              href={`/dashboard/work-orders/${params.id}/print?contractor_id=${c.id}${searchParams.download ? "&download=1" : ""}`}
               className="rounded-lg border border-[var(--border)] px-4 py-3 text-sm font-medium hover:border-accent"
             >
               {c.name}

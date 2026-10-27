@@ -18,6 +18,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const woId = typeof body.work_order_id === "string" ? body.work_order_id : "";
   const items: { subcontractor_id: string; dates: string[] }[] = Array.isArray(body.items) ? body.items : [];
+  const resend = body.resend === true;
   if (!woId || items.length === 0) return NextResponse.json({ error: "Missing work_order_id or items" }, { status: 400 });
 
   const supabase = await createClient();
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
   const today = new Date().toISOString().slice(0, 10);
   const link = `${siteUrl()}/dashboard/calendar`;
   let emailed = 0;
+  const sentTo: string[] = [];
 
   for (const it of items) {
     // Only dates that really are on this contractor's lines, and not in the past.
@@ -78,7 +80,7 @@ export async function POST(req: Request) {
       const r = await sendEmail({
       kind: "jobs",
         to,
-        subject: `Job scheduled for you — WO ${wo.wo_number}, ${dateText}`,
+        subject: `${resend ? "Reminder: job" : "Job"} scheduled for you — WO ${wo.wo_number}, ${dateText}`,
         html: brandedEmailHtml({
           previewText: `${dateText}${site ? " · " + site : ""}`,
           heading: `Hi ${esc(first)}, a job has been scheduled for you`,
@@ -87,8 +89,11 @@ export async function POST(req: Request) {
           buttonUrl: link,
         }),
       });
-      if (r.ok) emailed += 1;
+      if (r.ok) {
+        emailed += 1;
+        sentTo.push(to);
+      }
     }
   }
-  return NextResponse.json({ ok: true, sent: emailed > 0, emailed });
+  return NextResponse.json({ ok: true, sent: emailed > 0, emailed, to: sentTo });
 }

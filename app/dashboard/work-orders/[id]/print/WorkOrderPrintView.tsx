@@ -70,6 +70,18 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
     }
   }
 
+  // "Download PDF" from the work order page opens this page with ?download=1 and saves the PDF straight away.
+  const autoDone = useRef(false);
+  useEffect(() => {
+    if (autoDone.current || new URLSearchParams(window.location.search).get("download") !== "1") return;
+    autoDone.current = true;
+    const t = setTimeout(() => {
+      downloadPdf();
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
 
   const computed = lines
