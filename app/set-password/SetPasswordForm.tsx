@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import AuthShell, { authButton, authField } from "../AuthShell";
 
 type EmailOtpType = "invite" | "recovery" | "email" | "signup" | "email_change";
 
@@ -102,85 +103,52 @@ export default function SetPasswordForm() {
       setError(error.message);
       return;
     }
-    logAudit(supabase, { eventType: "login", entityType: "auth", entityLabel: "First login (invite accepted)" });
+    logAudit(supabase, { eventType: "login", entityType: "auth", entityLabel: "Password set (invite or reset link)" });
     router.push("/dashboard");
     router.refresh();
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
-      <div>
-        <p className="font-mono text-xs uppercase tracking-wide text-accent">Better Batt System</p>
-        <h1 className="mt-1 text-2xl font-bold">Set your password</h1>
-      </div>
-
-      {checking && <p className="text-sm text-[var(--muted)]">Checking your invite link...</p>}
+    <AuthShell title="Choose your password" subtitle="Pick a password you'll use to sign in to the Better Batt System.">
+      {checking && <p className="mt-5 text-sm text-[#a9a69d]">Checking your link...</p>}
 
       {!checking && needsConfirm && (
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--muted)]">
-            Click below to confirm it&rsquo;s really you, then you&rsquo;ll be able to set a password.
-          </p>
-          {confirmError && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{confirmError}</p>
-          )}
-          <button
-            onClick={confirmInvite}
-            disabled={confirming}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
+        <div className="mt-5 flex flex-col gap-4">
+          <p className="text-sm text-[#a9a69d]">Click below to confirm it&rsquo;s really you, then you&rsquo;ll be able to set a password.</p>
+          {confirmError && <p className="rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm text-red-300">{confirmError}</p>}
+          <button onClick={confirmInvite} disabled={confirming} className={authButton}>
             {confirming ? "Confirming..." : "Confirm & continue"}
           </button>
         </div>
       )}
 
       {!checking && !needsConfirm && !hasSession && (
-        <div className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          This link has expired or was already used. Ask whoever set up your account to send a new invite, or{" "}
-          <a href="/login" className="underline">
+        <div className="mt-5 rounded-lg border border-amber-900/60 bg-amber-950/40 px-4 py-3 text-sm text-amber-200">
+          This link has expired or was already used. Go back to{" "}
+          <a href="/login" className="font-semibold underline">
             sign in
           </a>{" "}
-          if you've already got a password.
+          and use &ldquo;Forgot password?&rdquo; to get a new one.
         </div>
       )}
 
       {!checking && hasSession && (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--muted)]">
-            You&rsquo;re verified — choose a password to finish setting up your account.
-          </p>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <label className="flex flex-col gap-1 text-sm">
+        <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
+          {error && <p className="rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm text-red-300">{error}</p>}
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
             New password
-            <input
-              type="password"
-              className="rounded-lg border border-[var(--border)] px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
+            <input type="password" className={authField} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required minLength={8} />
+            <span className="text-xs font-normal text-[#8a877f]">At least 8 characters.</span>
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
             Confirm password
-            <input
-              type="password"
-              className="rounded-lg border border-[var(--border)] px-3 py-2"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-              minLength={8}
-            />
+            <input type="password" className={authField} value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required minLength={8} />
           </label>
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {saving ? "Saving..." : "Set password & continue"}
+          <button type="submit" disabled={saving} className={authButton}>
+            {saving ? "Saving..." : "Save password & continue"}
           </button>
         </form>
       )}
-    </main>
+    </AuthShell>
   );
 }

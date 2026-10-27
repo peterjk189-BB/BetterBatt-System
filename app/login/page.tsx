@@ -9,7 +9,7 @@ export default function LoginPage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -22,6 +22,24 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     setInfo(null);
+
+    if (mode === "forgot") {
+      try {
+        const r = await fetch("/api/auth/forgot-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const j = await r.json().catch(() => ({}));
+        setLoading(false);
+        if (!r.ok) return setError(j.error || "Couldn't send the email. Please try again.");
+        setInfo("If that email has an account, we've sent a link to choose a new password. It can take a minute to arrive, so check your junk folder too.");
+      } catch {
+        setLoading(false);
+        setError("Couldn't send the email. Please try again.");
+      }
+      return;
+    }
 
     if (mode === "signin") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -71,9 +89,9 @@ export default function LoginPage() {
         <div className="overflow-hidden rounded-2xl border border-[#3a3833] bg-[#201f1c] shadow-2xl">
           <div className="h-1 bg-[#fdb930]" />
           <div className="p-7">
-            <h1 className="text-xl font-bold text-[#f4f2ec]">{mode === "signin" ? "Welcome back" : "Create an account"}</h1>
+            <h1 className="text-xl font-bold text-[#f4f2ec]">{mode === "signin" ? "Welcome back" : mode === "forgot" ? "Reset your password" : "Create an account"}</h1>
             <p className="mt-1 text-sm text-[#a9a69d]">
-              {mode === "signin" ? "Sign in to see your jobs and schedule." : "Enter your details to request access."}
+              {mode === "signin" ? "Sign in to see your jobs and schedule." : mode === "forgot" ? "Enter your email and we'll send you a link to choose a new password." : "Enter your details to request access."}
             </p>
 
             <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
@@ -97,6 +115,7 @@ export default function LoginPage() {
                 />
               </label>
 
+              {mode !== "forgot" && (
               <label className="flex flex-col gap-1.5 text-sm font-medium text-[#d8d5cc]">
                 Password
                 <span className="relative block">
@@ -118,6 +137,21 @@ export default function LoginPage() {
                   </button>
                 </span>
               </label>
+              )}
+
+              {mode === "signin" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("forgot");
+                    setError(null);
+                    setInfo(null);
+                  }}
+                  className="-mt-2 self-end text-xs font-medium text-[#a9a69d] hover:text-[#fdb930]"
+                >
+                  Forgot password?
+                </button>
+              )}
 
               {error && <p className="rounded-lg border border-red-900/60 bg-red-950/50 px-3 py-2 text-sm text-red-300">{error}</p>}
               {info && <p className="rounded-lg border border-green-900/60 bg-green-950/50 px-3 py-2 text-sm text-green-300">{info}</p>}
@@ -127,7 +161,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="mt-1 rounded-lg bg-[#fdb930] px-4 py-3 text-[15px] font-bold text-[#1b1a18] transition hover:bg-[#ffc84d] disabled:opacity-60"
               >
-                {loading ? "Please wait..." : mode === "signin" ? "Sign in" : "Sign up"}
+                {loading ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "forgot" ? "Send reset link" : "Sign up"}
               </button>
             </form>
 
@@ -139,7 +173,7 @@ export default function LoginPage() {
                 setInfo(null);
               }}
             >
-              {mode === "signin" ? "Need an account? Sign up" : "Already have an account? Sign in"}
+              {mode === "signin" ? "Need an account? Sign up" : mode === "forgot" ? "Back to sign in" : "Already have an account? Sign in"}
             </button>
           </div>
         </div>
