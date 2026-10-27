@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { siteAddress } from "@/lib/siteAddress";
 
 type Project = {
   id: string;
@@ -10,6 +11,8 @@ type Project = {
   job_type: string;
   category: string | null;
   outcome: "Open" | "Accepted" | "Lost" | "Cancelled";
+  lot_no?: string | null;
+  address?: string | null;
   suburb: string | null;
   entry_date: string;
   quote_markup: number;
@@ -74,7 +77,7 @@ export default function QuotesList({
       return (
         String(p.quote_number).includes(q) ||
         (p.customers?.name || "").toLowerCase().includes(q) ||
-        (p.suburb || "").toLowerCase().includes(q)
+        siteAddress(p).toLowerCase().includes(q)
       );
     });
 
@@ -92,7 +95,7 @@ export default function QuotesList({
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <input
-          placeholder="Search quote #, customer, suburb..."
+          placeholder="Search quote #, customer, address..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
@@ -121,7 +124,7 @@ export default function QuotesList({
               <th className="px-4 py-2">Quote #</th>
               <th className="px-4 py-2">Customer</th>
               <th className="px-4 py-2">Job type</th>
-              <th className="px-4 py-2">Suburb</th>
+              <th className="px-4 py-2">Site address</th>
               <th className="px-4 py-2">Date</th>
               <th className="px-4 py-2">Outcome</th>
               <th className="px-4 py-2 text-right">Est. total (ex markup)</th>
@@ -138,7 +141,7 @@ export default function QuotesList({
                 </td>
                 <td className="px-4 py-2">{p.customers?.name || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{p.job_type}</td>
-                <td className="px-4 py-2 text-[var(--muted)]">{p.suburb || "—"}</td>
+                <td className="px-4 py-2 text-[var(--muted)]">{siteAddress(p) || "—"}</td>
                 <td className="px-4 py-2 text-[var(--muted)]">{p.entry_date ? new Date(p.entry_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU") : "—"}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${OUTCOME_COLORS[p.outcome]}`}>
