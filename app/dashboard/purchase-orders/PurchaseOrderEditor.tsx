@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import PoSendActions from "./PoSendActions";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { fuelLevyAmount } from "@/lib/poFuel";
@@ -351,6 +352,7 @@ export default function PurchaseOrderEditor({
               Print preview
             </Link>
           )}
+          {!isNew && <PoSendActions poId={purchaseOrder!.id} />}
           {!isNew && purchaseOrder!.status !== "Received" && (
             <button
               onClick={applyReceivedStock}

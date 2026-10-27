@@ -3,6 +3,7 @@
 import { fuelLevyAmount } from "@/lib/poFuel";
 
 import Link from "next/link";
+import PoSendActions from "../../PoSendActions";
 
 type Line = {
   qty_pks: number;
@@ -81,9 +82,10 @@ export default function PurchaseOrderPrintView({
         >
           Print / Save as PDF
         </button>
+        <PoSendActions poId={purchaseOrder.id} />
       </div>
 
-      <div className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0">
+      <div className="mx-auto max-w-3xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0 [-webkit-print-color-adjust:exact] [print-color-adjust:exact]">
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
