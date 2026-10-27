@@ -53,6 +53,7 @@ export function addDays(iso: string, days: number) {
 export function dueFromTerms(kind: string, terms: string | null | undefined, invoiceDate: string) {
   if (kind === "Deposit") return invoiceDate;
   if (terms === "30 Days") return addDays(invoiceDate, 30);
+  if (terms === "14 Days") return addDays(invoiceDate, 14);
   if (terms === "7 Days") return addDays(invoiceDate, 7);
   return invoiceDate; // COD, payment in advance, deposit account: due on issue
 }

@@ -12,6 +12,6 @@ begin
 end $$;
 
 alter table customers add constraint customers_payment_terms_check
-  check (payment_terms in ('7 Days', 'COD', '30 Days', 'Payment in advance', 'Deposit Account'));
+  check (payment_terms in ('7 Days', 'COD', '14 Days', '30 Days', 'Payment in advance', 'Deposit Account'));
 
 notify pgrst, 'reload schema';

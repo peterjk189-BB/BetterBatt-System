@@ -292,6 +292,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
                     <select className={input} value={newCust.payment_terms} onChange={(e) => setNewCust({ ...newCust, payment_terms: e.target.value })}>
                       <option>7 Days</option>
                       <option>COD</option>
+                      <option>14 Days</option>
                       <option>30 Days</option>
                       <option>Payment in advance</option>
                       <option>Deposit Account</option>
