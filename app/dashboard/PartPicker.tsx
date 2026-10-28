@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 type Option = { id: string; name: string };
 
@@ -22,6 +22,27 @@ export default function PartPicker({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // The list is position:fixed so scrolling/overflow-hidden parents (e.g. the line-items table) can't clip it.
+  useEffect(() => {
+    if (!open) return;
+    function place() {
+      const r = inputRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = Math.min(448, window.innerWidth * 0.9);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      setPos({ left, top: r.bottom + 4 });
+    }
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open]);
 
   const sorted = useMemo(
     () => [...parts].sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true, sensitivity: "base" })),
@@ -64,6 +85,7 @@ export default function PartPicker({
   return (
     <div className={`relative ${className}`}>
       <input
+        ref={inputRef}
         type="text"
         value={open ? query : selected?.name ?? ""}
         placeholder={selected ? selected.name : placeholder}
@@ -86,10 +108,11 @@ export default function PartPicker({
         className="w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
         title={selected?.name}
       />
-      {open && (
+      {open && pos && (
         <div
           ref={listRef}
-          className="absolute left-0 top-full z-30 mt-1 max-h-64 w-[28rem] max-w-[90vw] overflow-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-xs shadow-lg"
+          style={{ position: "fixed", left: pos.left, top: pos.top }}
+          className="z-50 max-h-64 w-[28rem] max-w-[90vw] overflow-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-xs shadow-lg"
         >
           {matches.length === 0 && <div className="px-3 py-2 text-[var(--muted)]">No products match.</div>}
           {matches.map((p, i) => (
