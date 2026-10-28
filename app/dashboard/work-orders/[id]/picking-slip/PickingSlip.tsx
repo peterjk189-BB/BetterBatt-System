@@ -65,6 +65,21 @@ export default function PickingSlip({
   const [deliveryDate, setDeliveryDate] = useState(workOrder.deliveryDate || "");
   const [dateStatus, setDateStatus] = useState<"" | "saving" | "saved">("");
   const [supplierMode, setSupplierMode] = useState(!!workOrder.supplierDelivery);
+  // The same product can be on the work order more than once (e.g. external and internal walls). Orders and
+  // shortfalls are worked out per product (all its lines added together), and shown once on the first line.
+  const partAll: Record<string, number> = {};
+  const partOpen: Record<string, number> = {};
+  const firstAll: Record<string, string> = {};
+  const firstOpen: Record<string, string> = {};
+  for (const l of lines) {
+    const n = packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+    partAll[l.part_id] = (partAll[l.part_id] || 0) + n;
+    if (!firstAll[l.part_id]) firstAll[l.part_id] = l.id;
+    if (!l.picked) {
+      partOpen[l.part_id] = (partOpen[l.part_id] || 0) + n;
+      if (!firstOpen[l.part_id]) firstOpen[l.part_id] = l.id;
+    }
+  }
   const [orderingAll, setOrderingAll] = useState(false);
 
   async function setSupplierDelivery(on: boolean) {
@@ -91,7 +106,8 @@ export default function PickingSlip({
     setOrderMsg(null);
     let n = 0;
     for (const l of lines) {
-      const needed = packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+      if (firstAll[l.part_id] !== l.id) continue; // one order line per product
+      const needed = partAll[l.part_id] || 0;
       if (needed > 0 && drafts[l.part_id]?.qty !== needed) {
         await orderShortfall(l, needed);
         n++;
@@ -408,7 +424,9 @@ export default function PickingSlip({
               const needed = packsNeeded(qty, Number(l.parts.coverage_m2) || 0);
               const reserved = reservedByPart[l.part_id] || 0;
               const available = stockOnHand - reserved;
-              const shortfall = Math.max(0, Math.ceil(needed - available - 1e-9));
+              const shortfall = Math.max(0, Math.ceil((partOpen[l.part_id] || 0) - available - 1e-9));
+              const showOrder = firstOpen[l.part_id] === l.id;
+              const dupCount = lines.filter((x) => x.part_id === l.part_id).length;
               const status = lineStatus(l);
               const busy = busyId === l.id;
 
@@ -423,19 +441,32 @@ export default function PickingSlip({
                   {supplierMode ? (
                     <td className="px-3 py-2">
                       <span className="rounded-full border border-[var(--border)] px-2.5 py-0.5 text-xs font-medium">Order from supplier</span>
-                      {drafts[l.part_id] ? (
+                      {drafts[l.part_id] && firstAll[l.part_id] !== l.id ? (
+                        <div className="mt-1 text-xs text-[var(--muted)]">Ordered together with the first {l.parts.name} line</div>
+                      ) : drafts[l.part_id] ? (
                         <div className="mt-1 text-xs">
                           <Link href={`/dashboard/purchase-orders/${drafts[l.part_id].poId}`} className="text-accent hover:underline">
                             On draft {drafts[l.part_id].poNumber} · {fmtPacks(drafts[l.part_id].qty)}
                           </Link>
+                          {drafts[l.part_id].qty !== (partAll[l.part_id] || 0) && (
+                            <button
+                              onClick={() => orderShortfall(l, partAll[l.part_id] || 0)}
+                              disabled={busy}
+                              className="mt-1 block font-medium text-red-700 hover:underline disabled:opacity-60"
+                            >
+                              Update draft to {fmtPacks(partAll[l.part_id] || 0)}
+                            </button>
+                          )}
                         </div>
+                      ) : firstAll[l.part_id] !== l.id ? (
+                        <div className="mt-1 text-xs text-[var(--muted)]">Ordered together with the first {l.parts.name} line</div>
                       ) : (
                         <button
-                          onClick={() => orderShortfall(l, needed)}
-                          disabled={busy || needed <= 0}
+                          onClick={() => orderShortfall(l, partAll[l.part_id] || 0)}
+                          disabled={busy || !partAll[l.part_id]}
                           className="mt-1 block text-xs font-medium text-accent hover:underline disabled:opacity-60"
                         >
-                          Add to purchase order ({fmtPacks(needed)})
+                          Add to purchase order ({fmtPacks(partAll[l.part_id] || 0)}{dupCount > 1 ? `, ${dupCount} lines combined` : ""})
                         </button>
                       )}
                     </td>
@@ -558,7 +589,7 @@ export default function PickingSlip({
                           </button>
                         </>
                       )}
-                      {shortfall > 0 && status !== "picked" && (
+                      {shortfall > 0 && status !== "picked" && showOrder && (
                         <>
                           <button
                             onClick={() => orderShortfall(l, shortfall)}
@@ -569,7 +600,7 @@ export default function PickingSlip({
                               ? drafts[l.part_id].qty === shortfall
                                 ? `On draft ${drafts[l.part_id].poNumber} · ${fmtPacks(shortfall)}`
                                 : `Update draft ${drafts[l.part_id].poNumber} to ${fmtPacks(shortfall)}`
-                              : `Order shortfall (${fmtPacks(shortfall)})`}
+                              : `Order shortfall (${fmtPacks(shortfall)}${dupCount > 1 ? `, ${dupCount} lines combined` : ""})`}
                           </button>
                           {drafts[l.part_id] && (
                             <Link href={`/dashboard/purchase-orders/${drafts[l.part_id].poId}`} className="text-xs text-[var(--muted)] hover:underline">
