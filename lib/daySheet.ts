@@ -155,176 +155,105 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
     doc.text(`${ds.contractorName} · ${longDate(ds.date)}`, R, H - 8, { align: "right" });
   };
 
-  // ---- cover / summary
+  // ---- everything on one page (flows onto a second page only if there are too many jobs to fit)
   let y = band(M, "DAY SHEET", `Jobs for ${ds.contractorName}`, shortDate(ds.date));
   const totalM2 = ds.jobs.reduce((s, j) => s + j.m2, 0);
   const grand = ds.jobs.reduce((s, j) => s + j.total, 0);
   doc.setFillColor(...GREY);
-  doc.roundedRect(M, y, R - M, 16, 2, 2, "F");
-  label("Contractor", M + 3, y + 4.6);
+  doc.roundedRect(M, y, R - M, 14, 2, 2, "F");
+  label("Contractor", M + 3, y + 4.4);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(0);
-  doc.text(ds.contractorName, M + 3, y + 10.4);
+  doc.text(ds.contractorName, M + 3, y + 9.4);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(75, 85, 99);
-  doc.text([ds.contractorPhone, ds.contractorEmail].filter(Boolean).join(" · "), M + 3, y + 14.2);
-  label("Jobs / total m²", R - 55, y + 4.6);
+  doc.text([ds.contractorPhone, ds.contractorEmail].filter(Boolean).join(" · "), M + 3, y + 12.8);
+  label("Jobs / total m²", R - 3 - 45, y + 4.4);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(0);
-  doc.text(`${ds.jobs.length} job${ds.jobs.length === 1 ? "" : "s"} · ${Math.round(totalM2 * 10) / 10} m²`, R - 55, y + 10.4);
-  y += 16 + 7;
+  doc.text(`${ds.jobs.length} job${ds.jobs.length === 1 ? "" : "s"} · ${Math.round(totalM2 * 10) / 10} m²`, R - 3 - 45, y + 9.4);
+  y += 14 + 6;
 
-  // summary table
-  const cols = { n: M + 2, wo: M + 12, site: M + 38, cust: M + 112, m2: R - 2 };
-  doc.setFillColor(...GREY);
-  doc.roundedRect(M, y, R - M, 7, 1.5, 1.5, "F");
-  label("#", cols.n, y + 4.6);
-  label("Work order", cols.wo, y + 4.6);
-  label("Site address", cols.site, y + 4.6);
-  label("Customer", cols.cust, y + 4.6);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(6.5);
-  doc.setTextColor(...LABEL);
-  doc.text("M²", cols.m2, y + 4.6, { align: "right" });
-  y += 9;
-  ds.jobs.forEach((j, i) => {
-    const site = doc.splitTextToSize(j.site || "—", 70) as string[];
-    const cust = doc.splitTextToSize(j.customer || "—", 55) as string[];
-    const rows = Math.max(site.length, cust.length, 1);
-    if (y + rows * 4.4 + 3 > H - 20) {
-      footer();
-      doc.addPage();
-      y = M;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(0);
-    doc.text(String(i + 1), cols.n, y + 3.2);
-    doc.text(j.woNumber, cols.wo, y + 3.2);
-    doc.setFont("helvetica", "normal");
-    site.forEach((t, k) => doc.text(t, cols.site, y + 3.2 + k * 4.4));
-    doc.setTextColor(75, 85, 99);
-    cust.forEach((t, k) => doc.text(t, cols.cust, y + 3.2 + k * 4.4));
-    doc.setTextColor(0);
-    doc.text(String(Math.round(j.m2 * 10) / 10), cols.m2, y + 3.2, { align: "right" });
-    y += rows * 4.4 + 2.5;
-    doc.setDrawColor(240, 240, 240);
-    doc.line(M, y - 1, R, y - 1);
-  });
-  y += 4;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.setTextColor(0);
-  doc.text(`Total for the day: ${money(grand)} (ex GST)`, R, y, { align: "right" });
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(107, 114, 128);
-  doc.text("Each job's full work order follows on the next pages.", M, y);
-  footer();
-
-  // ---- one page per work order
-  for (const j of ds.jobs) {
+  const c = { prod: M + 3, note: M + 70, qty: R - 50, packs: R - 33, cost: R - 3 };
+  const newPage = () => {
+    footer();
     doc.addPage();
-    let yy = band(M, "WORK ORDER", `Work Order · ${longDate(ds.date)}`, j.woNumber);
-    const half = (R - M - 3) / 2;
-    const siteL = doc.splitTextToSize(j.site || "—", half - 6) as string[];
-    const bh = 10 + 4.6 + siteL.length * 4.2;
+    y = M;
+  };
+  for (const j of ds.jobs) {
+    const site = doc.splitTextToSize(`${j.site || "—"}${j.customer ? "  ·  " + j.customer : ""}`, R - M - 34) as string[];
+    const headH = 5 + site.length * 4.2 + 2;
+    if (y + headH + 12 > H - 18) newPage();
+    // job header strip
     doc.setFillColor(...GREY);
-    doc.roundedRect(M, yy, half, bh, 2, 2, "F");
-    doc.roundedRect(M + half + 3, yy, half, bh, 2, 2, "F");
-    label("Job", M + 3, yy + 4.6);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
-    doc.setTextColor(0);
-    doc.text(`${j.quoteNumber ? `Q${j.quoteNumber} — ` : ""}${j.customer || "—"}`.slice(0, 48), M + 3, yy + 9.6);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(75, 85, 99);
-    siteL.forEach((t, k) => doc.text(t, M + 3, yy + 14 + k * 4.2));
-    label("Contractor", M + half + 6, yy + 4.6);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
-    doc.setTextColor(0);
-    doc.text(ds.contractorName, M + half + 6, yy + 9.6);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(75, 85, 99);
-    doc.text([ds.contractorPhone, ds.contractorEmail].filter(Boolean).join(" · ").slice(0, 60), M + half + 6, yy + 14);
-    yy += bh + 6;
-
-    // lines table
-    const c = { prod: M + 2, note: M + 62, qty: R - 52, packs: R - 34, cost: R - 2 };
-    doc.setFillColor(...GREY);
-    doc.roundedRect(M, yy, R - M, 7, 1.5, 1.5, "F");
-    label("Product", c.prod, yy + 4.6);
-    label("Notes", c.note, yy + 4.6);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(...LABEL);
-    doc.text("QTY", c.qty, yy + 4.6, { align: "right" });
-    doc.text("PACKS", c.packs, yy + 4.6, { align: "right" });
-    doc.text("CONTRACTOR $", c.cost, yy + 4.6, { align: "right" });
-    yy += 9;
-    for (const l of j.lines) {
-      const prod = doc.splitTextToSize(l.product, 58) as string[];
-      const note = doc.splitTextToSize(l.note || "—", 56) as string[];
-      const rows = Math.max(prod.length, note.length);
-      if (yy + rows * 4.2 + 3 > H - 40) {
-        footer();
-        doc.addPage();
-        yy = M;
-      }
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(55, 65, 81);
-      prod.forEach((t, k) => doc.text(t, c.prod, yy + 3.2 + k * 4.2));
-      doc.setTextColor(0);
-      note.forEach((t, k) => doc.text(t, c.note, yy + 3.2 + k * 4.2));
-      doc.text(String(Math.round(l.qty * 100) / 100), c.qty, yy + 3.2, { align: "right" });
-      doc.text(l.packs == null ? "" : String(l.packs), c.packs, yy + 3.2, { align: "right" });
-      doc.setFont("helvetica", "bold");
-      doc.text(money(l.cost), c.cost, yy + 3.2, { align: "right" });
-      yy += rows * 4.2 + 2.5;
-      doc.setDrawColor(240, 240, 240);
-      doc.line(M, yy - 1, R, yy - 1);
-    }
-    yy += 3;
-    if (j.notes) {
-      const nl = doc.splitTextToSize(j.notes, R - M - 8) as string[];
-      if (yy + nl.length * 4.2 + 8 > H - 25) {
-        footer();
-        doc.addPage();
-        yy = M;
-      }
-      doc.setFillColor(...GREY);
-      doc.roundedRect(M, yy, R - M, nl.length * 4.2 + 6, 2, 2, "F");
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.setTextColor(0);
-      nl.forEach((t, k) => doc.text(t, M + 4, yy + 5 + k * 4.2));
-      yy += nl.length * 4.2 + 10;
-    }
+    doc.roundedRect(M, y, R - M, headH, 1.5, 1.5, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(0);
-    doc.text(`Contractor total: ${money(j.total)}`, R, yy, { align: "right" });
-    yy += 6;
+    doc.text(j.woNumber, M + 3, y + 5);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(8.5);
+    doc.setTextColor(55, 65, 81);
+    site.forEach((t, k) => doc.text(t, M + 28, y + 5 + k * 4.2));
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0);
+    doc.text(`${Math.round(j.m2 * 10) / 10} m²`, R - 3, y + 5, { align: "right" });
+    y += headH + 1.5;
+    for (const l of j.lines) {
+      const prod = doc.splitTextToSize(l.product, 64) as string[];
+      const note = doc.splitTextToSize(l.note || "", 58) as string[];
+      const rows = Math.max(prod.length, note.length, 1);
+      if (y + rows * 4 + 2 > H - 18) newPage();
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(55, 65, 81);
+      prod.forEach((t, k) => doc.text(t, c.prod, y + 3.2 + k * 4));
+      doc.setTextColor(0);
+      note.forEach((t, k) => doc.text(t, c.note, y + 3.2 + k * 4));
+      doc.text(String(Math.round(l.qty * 100) / 100), c.qty, y + 3.2, { align: "right" });
+      doc.text(l.packs == null ? "" : `${l.packs} pk`, c.packs, y + 3.2, { align: "right" });
+      doc.setFont("helvetica", "bold");
+      doc.text(money(l.cost), c.cost, y + 3.2, { align: "right" });
+      y += rows * 4 + 1.6;
+      doc.setDrawColor(240, 240, 240);
+      doc.line(M, y - 0.6, R, y - 0.6);
+    }
+    if (j.notes) {
+      const nl = doc.splitTextToSize("Notes: " + j.notes, R - M - 6) as string[];
+      if (y + nl.length * 4 + 3 > H - 18) newPage();
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.setTextColor(75, 85, 99);
+      nl.forEach((t, k) => doc.text(t, M + 3, y + 3.4 + k * 4));
+      y += nl.length * 4 + 2;
+    }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
     doc.setTextColor(107, 114, 128);
-    doc.text(`JSA received: ${j.jsa ? "Yes" : "No"}`, M, yy);
-    footer();
+    doc.text(`JSA received: ${j.jsa ? "Yes" : "No"}`, M + 3, y + 3.4);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(0);
+    doc.text(`Job total ${money(j.total)}`, R - 3, y + 3.4, { align: "right" });
+    y += 9;
   }
-
   if (ds.jobs.length === 0) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(107, 114, 128);
     doc.text("No authorised jobs on this date.", M, y + 6);
+  } else {
+    if (y + 8 > H - 18) newPage();
+    doc.setDrawColor(209, 213, 219);
+    doc.line(M, y - 3, R, y - 3);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text(`Total for the day: ${money(grand)} (ex GST)`, R, y + 2, { align: "right" });
   }
+  footer();
   return new Uint8Array(doc.output("arraybuffer"));
 }

@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     html: brandedEmailHtml({
       previewText: `${ds.jobs.length} job${ds.jobs.length === 1 ? "" : "s"} on ${when}`,
       heading: `Hi ${esc(first)}, here are your jobs for ${esc(when)}`,
-      bodyHtml: `<p style="margin:0 0 8px;">All of the day's work orders are in the attached PDF.</p><ul style="margin:0 0 8px;padding-left:18px;">${list}</ul>${note ? `<p style="margin:8px 0 0;">${esc(note).replace(/\n/g, "<br/>")}</p>` : ""}`,
+      bodyHtml: `<p style="margin:0 0 8px;">All of the day's jobs are on the one attached PDF.</p><ul style="margin:0 0 8px;padding-left:18px;">${list}</ul>${note ? `<p style="margin:8px 0 0;">${esc(note).replace(/\n/g, "<br/>")}</p>` : ""}`,
       buttonText: "Open job schedule",
       buttonUrl: `${siteUrl()}/dashboard/calendar`,
     }),
