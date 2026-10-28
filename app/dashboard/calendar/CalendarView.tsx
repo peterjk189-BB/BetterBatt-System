@@ -240,11 +240,11 @@ export type AwayPerson = { key: string; name: string; group: string };
 
 const AWAY_KINDS = ["Holiday", "Appointment", "Sick", "Training", "Other", "Closed"] as const;
 const AWAY_STYLE: Record<string, string> = {
-  Holiday: "bg-teal-100 text-teal-900 border-teal-300 hover:bg-teal-200",
-  Appointment: "bg-purple-100 text-purple-900 border-purple-300 hover:bg-purple-200",
-  Sick: "bg-rose-100 text-rose-900 border-rose-300 hover:bg-rose-200",
-  Training: "bg-sky-100 text-sky-900 border-sky-300 hover:bg-sky-200",
-  Other: "bg-gray-200 text-gray-900 border-gray-300 hover:bg-gray-300",
+  Holiday: "bg-[#fdb930] text-[#201f1c] border-[#b1841f] hover:brightness-95",
+  Appointment: "bg-[#fdb930] text-[#201f1c] border-[#b1841f] hover:brightness-95",
+  Sick: "bg-[#fdb930] text-[#201f1c] border-[#b1841f] hover:brightness-95",
+  Training: "bg-[#fdb930] text-[#201f1c] border-[#b1841f] hover:brightness-95",
+  Other: "bg-[#fdb930] text-[#201f1c] border-[#b1841f] hover:brightness-95",
   Closed: "bg-red-700 text-white border-red-800 hover:bg-red-800",
 };
 
@@ -690,7 +690,7 @@ export default function CalendarView({
           {!installerNote && awayPeople.length > 0 && (
             <button
               onClick={() => openAway()}
-              className="rounded-lg bg-[var(--brand-gold)] px-3 py-1.5 text-sm font-bold text-[#201f1c] hover:brightness-95"
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:border-accent"
             >
               + Add time away
             </button>
