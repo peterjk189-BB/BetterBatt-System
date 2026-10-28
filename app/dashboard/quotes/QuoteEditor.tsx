@@ -1,5 +1,6 @@
 "use client";
 
+import PartPicker from "@/app/dashboard/PartPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -658,20 +659,13 @@ export default function QuoteEditor({
                 (l.option_key ?? null) !== optKey ? null : (
                 <tr key={idx} className="border-t border-[var(--border)]">
                   <td className="px-3 py-2">
-                    <select
-                      className="rounded-lg border border-[var(--border)] px-2 py-1.5"
-                      value={l.part_id || ""}
-                      onChange={(e) => updateLine(idx, { part_id: e.target.value })}
-                    >
-                      <option value="">Select product...</option>
-                      {parts
-                        .filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                    </select>
+                    <PartPicker
+                      className="w-72"
+                      parts={parts.filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)}
+                      value={l.part_id || null}
+                      onChange={(id) => updateLine(idx, { part_id: id || "" })}
+                      placeholder="Select product — type to search…"
+                    />
                   </td>
                   <td className="px-3 py-2">
                     <input
