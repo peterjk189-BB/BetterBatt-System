@@ -22,7 +22,7 @@ function matchPart(label: string, parts: PartLite[]): string | null {
   return best && best.score >= 2 ? best.id : null;
 }
 
-export default async function NewQuotePage({ searchParams }: { searchParams: { site_visit_id?: string } }) {
+export default async function NewQuotePage({ searchParams }: { searchParams: { site_visit_id?: string; calc?: string; tier?: string } }) {
   const supabase = await createClient();
   const [{ data: customers }, { data: parts }, role] = await Promise.all([
     supabase.from("customers").select("*").eq("archived", false).order("name"),
@@ -82,6 +82,32 @@ export default async function NewQuotePage({ searchParams }: { searchParams: { s
           note: w.note ?? null,
           sort_order: i,
         })),
+      };
+    }
+  }
+
+  // Started from the pack calculator: ?calc=<partId>:<m2>,<partId>:<m2>&tier=retail
+  if (!prefill && searchParams.calc) {
+    const partIds = new Set((parts ?? []).map((p: any) => p.id));
+    const lines = searchParams.calc
+      .split(",")
+      .map((x) => x.split(":"))
+      .filter(([id, m2]) => partIds.has(id) && Number(m2) > 0)
+      .map(([id, m2], i) => ({ part_id: id, qty_m2: Number(m2), note: null, sort_order: i }));
+    if (lines.length > 0) {
+      prefill = {
+        fromCalculator: true,
+        job_type: "SUPPLY ONLY",
+        price_tier: ["retail", "trade", "regency"].includes(searchParams.tier || "") ? searchParams.tier : "retail",
+        customer_id: "",
+        customer_name: "",
+        category: "",
+        contact_name: "",
+        contact_phone: "",
+        contact_email: "",
+        address: "",
+        suburb: "",
+        lines: lines as any,
       };
     }
   }

@@ -71,7 +71,12 @@ type Line = {
 
 /** Values carried over from a site visit when a quote is started from it. */
 export type QuotePrefill = {
-  siteVisit: { id: string; visit_number: number };
+  /** Set when the quote is started from a site visit; absent when started from the pack calculator. */
+  siteVisit?: { id: string; visit_number: number } | null;
+  job_type?: string;
+  price_tier?: string;
+  /** Started from the pack calculator. */
+  fromCalculator?: boolean;
   customer_id: string;
   customer_name: string;
   category: string;
@@ -256,7 +261,7 @@ export default function QuoteEditor({
     contact_name: project?.contact_name || prefill?.contact_name || "",
     contact_phone: project?.contact_phone || prefill?.contact_phone || "",
     contact_email: project?.contact_email || prefill?.contact_email || "",
-    job_type: project?.job_type || "SUPPLY & INSTALL",
+    job_type: project?.job_type || prefill?.job_type || "SUPPLY & INSTALL",
     category: project?.category || prefill?.category || "",
     outcome: project?.outcome || "Open",
     lot_no: project?.lot_no || "",
@@ -268,7 +273,7 @@ export default function QuoteEditor({
     quote_markup:
       Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0)) * 100) / 100,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
-    price_tier: project ? project.price_tier || "" : "retail", // new supply-only quotes price from Retail by default
+    price_tier: project ? project.price_tier || "" : prefill?.price_tier || "retail", // new supply-only quotes price from Retail by default
   });
 
   // The discount/markup can be entered as a flat $ amount or as a % of the line-items
@@ -872,7 +877,13 @@ export default function QuoteEditor({
         </div>
       )}
 
-      {isNew && prefill && (
+      {isNew && prefill?.fromCalculator && (
+        <div className="mt-4 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-4 py-2 text-sm text-[#5c430b]">
+          Started from the pack calculator: the products and m² are filled in. Pick the customer and check the details.
+        </div>
+      )}
+
+      {isNew && prefill?.siteVisit && (
         <div className="mt-4 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-4 py-2 text-sm text-[#5c430b]">
           Started from{" "}
           <Link href={`/dashboard/site-visits/${prefill.siteVisit.id}`} className="font-semibold underline">

@@ -29,6 +29,7 @@ export const ALL_TABS = [
     group: "Sales",
   },
   { key: "quotes", href: "/dashboard/quotes", label: "Quotes", desc: "Create and manage customer quotes", adminOnly: false, group: "Sales" },
+  { key: "calculator", href: "/dashboard/calculator", label: "Pack Calculator", desc: "Counter calculator: packs needed and sell price for a customer", adminOnly: false, group: "Sales" },
   {
     key: "swms",
     href: "/dashboard/swms",
