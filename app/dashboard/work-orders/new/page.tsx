@@ -66,6 +66,7 @@ export default async function NewWorkOrderPage({
         project_id: project.id,
         wo_number: `QW${project.quote_number}`,
         po_value: Math.round(total * 100) / 100,
+        notes: ((project as any).contractor_notes as string | null) || "",
         lines: [
           ...nonDeliveryLines.map((l) => ({
             part_id: l.part_id,
@@ -85,7 +86,7 @@ export default async function NewWorkOrderPage({
     <WorkOrderEditor
       workOrder={null}
       lines={prefill?.lines ?? []}
-      prefillHeader={prefill ? { project_id: prefill.project_id, wo_number: prefill.wo_number, po_value: prefill.po_value } : null}
+      prefillHeader={prefill ? { project_id: prefill.project_id, wo_number: prefill.wo_number, po_value: prefill.po_value, notes: prefill.notes } : null}
       projects={(projects ?? []) as any}
       subs={subs ?? []}
       labourItems={labourItems ?? []}

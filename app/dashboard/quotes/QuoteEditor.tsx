@@ -47,6 +47,7 @@ type Project = {
   suburb: string | null;
   entry_date: string;
   notes: string | null;
+  contractor_notes?: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
   price_tier?: string | null;
@@ -269,6 +270,7 @@ export default function QuoteEditor({
     suburb: project?.suburb || prefill?.suburb || "",
     entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
     notes: project?.notes || "",
+    contractor_notes: project?.contractor_notes || "",
     // Saved markup includes the travel allowance (so every quote view/total picks it up); take it back out for editing.
     quote_markup:
       Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0)) * 100) / 100,
@@ -487,6 +489,8 @@ export default function QuoteEditor({
       suburb: form.suburb || null,
       entry_date: form.entry_date,
       notes: form.notes || null,
+      // Contractor notes need migration 0074; only sent when used (or already present) so saving still works before it is run.
+      ...(form.contractor_notes.trim() || project?.contractor_notes !== undefined ? { contractor_notes: form.contractor_notes.trim() || null } : {}),
       quote_markup: Math.round((adjustmentAmount + travelTotal) * 100) / 100,
       show_qty_on_quote: form.show_qty_on_quote,
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
@@ -1064,6 +1068,20 @@ export default function QuoteEditor({
             rows={2}
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm sm:col-span-3">
+          <span>
+            Notes for the contractor{" "}
+            <span className="font-normal text-[var(--muted)]">(not shown on the quote — copied onto the work order when you create it)</span>
+          </span>
+          <textarea
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            rows={2}
+            placeholder="e.g. Gate code 1234, dog in yard, call Mitch 10 min before arriving"
+            value={form.contractor_notes}
+            onChange={(e) => setForm({ ...form, contractor_notes: e.target.value })}
           />
         </label>
       </div>

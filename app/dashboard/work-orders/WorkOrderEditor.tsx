@@ -82,7 +82,7 @@ export default function WorkOrderEditor({
 }: {
   workOrder: WorkOrder | null;
   lines: Line[];
-  prefillHeader: { project_id: string; wo_number: string; po_value: number } | null;
+  prefillHeader: { project_id: string; wo_number: string; po_value: number; notes?: string } | null;
   projects: Project[];
   subs: Sub[];
   labourItems: LabourItem[];
@@ -110,7 +110,7 @@ export default function WorkOrderEditor({
     entry_date: workOrder?.entry_date || new Date().toISOString().slice(0, 10),
     completed_date: workOrder?.completed_date || "",
     jsa_received: workOrder?.jsa_received || false,
-    notes: workOrder?.notes || "",
+    notes: workOrder?.notes || prefillHeader?.notes || "",
   });
 
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
