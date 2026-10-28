@@ -77,6 +77,15 @@ export default async function NewWorkOrderPage({
           ...(((project as any).travel_allowance ?? []) as { note?: string; amount?: number }[])
             .filter((t) => Number(t.amount))
             .map((t) => ({ part_id: null, qty: 1, rate: Number(t.amount), note: t.note ? `Travel allowance — ${t.note}` : "Travel allowance" })),
+          // Non-compliance fee from the quote: work order only.
+          ...(((project as any).non_compliance_fee && Number((project as any).non_compliance_fee.amount) > 0)
+            ? [{
+                part_id: null,
+                qty: 1,
+                rate: Number((project as any).non_compliance_fee.amount),
+                note: (project as any).non_compliance_fee.note ? `Non-compliance fee — ${(project as any).non_compliance_fee.note}` : "Non-compliance fee",
+              }]
+            : []),
         ],
       };
     }

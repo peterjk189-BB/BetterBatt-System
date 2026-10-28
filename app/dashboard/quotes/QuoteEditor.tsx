@@ -60,6 +60,7 @@ type Project = {
   option_accepted?: string[] | null;
   option_adjust?: Record<string, number> | null;
   travel_allowance?: { note: string; amount: number }[] | null;
+  non_compliance_fee?: { note: string; amount: number } | null;
 };
 
 type Line = {
@@ -313,6 +314,10 @@ export default function QuoteEditor({
     (project?.travel_allowance ?? []).map((t) => ({ note: t.note || "", amount: Number(t.amount) ? String(t.amount) : "" }))
   );
   const [travelOn, setTravelOn] = useState((project?.travel_allowance ?? []).length > 0);
+  // Non-compliance fee: work order only. Not on the quote and not added to the customer's total.
+  const [ncOn, setNcOn] = useState(!!project?.non_compliance_fee && Number(project.non_compliance_fee.amount) > 0);
+  const [ncNote, setNcNote] = useState(project?.non_compliance_fee?.note || "");
+  const [ncAmount, setNcAmount] = useState(Number(project?.non_compliance_fee?.amount) ? String(project?.non_compliance_fee?.amount) : "");
   // Per-option discount/markup. Entered as $ or %, saved as a $ amount per option (option_adjust).
   const [optAdjMode, setOptAdjMode] = useState<Record<string, "amount" | "percent">>({});
   const [optAdjText, setOptAdjText] = useState<Record<string, string>>(() =>
@@ -323,7 +328,7 @@ export default function QuoteEditor({
   const [error, setError] = useState<string | null>(null);
 
   // Auto-save (existing quotes only): a few seconds after you stop typing, changes are saved quietly.
-  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted, optAdjMode, optAdjText, travel, travelOn]);
+  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted, optAdjMode, optAdjText, travel, travelOn, ncOn, ncNote, ncAmount]);
   const [savedSnap, setSavedSnap] = useState(snapshot);
   const saveRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
   const savingRef = useRef(false);
@@ -434,7 +439,8 @@ export default function QuoteEditor({
   const costLines = computedLines.filter((l) => !l.option_key || optAccepted.includes(l.option_key));
   const materialCost = costLines.reduce((s, l) => s + l.materialCost, 0);
   const travelTotal = travelOn ? travel.reduce((a, t) => a + (Number(t.amount) || 0), 0) : 0;
-  const labourCost = (isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0)) + travelTotal;
+  const ncTotal = ncOn ? Number(ncAmount) || 0 : 0;
+  const labourCost = (isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0)) + travelTotal + ncTotal;
   const chargeBeforeMarkup = mainLines.reduce((s, l) => s + l.grossCharge, 0);
   const customerDiscountTotal = mainLines.reduce((s, l) => s + l.discountAmount, 0);
   // Per-option totals (customer discount applies; the flat discount/markup above is main-quote only).
@@ -502,6 +508,10 @@ export default function QuoteEditor({
       // Travel allowance needs migration 0072; only sent once used (or already present).
       ...(travelOn || project?.travel_allowance
         ? { travel_allowance: travelOn ? travel.filter((t) => Number(t.amount)).map((t) => ({ note: t.note.trim(), amount: Number(t.amount) })) : [] }
+        : {}),
+      // Non-compliance fee needs migration 0075; only sent once used (or already present).
+      ...(ncOn || project?.non_compliance_fee
+        ? { non_compliance_fee: ncOn && ncTotal > 0 ? { note: ncNote.trim(), amount: ncTotal } : null }
         : {}),
       // Option adjustments need migration 0070; only sent once used (or already present) so saving still works before it is run.
       ...(optionKeys.some((k) => optionTotals[k].adj) || project?.option_adjust
@@ -1254,6 +1264,40 @@ export default function QuoteEditor({
               <span className="text-sm text-[var(--muted)]">
                 Travel total: <span className="font-semibold text-[var(--text)]">{fmtCurrency(travelTotal)}</span>
               </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Non-compliance fee (work order only) */}
+      <div className="mt-3 rounded-xl border border-[var(--border)] p-5">
+        <label className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={ncOn} onChange={(e) => setNcOn(e.target.checked)} />
+          <span>Non-compliance fee</span>
+          <span className="font-normal text-[var(--muted)]">(work order only: not shown on the quote and not added to the customer&apos;s total; it is added to the contractor&apos;s labour cost)</span>
+        </label>
+        {ncOn && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <input
+              className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
+              placeholder="e.g. Non-compliance fee — reason"
+              value={ncNote}
+              onChange={(e) => setNcNote(e.target.value)}
+            />
+            <div className="flex items-center gap-1 text-sm">
+              $
+              <input
+                type="text"
+                inputMode="decimal"
+                className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5 text-right"
+                placeholder="0.00"
+                value={ncAmount}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (/^\d*\.?\d{0,2}$/.test(v)) setNcAmount(v);
+                }}
+              />
             </div>
           </div>
         )}
