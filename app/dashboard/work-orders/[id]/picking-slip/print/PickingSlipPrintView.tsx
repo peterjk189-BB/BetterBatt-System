@@ -21,9 +21,11 @@ type WorkOrder = {
   customerName: string | null;
   quoteNumber: number | null;
   deliveryDate?: string | null;
+  supplierDelivery?: boolean;
 };
 
 export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: WorkOrder; lines: Line[] }) {
+  const sup = !!workOrder.supplierDelivery;
   const today = new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" });
 
   return (
@@ -87,7 +89,7 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             <div className="text-gray-600">{workOrder.address || "—"}</div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="text-xs uppercase tracking-wide text-gray-500">Delivery date</div>
+            <div className="text-xs uppercase tracking-wide text-gray-500">{sup ? "Supplier delivery date" : "Delivery date"}</div>
             <div className="mt-0.5 text-lg font-bold">
               {workOrder.deliveryDate
                 ? new Date(`${workOrder.deliveryDate}T00:00:00`).toLocaleDateString("en-AU", {
@@ -101,16 +103,27 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
           </div>
         </div>
 
+        {sup && (
+          <div className="mt-4 rounded-lg border-2 border-gray-800 px-3 py-2 text-base font-bold">
+            SUPPLIER DELIVERY — ordered from the supplier and delivered to site. Nothing is picked from the shed.
+          </div>
+        )}
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Code</th>
               <th className="px-2 py-1.5">Product</th>
               <th className="px-2 py-1.5 text-right">Packs needed</th>
-              <th className="px-2 py-1.5 text-right">System stock</th>
-              <th className="px-2 py-1.5">Shelf count</th>
-              <th className="px-2 py-1.5">Short (to order)</th>
-              <th className="rounded-r-lg px-2 py-1.5">Picked</th>
+              {sup ? (
+                <th className="rounded-r-lg px-2 py-1.5">Received on site (tick / qty)</th>
+              ) : (
+                <>
+                  <th className="px-2 py-1.5 text-right">System stock</th>
+                  <th className="px-2 py-1.5">Shelf count</th>
+                  <th className="px-2 py-1.5">Short (to order)</th>
+                  <th className="rounded-r-lg px-2 py-1.5">Picked</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -125,6 +138,10 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                     {packPerMulti > 1 && <span className="ml-1 font-normal text-gray-400">({packPerMulti}/multi)</span>}
                   </td>
                   <td className="px-2 py-2 text-right font-semibold">{needed} pack{needed === 1 ? "" : "s"}</td>
+                  {sup ? (
+                    <td className="whitespace-nowrap px-2 py-2 text-gray-400">☐ &nbsp; Qty: ______</td>
+                  ) : (
+                    <>
                   <td className="px-2 py-2 text-right text-gray-600">{Number(l.parts.stock_on_hand ?? 0)}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
                   <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
@@ -137,12 +154,15 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                       </span>
                     )}
                   </td>
+
+                    </>
+                  )}
                 </tr>
               );
             })}
             {lines.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-gray-400">
+                <td colSpan={sup ? 4 : 7} className="py-6 text-center text-gray-400">
                   No material lines on this work order.
                 </td>
               </tr>

@@ -23,6 +23,7 @@ export default async function PickingSlipPrintPage({ params }: { params: { id: s
   if (!workOrder) notFound();
 
   const materialLines = (lines ?? []).filter((l: any) => l.part_id && l.parts?.is_stock_item !== false);
+  const { data: sd } = await supabase.from("work_orders").select("supplier_delivery").eq("id", params.id).single();
   const project = (workOrder as any).projects;
 
   return (
@@ -34,6 +35,7 @@ export default async function PickingSlipPrintPage({ params }: { params: { id: s
         customerName: project?.customers?.name ?? null,
         quoteNumber: project?.quote_number ?? null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
+        supplierDelivery: !!(sd as any)?.supplier_delivery,
       }}
       lines={materialLines as any}
     />

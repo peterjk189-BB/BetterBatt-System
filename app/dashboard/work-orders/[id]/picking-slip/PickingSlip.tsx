@@ -46,7 +46,7 @@ export default function PickingSlip({
   reservedByPart,
   onDraft = {},
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean };
   lines: Line[];
   reservedByPart: Record<string, number>;
   /** Shortfalls already on a draft purchase order for this job, by part. */
@@ -64,6 +64,42 @@ export default function PickingSlip({
   const [error, setError] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState(workOrder.deliveryDate || "");
   const [dateStatus, setDateStatus] = useState<"" | "saving" | "saved">("");
+  const [supplierMode, setSupplierMode] = useState(!!workOrder.supplierDelivery);
+  const [orderingAll, setOrderingAll] = useState(false);
+
+  async function setSupplierDelivery(on: boolean) {
+    setError(null);
+    const { error: err } = await supabase.from("work_orders").update({ supplier_delivery: on }).eq("id", workOrder.id);
+    if (err) {
+      setError(err.message?.includes("supplier_delivery") ? "Couldn't save — run migration 0071 in Supabase first." : err.message);
+      return;
+    }
+    setSupplierMode(on);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work order",
+      entityId: workOrder.id,
+      entityLabel: `WO${workOrder.wo_number}`,
+      details: on ? "Marked as supplier delivery (not picked from stock)" : "Supplier delivery switched off",
+    });
+  }
+
+  /** Supplier delivery: add every product line (full packs needed) to the supplier's draft purchase order. */
+  async function orderAllFromSupplier() {
+    setOrderingAll(true);
+    setError(null);
+    setOrderMsg(null);
+    let n = 0;
+    for (const l of lines) {
+      const needed = packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+      if (needed > 0 && drafts[l.part_id]?.qty !== needed) {
+        await orderShortfall(l, needed);
+        n++;
+      }
+    }
+    setOrderingAll(false);
+    if (n === 0) setOrderMsg({ poId: "", text: "Everything on this job is already on a draft purchase order." });
+  }
 
   async function saveDeliveryDate(value: string) {
     setDeliveryDate(value);
@@ -283,12 +319,30 @@ export default function PickingSlip({
         </span>
       </label>
 
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+        <label className="flex items-center gap-2 text-sm font-semibold">
+          <input type="checkbox" checked={supplierMode} onChange={(e) => setSupplierDelivery(e.target.checked)} />
+          Supplier delivery — order everything from the supplier (nothing picked from stock)
+        </label>
+        {supplierMode && (
+          <button
+            onClick={orderAllFromSupplier}
+            disabled={orderingAll || lines.length === 0}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {orderingAll ? "Adding…" : "Order all lines from supplier"}
+          </button>
+        )}
+      </div>
+
       {orderMsg && (
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900">
           <span>{orderMsg.text}</span>
-          <Link href={`/dashboard/purchase-orders/${orderMsg.poId}`} className="font-medium underline">
-            Open the draft PO
-          </Link>
+          {orderMsg.poId && (
+            <Link href={`/dashboard/purchase-orders/${orderMsg.poId}`} className="font-medium underline">
+              Open the draft PO
+            </Link>
+          )}
         </div>
       )}
       {error && <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">{error}</div>}
@@ -299,7 +353,7 @@ export default function PickingSlip({
         </div>
       )}
 
-      {costRows.some((r) => r.picked) && (
+      {!supplierMode && costRows.some((r) => r.picked) && (
         <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
           <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Real material cost (ex GST)</h2>
           <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -334,11 +388,17 @@ export default function PickingSlip({
               <th className="px-3 py-2">Product</th>
               <th className="px-3 py-2 text-right">Needed (m²)</th>
               <th className="px-3 py-2 text-right">Packs needed</th>
-              <th className="px-3 py-2 text-right">On hand</th>
-              <th className="px-3 py-2 text-right">Reserved elsewhere</th>
-              <th className="px-3 py-2 text-right">Available</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2"></th>
+              {supplierMode ? (
+                <th className="px-3 py-2">Supply</th>
+              ) : (
+                <>
+                  <th className="px-3 py-2 text-right">On hand</th>
+                  <th className="px-3 py-2 text-right">Reserved elsewhere</th>
+                  <th className="px-3 py-2 text-right">Available</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2"></th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -360,6 +420,27 @@ export default function PickingSlip({
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{needed || "—"}</td>
+                  {supplierMode ? (
+                    <td className="px-3 py-2">
+                      <span className="rounded-full border border-[var(--border)] px-2.5 py-0.5 text-xs font-medium">Order from supplier</span>
+                      {drafts[l.part_id] ? (
+                        <div className="mt-1 text-xs">
+                          <Link href={`/dashboard/purchase-orders/${drafts[l.part_id].poId}`} className="text-accent hover:underline">
+                            On draft {drafts[l.part_id].poNumber} · {fmtPacks(drafts[l.part_id].qty)}
+                          </Link>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => orderShortfall(l, needed)}
+                          disabled={busy || needed <= 0}
+                          className="mt-1 block text-xs font-medium text-accent hover:underline disabled:opacity-60"
+                        >
+                          Add to purchase order ({fmtPacks(needed)})
+                        </button>
+                      )}
+                    </td>
+                  ) : (
+                    <>
                   <td className="px-3 py-2 text-right tabular-nums">{stockOnHand}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">{reserved || "—"}</td>
                   <td className={`px-3 py-2 text-right tabular-nums font-medium ${available < needed ? "text-red-700" : ""}`}>
@@ -499,6 +580,8 @@ export default function PickingSlip({
                       )}
                     </div>
                   </td>
+                    </>
+                  )}
                 </tr>
               );
             })}

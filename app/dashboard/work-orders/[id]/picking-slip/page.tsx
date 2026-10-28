@@ -74,6 +74,9 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     }
   }
 
+  // Supplier-delivery flag comes from migration 0071; read separately so this page works before it's run.
+  const { data: sd } = await supabase.from("work_orders").select("supplier_delivery").eq("id", params.id).single();
+  const supplierDelivery = !!(sd as any)?.supplier_delivery;
   const project = (workOrder as any).projects;
 
   return (
@@ -85,6 +88,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
         customerName: project?.customers?.name ?? null,
         quoteNumber: project?.quote_number ?? null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
+        supplierDelivery,
       }}
       lines={materialLines as any}
       reservedByPart={reservedByPart}
