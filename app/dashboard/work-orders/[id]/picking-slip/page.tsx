@@ -77,6 +77,8 @@ export default async function PickingSlipPage({ params }: { params: { id: string
   // Supplier-delivery flag comes from migration 0071; read separately so this page works before it's run.
   const { data: sd } = await supabase.from("work_orders").select("supplier_delivery").eq("id", params.id).single();
   const supplierDelivery = !!(sd as any)?.supplier_delivery;
+  // "Materials delivered" comes from migration 0073 (set when a site-delivery PO is ticked delivered).
+  const { data: md } = await supabase.from("work_orders").select("materials_delivered_at").eq("id", params.id).single();
   const project = (workOrder as any).projects;
 
   return (
@@ -89,6 +91,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
         quoteNumber: project?.quote_number ?? null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
         supplierDelivery,
+        materialsDeliveredAt: (md as any)?.materials_delivered_at ?? null,
       }}
       lines={materialLines as any}
       reservedByPart={reservedByPart}

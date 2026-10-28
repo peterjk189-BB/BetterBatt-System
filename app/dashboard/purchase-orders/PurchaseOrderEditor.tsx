@@ -33,6 +33,8 @@ type PurchaseOrder = {
   notes: string | null;
   fuel_levy_type?: string | null;
   fuel_levy_value?: number | null;
+  site_delivery?: boolean;
+  delivered_at?: string | null;
   archived: boolean;
 };
 
@@ -78,6 +80,11 @@ export default function PurchaseOrderEditor({
   const router = useRouter();
   const isNew = !purchaseOrder;
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
+
+  // Delivered straight to a job site: no stock goes into inventory, we just tick it delivered.
+  const [siteDelivery, setSiteDelivery] = useState(!!purchaseOrder?.site_delivery);
+  const [deliveredAt, setDeliveredAt] = useState<string | null>(purchaseOrder?.delivered_at ?? null);
+  const [delivering, setDelivering] = useState(false);
 
   const [form, setForm] = useState({
     supplier_id: purchaseOrder?.supplier_id || (isNew ? initial?.supplier_id : undefined) || "",
@@ -233,6 +240,8 @@ export default function PurchaseOrderEditor({
       delivery_date: form.delivery_date || null,
       delivery_time: form.delivery_time || null,
       notes: form.notes || null,
+      // Site-delivery flag needs migration 0073; only sent when used (or already present).
+      ...(siteDelivery || purchaseOrder?.site_delivery !== undefined ? { site_delivery: siteDelivery } : {}),
       // Only sent when used (or already set), so saving still works before migration 0058 is run.
       ...(Number(form.fuel_levy_value) > 0 || purchaseOrder?.fuel_levy_type !== undefined
         ? { fuel_levy_type: form.fuel_levy_type, fuel_levy_value: Number(form.fuel_levy_value) || 0 }
@@ -292,6 +301,37 @@ export default function PurchaseOrderEditor({
       entityLabel: poNumberForLabel || "Purchase order",
     });
     router.push(`/dashboard/purchase-orders/${poId}`);
+    router.refresh();
+  }
+
+  /** Site delivery: tick delivered (or undo). Marks the PO Received without touching inventory, and stamps the work orders it is for. */
+  async function setDelivered(done: boolean) {
+    if (!purchaseOrder) return;
+    setDelivering(true);
+    setError(null);
+    const when = done ? new Date().toISOString() : null;
+    const { error: err } = await supabase
+      .from("purchase_orders")
+      .update({ status: done ? "Received" : "Ordered", delivered_at: when, site_delivery: true })
+      .eq("id", purchaseOrder.id);
+    if (err) {
+      setDelivering(false);
+      setError(err.message?.includes("delivered_at") || err.message?.includes("site_delivery") ? "Couldn't save — run migration 0073 in Supabase first." : err.message);
+      return;
+    }
+    const woIds = Array.from(new Set(lineItems.map((l) => l.work_order_id).filter(Boolean))) as string[];
+    if (woIds.length > 0) await supabase.from("work_orders").update({ materials_delivered_at: when }).in("id", woIds);
+    setDeliveredAt(when);
+    setSiteDelivery(true);
+    setForm((f) => ({ ...f, status: done ? "Received" : "Ordered" }));
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "purchase_order",
+      entityId: purchaseOrder.id,
+      entityLabel: purchaseOrder.po_number || "Purchase order",
+      details: done ? "Marked delivered to site (no stock receipt)" : "Delivered tick removed",
+    });
+    setDelivering(false);
     router.refresh();
   }
 
@@ -378,7 +418,27 @@ export default function PurchaseOrderEditor({
             </Link>
           )}
           {!isNew && <PoSendActions poId={purchaseOrder!.id} />}
-          {!isNew && purchaseOrder!.status !== "Received" && (
+          {!isNew && siteDelivery && (
+            deliveredAt || purchaseOrder!.status === "Received" ? (
+              <span className="flex items-center gap-2 text-sm">
+                <span className="rounded-full bg-green-100 px-3 py-1 font-medium text-green-800">
+                  Delivered{deliveredAt ? ` ${new Date(deliveredAt).toLocaleDateString("en-AU")}` : ""}
+                </span>
+                <button onClick={() => setDelivered(false)} disabled={delivering} className="text-[var(--muted)] hover:underline">
+                  Undo
+                </button>
+              </span>
+            ) : (
+              <button
+                onClick={() => setDelivered(true)}
+                disabled={delivering}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {delivering ? "Saving…" : "✓ Mark delivered"}
+              </button>
+            )
+          )}
+          {!isNew && !siteDelivery && purchaseOrder!.status !== "Received" && (
             <button
               onClick={applyReceivedStock}
               disabled={applying}
@@ -430,6 +490,10 @@ export default function PurchaseOrderEditor({
               <option key={s}>{s}</option>
             ))}
           </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+          <input type="checkbox" checked={siteDelivery} onChange={(e) => setSiteDelivery(e.target.checked)} />
+          Delivered straight to a job site (no stock receipt — just tick it delivered)
         </label>
         <label className="flex flex-col gap-1 text-sm">
           P/O number
@@ -594,8 +658,8 @@ export default function PurchaseOrderEditor({
                 <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
                 <th className="px-3 py-2 text-right">Line total</th>
-                <th className="px-3 py-2 text-right">Received multis</th>
-                <th className="px-3 py-2 text-right">Received pks</th>
+                {!siteDelivery && <th className="px-3 py-2 text-right">Received multis</th>}
+                {!siteDelivery && <th className="px-3 py-2 text-right">Received pks</th>}
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -660,7 +724,7 @@ export default function PurchaseOrderEditor({
                     />
                   </td>
                   <td className="px-3 py-2 text-right font-medium">{fmtCurrency(lineTotal(l))}</td>
-                  <td className="px-3 py-2">
+                  {!siteDelivery && <td className="px-3 py-2">
                     <input
                       type="number"
                       step="1"
@@ -668,8 +732,8 @@ export default function PurchaseOrderEditor({
                       value={l.received_multi}
                       onChange={(e) => updateLine(idx, { received_multi: Math.round(Number(e.target.value)) })}
                     />
-                  </td>
-                  <td className="px-3 py-2">
+                  </td>}
+                  {!siteDelivery && <td className="px-3 py-2">
                     <input
                       type="number"
                       step="1"
@@ -677,7 +741,7 @@ export default function PurchaseOrderEditor({
                       value={l.received_pks}
                       onChange={(e) => updateLine(idx, { received_pks: Math.round(Number(e.target.value)) })}
                     />
-                  </td>
+                  </td>}
                   <td className="px-3 py-2 text-right">
                     <button onClick={() => removeLine(idx)} className="text-[var(--muted)] hover:underline">
                       Remove
@@ -687,7 +751,7 @@ export default function PurchaseOrderEditor({
               ))}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={showJobs ? 9 : 8} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={(showJobs ? 9 : 8) - (siteDelivery ? 2 : 0)} className="px-4 py-8 text-center text-[var(--muted)]">
                     No line items yet.
                   </td>
                 </tr>

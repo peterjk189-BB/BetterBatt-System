@@ -183,9 +183,7 @@ export default function WoPurchaseOrder({
     let poNumber = drafts.find((d) => d.id === targetId)?.po_number ?? "";
 
     if (targetId === "new") {
-      const { data, error: insertErr } = await supabase
-        .from("purchase_orders")
-        .insert({
+      const poRow = {
           supplier_id: supplierId,
           status: "Draft",
           order_date: new Date().toISOString().slice(0, 10),
@@ -195,9 +193,11 @@ export default function WoPurchaseOrder({
           delivery_date: form.delivery_date || null,
           delivery_time: form.delivery_time || null,
           notes: noteText || null,
-        })
-        .select()
-        .single();
+        };
+      // Created from a job: delivered straight to site, so no stock receipt (flag needs migration 0073).
+      let ins = await supabase.from("purchase_orders").insert({ ...poRow, site_delivery: true }).select().single();
+      if (ins.error && /site_delivery/.test(ins.error.message)) ins = await supabase.from("purchase_orders").insert(poRow).select().single();
+      const { data, error: insertErr } = ins;
       if (insertErr || !data) {
         setError(insertErr?.message || "Couldn't create the purchase order.");
         setSaving(false);

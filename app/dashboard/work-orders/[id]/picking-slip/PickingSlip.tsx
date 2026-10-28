@@ -46,7 +46,7 @@ export default function PickingSlip({
   reservedByPart,
   onDraft = {},
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
   /** Shortfalls already on a draft purchase order for this job, by part. */
@@ -193,16 +193,11 @@ export default function PickingSlip({
               .eq("id", existing.id);
           }
         } else {
-          const { data: created, error: createErr } = await supabase
-            .from("purchase_orders")
-            .insert({
-              supplier_id: supplierId,
-              status: "Draft",
-              delivery_address: workOrder.address || null,
-              notes: jobNote,
-            })
-            .select("id, po_number")
-            .single();
+          const poRow = { supplier_id: supplierId, status: "Draft", delivery_address: workOrder.address || null, notes: jobNote };
+          // From a job: delivered straight to site, so no stock receipt (flag needs migration 0073).
+          let ins = await supabase.from("purchase_orders").insert({ ...poRow, site_delivery: true }).select("id, po_number").single();
+          if (ins.error && /site_delivery/.test(ins.error.message)) ins = await supabase.from("purchase_orders").insert(poRow).select("id, po_number").single();
+          const { data: created, error: createErr } = ins;
           if (createErr || !created) throw new Error(createErr?.message || "Couldn't create the purchase order.");
           poId = created.id;
           poNumber = created.po_number || "PO";
@@ -340,6 +335,11 @@ export default function PickingSlip({
           <input type="checkbox" checked={supplierMode} onChange={(e) => setSupplierDelivery(e.target.checked)} />
           Supplier delivery — order everything from the supplier (nothing picked from stock)
         </label>
+        {workOrder.materialsDeliveredAt && (
+          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+            Materials delivered {new Date(workOrder.materialsDeliveredAt).toLocaleDateString("en-AU")}
+          </span>
+        )}
         {supplierMode && (
           <button
             onClick={orderAllFromSupplier}
