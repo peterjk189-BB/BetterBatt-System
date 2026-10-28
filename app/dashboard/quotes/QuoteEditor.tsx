@@ -264,7 +264,9 @@ export default function QuoteEditor({
     suburb: project?.suburb || prefill?.suburb || "",
     entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
     notes: project?.notes || "",
-    quote_markup: project?.quote_markup ?? 0,
+    // Saved markup includes the travel allowance (so every quote view/total picks it up); take it back out for editing.
+    quote_markup:
+      Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0)) * 100) / 100,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
     price_tier: project ? project.price_tier || "" : "retail", // new supply-only quotes price from Retail by default
   });
@@ -440,7 +442,8 @@ export default function QuoteEditor({
   );
   const adjustmentAmount =
     adjustMode === "percent" ? Math.round(chargeBeforeMarkup * (adjustPercent / 100) * 100) / 100 : Number(form.quote_markup || 0);
-  const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount;
+  // The customer pays for travel: it is folded into the price (like a markup), never shown as a line.
+  const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount + travelTotal;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
   const acceptedSubForProfit = optionKeys.filter((k) => optAccepted.includes(k)).reduce((a, k) => a + optionTotals[k].sub, 0);
@@ -479,7 +482,7 @@ export default function QuoteEditor({
       suburb: form.suburb || null,
       entry_date: form.entry_date,
       notes: form.notes || null,
-      quote_markup: adjustmentAmount,
+      quote_markup: Math.round((adjustmentAmount + travelTotal) * 100) / 100,
       show_qty_on_quote: form.show_qty_on_quote,
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
       // Only sent when options are in use, so quotes still save before the option columns exist.
@@ -1185,7 +1188,7 @@ export default function QuoteEditor({
             }}
           />
           <span>Travel allowance for the contractor</span>
-          <span className="font-normal text-[var(--muted)]">(internal only — added to the contractor&apos;s labour cost, not shown on the quote)</span>
+          <span className="font-normal text-[var(--muted)]">(not shown as a line on the quote: the customer pays it through the quote total, and it is added to the contractor&apos;s labour cost)</span>
         </label>
         {travelOn && (
           <div className="mt-3 flex flex-col gap-2">
@@ -1325,10 +1328,11 @@ export default function QuoteEditor({
         </div>
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
-          <div className={`text-lg font-semibold ${adjustmentAmount < 0 ? "text-red-700" : ""}`}>
-            {adjustmentAmount >= 0 ? "+" : ""}
-            {fmtCurrency(adjustmentAmount)}
+          <div className={`text-lg font-semibold ${adjustmentAmount + travelTotal < 0 ? "text-red-700" : ""}`}>
+            {adjustmentAmount + travelTotal >= 0 ? "+" : ""}
+            {fmtCurrency(adjustmentAmount + travelTotal)}
           </div>
+          {travelTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal)} travel</div>}
         </div>
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Subtotal (ex GST)</div>
