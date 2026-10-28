@@ -586,6 +586,64 @@ export default function CalendarView({
     return map;
   }, [woLines, pos, visits, inspections, crmTasks, stockDeliveries, invoiceDeliveries, movedDates, movedWo]);
 
+  // ---- Day sheet: all of one contractor's jobs for a date, emailed as one PDF ----
+  const [ds, setDs] = useState<{ sub: string; date: string; to: string; message: string; copyMe: boolean } | null>(null);
+  const [dsInfo, setDsInfo] = useState<{ jobs: { wo: string; site: string; customer: string; m2: number }[]; heldBack: string[]; to: string[] } | null>(null);
+  const [dsLoading, setDsLoading] = useState(false);
+  const [dsBusy, setDsBusy] = useState(false);
+  const [dsMsg, setDsMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const dsContractors = awayPeople.filter((p) => p.group === "Contractors").map((p) => ({ id: p.key.replace(/^s:/, ""), name: p.name }));
+  function openDaySheet() {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    setDsInfo(null);
+    setDsMsg(null);
+    setDs({ sub: "", date: toDateOnly(t), to: "", message: "", copyMe: true });
+  }
+  useEffect(() => {
+    if (!ds?.sub || !ds.date) {
+      setDsInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setDsLoading(true);
+    setDsMsg(null);
+    fetch(`/api/work-orders/day-sheet?sub=${ds.sub}&date=${ds.date}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled) return;
+        if (j.error) {
+          setDsInfo(null);
+          setDsMsg({ ok: false, text: j.error });
+        } else {
+          setDsInfo(j);
+          setDs((cur) => (cur ? { ...cur, to: (j.to || []).join(", ") } : cur));
+        }
+      })
+      .catch(() => !cancelled && setDsMsg({ ok: false, text: "Couldn't load that day." }))
+      .finally(() => !cancelled && setDsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [ds?.sub, ds?.date]);
+  async function sendDaySheet() {
+    if (!ds) return;
+    setDsBusy(true);
+    setDsMsg(null);
+    try {
+      const r = await fetch("/api/work-orders/day-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sub: ds.sub, date: ds.date, to: ds.to, message: ds.message, copyMe: ds.copyMe }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setDsMsg({ ok: false, text: j.error || "Couldn't send." });
+      else setDsMsg({ ok: true, text: `Sent ${j.jobs} job${j.jobs === 1 ? "" : "s"} as one PDF to ${(j.to || []).join(", ")}.` });
+    } finally {
+      setDsBusy(false);
+    }
+  }
+
   // ---- Time away (holidays, appointments) ----
   const [awayEdit, setAwayEdit] = useState<
     null | { id: string | null; who: string; kind: string; from: string; to: string; start: string; end: string; note: string }
@@ -686,6 +744,14 @@ export default function CalendarView({
             >
               + Add site visit
             </Link>
+          )}
+          {!installerNote && dsContractors.length > 0 && (
+            <button
+              onClick={openDaySheet}
+              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:border-accent"
+            >
+              Email day sheet
+            </button>
           )}
           {!installerNote && awayPeople.length > 0 && (
             <button
@@ -1041,6 +1107,87 @@ export default function CalendarView({
           );
         })}
       </div>
+
+      {ds && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setDs(null)}>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl border border-[var(--border)] bg-white p-5 text-black shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold">Email a contractor their day</h2>
+            <p className="mt-1 text-xs text-gray-600">All of one contractor&apos;s authorised jobs for a date, sent as one PDF.</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <label className="flex flex-col gap-1">
+                Contractor
+                <select value={ds.sub} onChange={(e) => setDs({ ...ds, sub: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2">
+                  <option value="">Select…</option>
+                  {dsContractors.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">
+                Date
+                <input type="date" value={ds.date} onChange={(e) => setDs({ ...ds, date: e.target.value })} className="rounded-lg border border-gray-300 px-3 py-2" />
+              </label>
+            </div>
+            {ds.sub && (
+              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
+                {dsLoading && <div className="text-gray-500">Loading…</div>}
+                {!dsLoading && dsInfo && dsInfo.jobs.length === 0 && <div className="text-gray-600">No authorised jobs for this contractor on that date.</div>}
+                {!dsLoading && dsInfo && dsInfo.jobs.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {dsInfo.jobs.map((j) => (
+                      <li key={j.wo}>
+                        <b>{j.wo}</b> — {j.site || "No address"} <span className="text-gray-500">· {j.m2} m²</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!dsLoading && dsInfo && dsInfo.heldBack.length > 0 && (
+                  <div className="mt-2 text-xs font-medium text-amber-700">
+                    Not included (not authorised yet): {dsInfo.heldBack.join(", ")}
+                  </div>
+                )}
+              </div>
+            )}
+            {dsInfo && dsInfo.jobs.length > 0 && (
+              <div className="mt-3 flex flex-col gap-3 text-sm">
+                <label className="flex flex-col gap-1">
+                  Send to
+                  <input value={ds.to} onChange={(e) => setDs({ ...ds, to: e.target.value })} placeholder="No email on file — type one" className="rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="flex flex-col gap-1">
+                  Message (optional)
+                  <textarea value={ds.message} onChange={(e) => setDs({ ...ds, message: e.target.value })} rows={2} className="rounded-lg border border-gray-300 px-3 py-2" />
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={ds.copyMe} onChange={(e) => setDs({ ...ds, copyMe: e.target.checked })} />
+                  Send me a copy
+                </label>
+              </div>
+            )}
+            {dsMsg && <p className={`mt-3 text-sm ${dsMsg.ok ? "text-green-700" : "text-red-600"}`}>{dsMsg.text}</p>}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <button
+                onClick={sendDaySheet}
+                disabled={dsBusy || !dsInfo || dsInfo.jobs.length === 0 || !ds.to.trim()}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {dsBusy ? "Sending…" : "Email PDF"}
+              </button>
+              {dsInfo && dsInfo.jobs.length > 0 && (
+                <a
+                  href={`/api/work-orders/day-sheet?sub=${ds.sub}&date=${ds.date}&pdf=1`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm"
+                >
+                  Preview / download PDF
+                </a>
+              )}
+              <button onClick={() => setDs(null)} className="ml-auto rounded-lg border border-gray-300 px-4 py-2 text-sm">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {awayEdit && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setAwayEdit(null)}>
