@@ -25,7 +25,7 @@ export default function Calculator({ parts }: { parts: Part[] }) {
   const [tier, setTier] = useState<string>("retail");
   const [rows, setRows] = useState<Row[]>([blankRow(1)]);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
-  const [wasteOn, setWasteOn] = useState(true);
+  const [wasteOn, setWasteOn] = useState(false);
   const [wastePct, setWastePct] = useState("5");
 
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
