@@ -27,6 +27,7 @@ export default function Calculator({ parts }: { parts: Part[] }) {
   const [wastePct, setWastePct] = useState("5");
   const [search, setSearch] = useState("");
   const [partId, setPartId] = useState("");
+  const [open, setOpen] = useState(false);
   const [list, setList] = useState<Item[]>([]);
 
   const partById = useMemo(() => Object.fromEntries(parts.map((p) => [p.id, p])), [parts]);
@@ -128,22 +129,45 @@ export default function Calculator({ parts }: { parts: Part[] }) {
             ))}
           </div>
         </div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="relative mt-3">
           <label className={lab}>
-            Find a product
-            <input className={inp} placeholder="e.g. wall R2.5 430" value={search} onChange={(e) => setSearch(e.target.value)} />
+            Product — type to search (e.g. wall R2.5 430), then click the one you want
+            <input
+              className={inp}
+              placeholder="Start typing a product name…"
+              value={search}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setOpen(false)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setOpen(true);
+                if (partId && e.target.value !== partById[partId]?.name) setPartId("");
+              }}
+            />
           </label>
-          <label className={lab}>
-            Product ({filtered.length})
-            <select className={inp} value={partId} onChange={(e) => setPartId(e.target.value)}>
-              <option value="">Select a product…</option>
-              {filtered.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
+          {open && (
+            <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+              {filtered.slice(0, 40).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setPartId(p.id);
+                    setSearch(p.name);
+                    setOpen(false);
+                  }}
+                  className="flex w-full items-center justify-between gap-3 border-b border-[var(--border)] px-3 py-2 text-left text-sm last:border-b-0 hover:bg-[#f2f0ec]"
+                >
+                  <span>{p.name}</span>
+                  <span className="whitespace-nowrap text-xs text-[var(--muted)]">{p.coverage_m2} m²/pack</span>
+                </button>
               ))}
-            </select>
-          </label>
+              {filtered.length === 0 && <div className="px-3 py-3 text-sm text-[var(--muted)]">No product matches “{search}”.</div>}
+              {filtered.length > 40 && <div className="px-3 py-2 text-xs text-[var(--muted)]">Showing 40 of {filtered.length} — keep typing to narrow it down.</div>}
+            </div>
+          )}
+          {part && !open && <p className="mt-1 text-xs text-[var(--muted)]">Selected: {part.name}</p>}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
