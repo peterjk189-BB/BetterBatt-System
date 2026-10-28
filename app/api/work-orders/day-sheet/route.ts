@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
+const fileName = (name: string, date: string) => `${date.split("-").reverse().join("-")} Day sheet - ${name}.pdf`;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const splitEmails = (v: unknown) =>
   (typeof v === "string" ? v : "")
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
 
   if (sp.get("pdf") === "1") {
     const bytes = await buildDaySheetPdf(ds);
-    const name = `Day sheet - ${ds.contractorName} - ${date}.pdf`;
+    const name = fileName(ds.contractorName, date);
     return new NextResponse(Buffer.from(bytes), {
       headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${name}"` },
     });
@@ -96,7 +97,7 @@ export async function POST(req: Request) {
       buttonText: "Open job schedule",
       buttonUrl: `${siteUrl()}/dashboard/calendar`,
     }),
-    attachments: [{ filename: `Day sheet - ${ds.contractorName} - ${date}.pdf`, content: Buffer.from(bytes).toString("base64") }],
+    attachments: [{ filename: fileName(ds.contractorName, date), content: Buffer.from(bytes).toString("base64") }],
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
   return NextResponse.json({ ok: true, to: recipients, jobs: ds.jobs.length });
