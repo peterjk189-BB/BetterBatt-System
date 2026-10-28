@@ -884,6 +884,7 @@ export default function CalendarView({
                                 onClick={() => openAway(a)}
                                 title={`${who} — ${a.kind}${times ? " " + times : ""}${a.note ? " — " + a.note : ""} (click to edit)`}
                                 className={`block w-full rounded border px-1.5 py-1 text-left text-[11px] leading-tight ${AWAY_STYLE[a.kind] || AWAY_STYLE.Other}`}
+                                style={a.kind === "Closed" ? undefined : { color: "#201f1c" }}
                               >
                                 <div className="truncate font-medium">
                                   {a.kind === "Closed" ? "CLOSED — nothing to be booked" : `${who.split(" ")[0]} · ${a.kind}`}
