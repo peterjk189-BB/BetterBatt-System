@@ -3,7 +3,7 @@ import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 import { lineRate } from "@/lib/woRate";
 import { woLinePacks } from "@/lib/picking";
 
-export type DayLine = { product: string; note: string; qty: number; packs: number | null; cost: number };
+export type DayLine = { time: string; product: string; note: string; qty: number; packs: number | null; cost: number };
 export type DayJob = {
   woId: string;
   woNumber: string;
@@ -13,6 +13,8 @@ export type DayJob = {
   notes: string;
   jsa: boolean;
   lines: DayLine[];
+  /** Earliest start time on the day (HH:MM), if any line has one. */
+  time: string;
   m2: number;
   total: number;
 };
@@ -44,7 +46,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
   const { data: rows } = await supabase
     .from("work_order_lines")
     .select(
-      "id, task_date, qty, note, rate, sort_order, subcontractor_id, work_order_id, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item), labour_items(code, description, contractor_rate), work_orders(*, projects(quote_number, lot_no, address, suburb, customers(name)))"
+      "*, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item), labour_items(code, description, contractor_rate), work_orders(*, projects(quote_number, lot_no, address, suburb, customers(name)))"
     )
     .eq("task_date", date)
     .order("sort_order");
@@ -75,6 +77,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
         notes: (wo.notes || "").trim(),
         jsa: !!wo.jsa_received,
         lines: [],
+        time: "",
         m2: 0,
         total: 0,
       };
@@ -83,7 +86,10 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
     const rate = lineRate(r.rate, r.labour_items?.contractor_rate, r.parts?.installer_rate_per_m2);
     const qty = Number(r.qty) || 0;
     const cost = qty * rate;
+    const t = ((r.task_time as string | null) || "").slice(0, 5);
+    if (t && (!job.time || t < job.time)) job.time = t;
     job.lines.push({
+      time: t,
       product: r.parts?.name || r.labour_items?.description || "—",
       note: r.note || "",
       qty,
@@ -93,7 +99,12 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
     job.m2 += qty;
     job.total += cost;
   }
-  const jobs = Array.from(byWo.values()).sort((a, b) => a.woNumber.localeCompare(b.woNumber, undefined, { numeric: true }));
+  // Time order: earliest start first; jobs with no time set go last (then by work order number).
+  const jobs = Array.from(byWo.values()).sort((a, b) => {
+    if (a.time !== b.time) return !a.time ? 1 : !b.time ? -1 : a.time.localeCompare(b.time);
+    return a.woNumber.localeCompare(b.woNumber, undefined, { numeric: true });
+  });
+  for (const j of jobs) j.lines.sort((a, b) => (!a.time ? 1 : !b.time ? -1 : a.time.localeCompare(b.time)));
   return {
     contractorId: sub.id,
     contractorName: sub.name,
@@ -185,7 +196,7 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
   };
   for (const j of ds.jobs) {
     const site = doc.splitTextToSize(`${j.site || "—"}${j.customer ? "  ·  " + j.customer : ""}`, R - M - 34) as string[];
-    const headH = 5 + site.length * 4.2 + 2;
+    const headH = Math.max(5 + site.length * 4.2 + 2, j.time ? 12 : 0);
     if (y + headH + 12 > H - 18) newPage();
     // job header strip
     doc.setFillColor(...GREY);
@@ -194,6 +205,12 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
     doc.setFontSize(10);
     doc.setTextColor(0);
     doc.text(j.woNumber, M + 3, y + 5);
+    if (j.time) {
+      const [hh, mm] = j.time.split(":");
+      const h = Number(hh);
+      doc.setFontSize(8.5);
+      doc.text(`${h % 12 === 0 ? 12 : h % 12}:${mm} ${h >= 12 ? "PM" : "AM"}`, M + 3, y + 9.4);
+    }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
     doc.setTextColor(55, 65, 81);
@@ -204,7 +221,7 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
     y += headH + 1.5;
     for (const l of j.lines) {
       const prod = doc.splitTextToSize(l.product, 64) as string[];
-      const note = doc.splitTextToSize(l.note || "", 58) as string[];
+      const note = doc.splitTextToSize(l.note || "", 50) as string[];
       const rows = Math.max(prod.length, note.length, 1);
       if (y + rows * 4 + 2 > H - 18) newPage();
       doc.setFont("helvetica", "normal");
