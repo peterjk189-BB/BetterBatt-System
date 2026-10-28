@@ -50,7 +50,7 @@ export default async function NewWorkOrderPage({
     const [{ data: project }, { data: allLines }, excluded] = await Promise.all([
       supabase
         .from("projects")
-        .select("id, quote_number, job_type, quote_markup, price_tier")
+        .select("*")
         .eq("id", searchParams.project_id)
         .single(),
       supabase.from("project_lines").select("id, part_id, qty_m2, note").eq("project_id", searchParams.project_id),
@@ -66,11 +66,17 @@ export default async function NewWorkOrderPage({
         project_id: project.id,
         wo_number: `QW${project.quote_number}`,
         po_value: Math.round(total * 100) / 100,
-        lines: nonDeliveryLines.map((l) => ({
-          part_id: l.part_id,
-          qty: l.qty_m2,
-          note: l.note,
-        })),
+        lines: [
+          ...nonDeliveryLines.map((l) => ({
+            part_id: l.part_id,
+            qty: l.qty_m2,
+            note: l.note,
+          })),
+          // Internal travel allowance from the quote: a contractor-pay line (1 x the amount), never on the customer's quote.
+          ...(((project as any).travel_allowance ?? []) as { note?: string; amount?: number }[])
+            .filter((t) => Number(t.amount))
+            .map((t) => ({ part_id: null, qty: 1, rate: Number(t.amount), note: t.note ? `Travel allowance — ${t.note}` : "Travel allowance" })),
+        ],
       };
     }
   }

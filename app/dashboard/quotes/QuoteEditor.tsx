@@ -57,6 +57,7 @@ type Project = {
   option_titles?: Record<string, string> | null;
   option_accepted?: string[] | null;
   option_adjust?: Record<string, number> | null;
+  travel_allowance?: { note: string; amount: number }[] | null;
 };
 
 type Line = {
@@ -297,6 +298,11 @@ export default function QuoteEditor({
   const [optionKeys, setOptionKeys] = useState<string[]>(() => usedOptionKeys(lineItems, project?.option_titles));
   const [optTitles, setOptTitles] = useState<Record<string, string>>(project?.option_titles ?? {});
   const [optAccepted, setOptAccepted] = useState<string[]>(project?.option_accepted ?? []);
+  // Internal travel allowance: contractor cost only, never shown to the customer. Tick the box, then add amounts.
+  const [travel, setTravel] = useState<{ note: string; amount: string }[]>(() =>
+    (project?.travel_allowance ?? []).map((t) => ({ note: t.note || "", amount: Number(t.amount) ? String(t.amount) : "" }))
+  );
+  const [travelOn, setTravelOn] = useState((project?.travel_allowance ?? []).length > 0);
   // Per-option discount/markup. Entered as $ or %, saved as a $ amount per option (option_adjust).
   const [optAdjMode, setOptAdjMode] = useState<Record<string, "amount" | "percent">>({});
   const [optAdjText, setOptAdjText] = useState<Record<string, string>>(() =>
@@ -307,7 +313,7 @@ export default function QuoteEditor({
   const [error, setError] = useState<string | null>(null);
 
   // Auto-save (existing quotes only): a few seconds after you stop typing, changes are saved quietly.
-  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted, optAdjMode, optAdjText]);
+  const snapshot = JSON.stringify([form, lineItems, optionKeys, optTitles, optAccepted, optAdjMode, optAdjText, travel, travelOn]);
   const [savedSnap, setSavedSnap] = useState(snapshot);
   const saveRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
   const savingRef = useRef(false);
@@ -417,7 +423,8 @@ export default function QuoteEditor({
   // Costs cover the main quote plus any option the customer has accepted (ticked "Accepted").
   const costLines = computedLines.filter((l) => !l.option_key || optAccepted.includes(l.option_key));
   const materialCost = costLines.reduce((s, l) => s + l.materialCost, 0);
-  const labourCost = isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0);
+  const travelTotal = travelOn ? travel.reduce((a, t) => a + (Number(t.amount) || 0), 0) : 0;
+  const labourCost = (isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0)) + travelTotal;
   const chargeBeforeMarkup = mainLines.reduce((s, l) => s + l.grossCharge, 0);
   const customerDiscountTotal = mainLines.reduce((s, l) => s + l.discountAmount, 0);
   // Per-option totals (customer discount applies; the flat discount/markup above is main-quote only).
@@ -478,6 +485,10 @@ export default function QuoteEditor({
       // Only sent when options are in use, so quotes still save before the option columns exist.
       ...(optionKeys.length > 0 || project?.option_titles || project?.option_accepted?.length
         ? { option_titles: optTitles, option_accepted: optAccepted.filter((k) => optionKeys.includes(k)) }
+        : {}),
+      // Travel allowance needs migration 0072; only sent once used (or already present).
+      ...(travelOn || project?.travel_allowance
+        ? { travel_allowance: travelOn ? travel.filter((t) => Number(t.amount)).map((t) => ({ note: t.note.trim(), amount: Number(t.amount) })) : [] }
         : {}),
       // Option adjustments need migration 0070; only sent once used (or already present) so saving still works before it is run.
       ...(optionKeys.some((k) => optionTotals[k].adj) || project?.option_adjust
@@ -1162,6 +1173,66 @@ export default function QuoteEditor({
         )}
       </div>
 
+      {/* Travel allowance (internal) */}
+      <div className="mt-6 rounded-xl border border-[var(--border)] p-5">
+        <label className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={travelOn}
+            onChange={(e) => {
+              setTravelOn(e.target.checked);
+              if (e.target.checked && travel.length === 0) setTravel([{ note: "", amount: "" }]);
+            }}
+          />
+          <span>Travel allowance for the contractor</span>
+          <span className="font-normal text-[var(--muted)]">(internal only — added to the contractor&apos;s labour cost, not shown on the quote)</span>
+        </label>
+        {travelOn && (
+          <div className="mt-3 flex flex-col gap-2">
+            {travel.map((t, i) => (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <input
+                  className="min-w-[14rem] flex-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
+                  placeholder="e.g. Travel to Yea (approx. 90 km)"
+                  value={t.note}
+                  onChange={(e) => setTravel((prev) => prev.map((x, k) => (k === i ? { ...x, note: e.target.value } : x)))}
+                />
+                <div className="flex items-center gap-1 text-sm">
+                  $
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5 text-right"
+                    placeholder="0.00"
+                    value={t.amount}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (/^\d*\.?\d{0,2}$/.test(v)) setTravel((prev) => prev.map((x, k) => (k === i ? { ...x, amount: v } : x)));
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTravel((prev) => prev.filter((_, k) => k !== i))}
+                  className="text-sm text-[var(--muted)] hover:underline"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button type="button" onClick={() => setTravel((prev) => [...prev, { note: "", amount: "" }])} className="text-sm text-accent hover:underline">
+                + Add travel amount
+              </button>
+              <span className="text-sm text-[var(--muted)]">
+                Travel total: <span className="font-semibold text-[var(--text)]">{fmtCurrency(travelTotal)}</span>
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Discount / markup */}
       <div className="mt-6 rounded-xl border border-[var(--border)] p-5">
         <div className="flex items-center justify-between">
@@ -1296,6 +1367,7 @@ export default function QuoteEditor({
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Labour cost</div>
               <div className="font-medium">{fmtCurrency(labourCost)}</div>
+              {travelTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal)} travel</div>}
             </div>
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Profit</div>
