@@ -690,7 +690,7 @@ export default function CalendarView({
           {!installerNote && awayPeople.length > 0 && (
             <button
               onClick={() => openAway()}
-              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium hover:border-accent"
+              className="rounded-lg bg-[var(--brand-gold)] px-3 py-1.5 text-sm font-bold text-[#201f1c] hover:brightness-95"
             >
               + Add time away
             </button>
