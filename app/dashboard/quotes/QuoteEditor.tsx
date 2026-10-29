@@ -275,7 +275,7 @@ export default function QuoteEditor({
     contractor_notes: project?.contractor_notes || "",
     // Saved markup includes the travel allowance (so every quote view/total picks it up); take it back out for editing.
     quote_markup:
-      Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0)) * 100) / 100,
+      Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0) - (Number(project?.non_compliance_fee?.amount) || 0)) * 100) / 100,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
     price_tier: project ? project.price_tier || "" : prefill?.price_tier || "retail", // new supply-only quotes price from Retail by default
   });
@@ -314,7 +314,7 @@ export default function QuoteEditor({
     (project?.travel_allowance ?? []).map((t) => ({ note: t.note || "", amount: Number(t.amount) ? String(t.amount) : "" }))
   );
   const [travelOn, setTravelOn] = useState((project?.travel_allowance ?? []).length > 0);
-  // Non-compliance fee: work order only. Not on the quote and not added to the customer's total.
+  // Non-compliance fee: not a visible line; folded into the quote total (like travel) and carried onto the work order.
   const [ncOn, setNcOn] = useState(!!project?.non_compliance_fee && Number(project.non_compliance_fee.amount) > 0);
   const [ncNote, setNcNote] = useState(project?.non_compliance_fee?.note || "");
   const [ncAmount, setNcAmount] = useState(Number(project?.non_compliance_fee?.amount) ? String(project?.non_compliance_fee?.amount) : "");
@@ -457,7 +457,7 @@ export default function QuoteEditor({
   const adjustmentAmount =
     adjustMode === "percent" ? Math.round(chargeBeforeMarkup * (adjustPercent / 100) * 100) / 100 : Number(form.quote_markup || 0);
   // The customer pays for travel: it is folded into the price (like a markup), never shown as a line.
-  const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount + travelTotal;
+  const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount + travelTotal + ncTotal;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
   const acceptedSubForProfit = optionKeys.filter((k) => optAccepted.includes(k)).reduce((a, k) => a + optionTotals[k].sub, 0);
@@ -498,7 +498,7 @@ export default function QuoteEditor({
       notes: form.notes || null,
       // Contractor notes need migration 0074; only sent when used (or already present) so saving still works before it is run.
       ...(form.contractor_notes.trim() || project?.contractor_notes !== undefined ? { contractor_notes: form.contractor_notes.trim() || null } : {}),
-      quote_markup: Math.round((adjustmentAmount + travelTotal) * 100) / 100,
+      quote_markup: Math.round((adjustmentAmount + travelTotal + ncTotal) * 100) / 100,
       show_qty_on_quote: form.show_qty_on_quote,
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
       // Only sent when options are in use, so quotes still save before the option columns exist.
@@ -1274,7 +1274,7 @@ export default function QuoteEditor({
         <label className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <input type="checkbox" checked={ncOn} onChange={(e) => setNcOn(e.target.checked)} />
           <span>Non-compliance fee</span>
-          <span className="font-normal text-[var(--muted)]">(work order only: not shown on the quote and not added to the customer&apos;s total; it is added to the contractor&apos;s labour cost)</span>
+          <span className="font-normal text-[var(--muted)]">(not shown as a line on the quote: it is included in the quote total, and added to the contractor&apos;s labour cost and the work order)</span>
         </label>
         {ncOn && (
           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1395,11 +1395,11 @@ export default function QuoteEditor({
         </div>
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
-          <div className={`text-lg font-semibold ${adjustmentAmount + travelTotal < 0 ? "text-red-700" : ""}`}>
-            {adjustmentAmount + travelTotal >= 0 ? "+" : ""}
-            {fmtCurrency(adjustmentAmount + travelTotal)}
+          <div className={`text-lg font-semibold ${adjustmentAmount + travelTotal + ncTotal < 0 ? "text-red-700" : ""}`}>
+            {adjustmentAmount + travelTotal + ncTotal >= 0 ? "+" : ""}
+            {fmtCurrency(adjustmentAmount + travelTotal + ncTotal)}
           </div>
-          {travelTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal)} travel</div>}
+          {travelTotal + ncTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal + ncTotal)} travel/fees</div>}
         </div>
         <div>
           <div className="text-xs uppercase text-[var(--muted)]">Subtotal (ex GST)</div>
@@ -1438,7 +1438,7 @@ export default function QuoteEditor({
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Labour cost</div>
               <div className="font-medium">{fmtCurrency(labourCost)}</div>
-              {travelTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal)} travel</div>}
+              {travelTotal + ncTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal + ncTotal)} travel/fees</div>}
             </div>
             <div>
               <div className="text-xs uppercase text-[var(--muted)]">Profit</div>
