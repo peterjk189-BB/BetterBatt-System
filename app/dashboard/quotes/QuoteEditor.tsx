@@ -460,6 +460,24 @@ export default function QuoteEditor({
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + adjustmentAmount + travelTotal + ncTotal;
   const gst = subtotal * 0.1;
   const total = subtotal + gst;
+  // Round the total (inc GST): work out the dollar adjustment that lands the total on a target, and put it in the adjustment box.
+  const [targetText, setTargetText] = useState("");
+  function setTotalTo(target: number) {
+    if (!(target > 0)) return;
+    const base = subtotal - adjustmentAmount;
+    const ideal = Math.round((target / 1.1 - base) * 100);
+    let adj = ideal / 100;
+    for (const k of [0, 1, -1, 2, -2]) {
+      const c = (ideal + k) / 100;
+      if (Math.round((base + c) * 1.1 * 100) === Math.round(target * 100)) {
+        adj = c;
+        break;
+      }
+    }
+    setAdjustMode("amount");
+    setMarkupText(adj ? String(adj) : "");
+    setForm({ ...form, quote_markup: adj });
+  }
   const acceptedSubForProfit = optionKeys.filter((k) => optAccepted.includes(k)).reduce((a, k) => a + optionTotals[k].sub, 0);
   const profitRevenue = subtotal + acceptedSubForProfit;
   const profit = profitRevenue - materialCost - labourCost;
@@ -1376,6 +1394,55 @@ export default function QuoteEditor({
             = <span className="font-medium text-[var(--text)]">{fmtCurrency(adjustmentAmount)}</span>{" "}
             {adjustmentAmount >= 0 ? "markup" : "discount"}
           </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3 text-sm">
+          <span className="font-medium">Round the total (inc GST):</span>
+          {[
+            { label: "Down to $10", step: 10, mode: "down" },
+            { label: "Nearest $10", step: 10, mode: "near" },
+            { label: "Down to $50", step: 50, mode: "down" },
+            { label: "Nearest $50", step: 50, mode: "near" },
+            { label: "Nearest $100", step: 100, mode: "near" },
+          ].map((b) => (
+            <button
+              key={b.label}
+              type="button"
+              onClick={() => {
+                // Work from the total before any rounding adjustment of this kind, so pressing again doesn't compound.
+                const t = Math.round(total * 100) / 100;
+                const r = b.mode === "down" ? Math.floor(t / b.step + 1e-9) * b.step : Math.round(t / b.step) * b.step;
+                setTotalTo(r);
+              }}
+              className="rounded-lg border border-[var(--border)] px-3 py-1 hover:border-accent"
+            >
+              {b.label}
+            </button>
+          ))}
+          <span className="text-[var(--muted)]">or set it to $</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="e.g. 950"
+            className="w-28 rounded-lg border border-[var(--border)] px-3 py-1 text-right"
+            value={targetText}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => {
+              if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setTargetText(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                setTotalTo(Number(targetText));
+              }
+            }}
+          />
+          <button type="button" onClick={() => setTotalTo(Number(targetText))} className="rounded-lg bg-accent px-3 py-1 font-medium text-white">
+            Set
+          </button>
+          <span className="w-full text-xs text-[var(--muted)]">
+            Total now {fmtCurrency(total)}. This fills in the adjustment above so the total including GST comes out exactly.
+          </span>
         </div>
       </div>
 
