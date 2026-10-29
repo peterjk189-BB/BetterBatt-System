@@ -37,6 +37,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [custName, setCustName] = useState("");
   const [discText, setDiscText] = useState<string | null>(null);
   const [poNumbers, setPoNumbers] = useState<Record<string, string>>(initialPoNumbers);
+  const [payEdit, setPayEdit] = useState(false);
   const [deliveryMsg, setDeliveryMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fulfilMsg, setFulfilMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
@@ -45,6 +46,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const paid = paidTotal(payments);
   const status = derivedStatus(inv, paid);
   const balance = Math.max(0, round2(inv.total - paid));
+  // Paid in full: recording or removing payments is hidden until "Edit payments" (or Edit) is used.
+  const payLocked = balance <= 0 && payments.length > 0 && !payEdit && !editCust;
 
   const hasLines = lines.length > 0;
   // false until migration 0052 has been run in Supabase
@@ -739,12 +742,19 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                   <span>{fmtDate(p.paid_on)} · {p.method || "—"}{p.reference ? ` · ${p.reference}` : ""}</span>
                   <span className="flex items-center gap-3">
                     <b>{money(p.amount)}</b>
-                    <button onClick={() => removePayment(p)} className="text-xs text-red-700 underline">Remove</button>
+                    {!payLocked && <button onClick={() => removePayment(p)} className="text-xs text-red-700 underline">Remove</button>}
                   </span>
                 </li>
               ))}
             </ul>
           )}
+          {payLocked ? (
+            <p className="mt-3 text-sm">
+              <span className="font-semibold text-green-700">Paid in full.</span>{" "}
+              <button onClick={() => setPayEdit(true)} className="text-xs text-[var(--muted)] underline">Edit payments</button>
+            </p>
+          ) : (
+          <>
           <div className="mt-3 grid gap-2 sm:grid-cols-5">
             <input type="date" className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" value={pay.date} onChange={(e) => setPay({ ...pay, date: e.target.value })} />
             <input className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" inputMode="decimal" placeholder={`Amount (${balance.toFixed(2)})`} value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} />
@@ -755,6 +765,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             <button onClick={addPayment} disabled={busy === "pay"} className="rounded-lg bg-[#201f1c] px-3 py-2 text-sm font-medium text-white disabled:opacity-60">Record payment</button>
           </div>
           {balance > 0 && <button onClick={() => setPay({ ...pay, amount: balance.toFixed(2) })} className="mt-2 text-xs text-accent underline">Fill the full balance</button>}
+          </>
+          )}
         </div>
       )}
         </div>
