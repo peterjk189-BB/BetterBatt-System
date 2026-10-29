@@ -512,7 +512,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-[var(--muted)]">
-                <tr><th className="min-w-[22rem] py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount ex GST</th><th className="w-28 px-2 text-right">Amount inc GST</th>{hasFulfilCols && <th className="w-52 px-2">From</th>}<th></th></tr>
+                <tr><th className="min-w-[22rem] py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-32 px-2">Pack price inc GST</th><th className="w-28 px-2 text-right">Amount ex GST</th>{hasFulfilCols && <th className="w-52 px-2">From</th>}<th></th></tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
@@ -524,10 +524,9 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                       {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={l.qty} onBlur={(e) => Number(e.target.value) !== Number(l.qty) && changeLine(l, { qty: Number(e.target.value) || 0 })} /> : l.qty}
                     </td>
                     <td className="px-2">
-                      {draft ? <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={l.unit_price} onBlur={(e) => Number(e.target.value) !== Number(l.unit_price) && changeLine(l, { unit_price: Number(e.target.value) || 0 })} /> : money(l.unit_price)}
+                      {draft ? <input key={`${l.id}-${l.unit_price}`} className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" inputMode="decimal" defaultValue={round2(Number(l.unit_price) * 1.1).toFixed(2)} onBlur={(e) => { const inc = Number(e.target.value) || 0; if (round2(inc) !== round2(Number(l.unit_price) * 1.1)) changeLine(l, { unit_price: round4(inc / 1.1) }); }} /> : money(round2(Number(l.unit_price) * 1.1))}
                     </td>
                     <td className="px-2 text-right">{money(l.line_ex)}</td>
-                    <td className="px-2 text-right font-medium">{money(round2(Number(l.line_ex || 0) * 1.1))}</td>
                     {hasFulfilCols && (
                       <td className="px-2">
                         {isStockLine(l) ? (
