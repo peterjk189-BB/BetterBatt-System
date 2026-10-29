@@ -36,7 +36,7 @@ export type Payment = { id: string; invoice_id: string; paid_on: string; amount:
 
 export const KINDS = ["Deposit", "Balance", "Full", "Progress", "Other", "Items"] as const;
 
-export type InvoiceLine = { id: string; invoice_id: string; part_id: string | null; description: string; qty: number; unit_price: number; line_ex: number; sort_order: number; fulfilment?: "warehouse" | "supplier"; picked?: boolean; po_id?: string | null };
+export type InvoiceLine = { id: string; invoice_id: string; part_id: string | null; description: string; qty: number; unit_price: number; line_ex: number; sort_order: number; fulfilment?: "warehouse" | "supplier"; picked?: boolean; multi_picked?: number | null; packs_picked?: number | null; po_id?: string | null };
 export const PAY_METHODS = ["Bank transfer", "Card", "Cash", "Cheque", "Other"] as const;
 export const invNo = (n: number) => `INV-${n}`;
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;

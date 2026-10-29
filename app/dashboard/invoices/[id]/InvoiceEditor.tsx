@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
 import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, round4, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
+import { fmtSplit } from "@/lib/picking";
 
 type Full = Invoice & {
   customers: { name: string; contact_email: string | null; accounts_contact_name?: string | null; accounts_contact_email?: string | null; accounts_contact_phone?: string | null } | null;
@@ -16,7 +17,7 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null };
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null; pack_per_multi?: number | null; stock_on_hand?: number | null };
 
 export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts, suppliers = [], initialPoNumbers = {} }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[]; suppliers?: { id: string; name: string }[]; initialPoNumbers?: Record<string, string> }) {
   const supabase = createClient();
@@ -85,6 +86,33 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     const { error } = await supabase.from("invoice_lines").update({ fulfilment: value }).eq("id", l.id);
     if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
     setLines(lines.map((x) => (x.id === l.id ? { ...x, fulfilment: value } : x)));
+  }
+
+  // Picking from the warehouse, right on the invoice: multis (full multi-packs) and/or loose packs, same as the picking slip.
+  const [pickEntry, setPickEntry] = useState<Record<string, { multi: string; pks: string }>>({});
+  const [pickBusy, setPickBusy] = useState("");
+  const perMulti = (l: InvoiceLine) => Number(parts.find((p) => p.id === l.part_id)?.pack_per_multi) || 0;
+
+  async function pickLine(l: InvoiceLine) {
+    const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
+    const multi = Number(e.multi) || 0;
+    const pks = Number(e.pks) || 0;
+    if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: "Enter how many multis and/or loose packs you picked." });
+    setPickBusy(l.id);
+    const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+    setPickBusy("");
+    if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
+    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: multi, packs_picked: pks } : x)));
+    setFulfilMsg({ ok: true, text: "Picked. Stock taken off inventory." });
+  }
+
+  async function undoPick(l: InvoiceLine) {
+    setPickBusy(l.id);
+    const { error } = await supabase.rpc("unpick_invoice_line", { p_line_id: l.id });
+    setPickBusy("");
+    if (error) return setFulfilMsg({ ok: false, text: error.message });
+    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: false, multi_picked: null, packs_picked: null } : x)));
+    setFulfilMsg({ ok: true, text: "Pick undone. Stock put back." });
   }
 
   /** Delivery / pick-up details save on their own, so they can still be changed after the invoice is sent. */
@@ -334,7 +362,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="w-full max-w-[1600px]">
       <Link href="/dashboard/invoices" className="text-sm text-[var(--muted)] hover:underline">← Invoices</Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-bold">{invNo(inv.invoice_number)}</h1>
@@ -369,7 +397,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         {draft && <button onClick={() => (editCust ? setEditCust(false) : openEditCustomer())} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">{editCust ? "Close edit" : "Edit"}</button>}
       </div>
 
-      <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className={`mt-5 grid items-start gap-5 ${hasFulfilCols ? "xl:grid-cols-2" : ""}`}>
+      <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="rounded-lg bg-black/[0.03] p-3 text-sm">
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
           <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
@@ -430,6 +459,51 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <label className="block text-sm">Customer PO<input className={input} value={inv.customer_po ?? ""} onChange={(e) => setInv({ ...inv, customer_po: e.target.value })} /></label>
         </div>
       </div>
+        {hasFulfilCols ? (
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Delivery and fulfilment</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">The date shows on the Calendar, and on any purchase order raised here. Set each item below to come from the warehouse or the supplier.</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm">
+              Delivery or pick-up
+              <select className={input} value={inv.delivery_method ?? "delivery"} onChange={(e) => setInv({ ...inv, delivery_method: e.target.value as "delivery" | "pickup" })}>
+                <option value="delivery">We deliver</option>
+                <option value="pickup">Customer picks up</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              Date
+              <input type="date" className={input} value={inv.delivery_date ?? ""} onChange={(e) => setInv({ ...inv, delivery_date: e.target.value || null })} />
+            </label>
+            <label className="block text-sm">
+              Note <span className="text-xs text-[var(--muted)]">(time, gate code, who to call)</span>
+              <input className={input} value={inv.delivery_note ?? ""} onChange={(e) => setInv({ ...inv, delivery_note: e.target.value })} />
+            </label>
+          </div>
+          {hasContactCols ? (
+            <div className="mt-3 grid gap-4 sm:grid-cols-3">
+              <label className="block text-sm">
+                Time
+                <input type="time" className={input} value={inv.delivery_time ?? ""} onChange={(e) => setInv({ ...inv, delivery_time: e.target.value || null })} />
+              </label>
+              <label className="block text-sm">
+                Site contact <span className="text-xs text-[var(--muted)]">(if not the customer)</span>
+                <input className={input} value={inv.delivery_contact_name ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_name: e.target.value })} placeholder="Name" />
+              </label>
+              <label className="block text-sm">
+                Site contact phone
+                <input className={input} inputMode="tel" value={inv.delivery_contact_phone ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_phone: e.target.value })} placeholder="04.." />
+              </label>
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-amber-700">Delivery time and site contact need migration 0054 to be run in Supabase first.</p>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Save delivery</button>
+          </div>
+        </div>
+        ) : null}
+      </div>
 
       <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Inventory items</h2>
@@ -438,7 +512,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-[var(--muted)]">
-                <tr><th className="py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount</th>{hasFulfilCols && <th className="w-44 px-2">From</th>}<th></th></tr>
+                <tr><th className="min-w-[22rem] py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-28 px-2">Unit ex GST</th><th className="w-28 px-2 text-right">Amount</th>{hasFulfilCols && <th className="w-52 px-2">From</th>}<th></th></tr>
               </thead>
               <tbody>
                 {lines.map((l) => (
@@ -548,65 +622,13 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         )}
       </div>
 
-      {hasFulfilCols ? (
-        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Delivery and fulfilment</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">Set each item above to come from the warehouse or be ordered from the supplier. The date shows on the Calendar, and on any purchase order raised here.</p>
-          <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <label className="block text-sm">
-              Delivery or pick-up
-              <select className={input} value={inv.delivery_method ?? "delivery"} onChange={(e) => setInv({ ...inv, delivery_method: e.target.value as "delivery" | "pickup" })}>
-                <option value="delivery">We deliver</option>
-                <option value="pickup">Customer picks up</option>
-              </select>
-            </label>
-            <label className="block text-sm">
-              Date
-              <input type="date" className={input} value={inv.delivery_date ?? ""} onChange={(e) => setInv({ ...inv, delivery_date: e.target.value || null })} />
-            </label>
-            <label className="block text-sm">
-              Note <span className="text-xs text-[var(--muted)]">(time, gate code, who to call)</span>
-              <input className={input} value={inv.delivery_note ?? ""} onChange={(e) => setInv({ ...inv, delivery_note: e.target.value })} />
-            </label>
-          </div>
-          {hasContactCols ? (
-            <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <label className="block text-sm">
-                Time
-                <input type="time" className={input} value={inv.delivery_time ?? ""} onChange={(e) => setInv({ ...inv, delivery_time: e.target.value || null })} />
-              </label>
-              <label className="block text-sm">
-                Site contact <span className="text-xs text-[var(--muted)]">(if not the customer)</span>
-                <input className={input} value={inv.delivery_contact_name ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_name: e.target.value })} placeholder="Name" />
-              </label>
-              <label className="block text-sm">
-                Site contact phone
-                <input className={input} inputMode="tel" value={inv.delivery_contact_phone ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_phone: e.target.value })} placeholder="04.." />
-              </label>
-            </div>
-          ) : (
-            <p className="mt-2 text-xs text-amber-700">Delivery time and site contact need migration 0054 to be run in Supabase first.</p>
-          )}
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Save delivery</button>
-            {warehouseLines.length > 0 && (
-              <Link href={`/dashboard/invoices/${inv.id}/picking-slip`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
-                Picking slip ({warehouseLines.length} warehouse item{warehouseLines.length === 1 ? "" : "s"})
-              </Link>
-            )}
-            {supplierToOrder.length > 0 && (
-              <button onClick={createPurchaseOrders} disabled={busy === "po"} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60">
-                {busy === "po" ? "Creating…" : `Create draft purchase order (${supplierToOrder.length} item${supplierToOrder.length === 1 ? "" : "s"})`}
-              </button>
-            )}
-            {fulfilMsg && <span className={`text-sm ${fulfilMsg.ok ? "text-green-700" : "text-red-700"}`}>{fulfilMsg.text}</span>}
-          </div>
-        </div>
       ) : lines.length > 0 ? (
-        <p className="mt-5 text-xs text-amber-700">Warehouse / supplier and delivery options need migration 0053 to be run in Supabase first.</p>
+        <p className="text-xs text-amber-700">Warehouse / supplier and delivery options need migration 0053 to be run in Supabase first.</p>
       ) : null}
 
-      <div className="mt-5 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <div className={`mt-5 grid items-start gap-5 ${hasFulfilCols ? "xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" : ""}`}>
+        <div className="space-y-5">
+      <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         {!hasDiscountCols ? (
           draft && <p className="text-xs text-amber-700">Discounts and extra charges need migration 0052 to be run in Supabase first.</p>
         ) : draft || discountEx !== 0 ? (
@@ -686,9 +708,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           {busy === "save" ? "Saving..." : "Save changes"}
         </button>
       </div>
-
       {inv.status !== "Void" && (
-        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Email to customer</h2>
           <div className="mt-2 flex flex-wrap gap-2">
             <input className="min-w-[16rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" type="email" placeholder="customer@email.com" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} />
@@ -701,7 +722,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
       )}
 
       {inv.status !== "Void" && (
-        <div className="mt-5 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Payments</h2>
             <p className="text-sm">Paid {money(paid)} · <b>Balance {money(balance)}</b></p>
@@ -731,6 +752,106 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           {balance > 0 && <button onClick={() => setPay({ ...pay, amount: balance.toFixed(2) })} className="mt-2 text-xs text-accent underline">Fill the full balance</button>}
         </div>
       )}
+        </div>
+        {hasFulfilCols ? (
+          <div className="space-y-5">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Pick from warehouse</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">Enter the multis and/or loose packs you picked off the shelf, then Mark picked. Stock comes off inventory.</p>
+              {warehouseLines.length === 0 ? (
+                <p className="mt-3 text-sm text-[var(--muted)]">No warehouse items. Set an item to &quot;Warehouse (pick)&quot; in the table above.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-[var(--border)] text-sm">
+                  {warehouseLines.map((l) => {
+                    const part = parts.find((p) => p.id === l.part_id);
+                    const ppm = perMulti(l);
+                    const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
+                    const box = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
+                    return (
+                      <li key={l.id} className="py-2.5">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                          <span className="font-medium">{part?.name || l.description}</span>
+                          <span className="text-xs text-[var(--muted)]">
+                            need {Number(l.qty)} pack{Number(l.qty) === 1 ? "" : "s"}
+                            {ppm > 1 ? ` · ${ppm} packs/multi` : ""}
+                            {part?.stock_on_hand != null ? ` · stock ${Number(part.stock_on_hand)}` : ""}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          {l.picked ? (
+                            <>
+                              <span className="font-semibold text-green-700">✓ {fmtSplit(Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
+                              <button onClick={() => undoPick(l)} disabled={pickBusy === l.id} className="text-xs text-red-700 underline">Undo</button>
+                            </>
+                          ) : (
+                            <>
+                              {ppm > 1 && (
+                                <>
+                                  <span className="text-xs text-[var(--muted)]">Multis</span>
+                                  <input
+                                    className={box}
+                                    inputMode="decimal"
+                                    value={e.multi}
+                                    onChange={(ev) => {
+                                      const m = Number(ev.target.value) || 0;
+                                      // the loose packs follow what is left after the multis; still editable
+                                      setPickEntry({ ...pickEntry, [l.id]: { multi: ev.target.value, pks: String(Math.max(0, Number(l.qty) - m * ppm)) } });
+                                    }}
+                                  />
+                                </>
+                              )}
+                              <span className="text-xs text-[var(--muted)]">Loose packs</span>
+                              <input className={box} inputMode="decimal" value={e.pks} onChange={(ev) => setPickEntry({ ...pickEntry, [l.id]: { multi: e.multi, pks: ev.target.value } })} />
+                              <button onClick={() => pickLine(l)} disabled={pickBusy === l.id} className="rounded-lg bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
+                            </>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {warehouseLines.length > 0 && (
+                <div className="mt-3">
+                  <Link href={`/dashboard/invoices/${inv.id}/picking-slip`} className="inline-block rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+                    Picking slip ({warehouseLines.length} warehouse item{warehouseLines.length === 1 ? "" : "s"})
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Order from supplier</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">Ordered in packs, so there is nothing to pick.</p>
+              {lines.filter((l) => isStockLine(l) && isSupplierLine(l)).length === 0 ? (
+                <p className="mt-3 text-sm text-[var(--muted)]">No items set to &quot;Order from supplier&quot;.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-[var(--border)] text-sm">
+                  {lines.filter((l) => isStockLine(l) && isSupplierLine(l)).map((l) => (
+                    <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
+                      <span className="font-medium">{parts.find((p) => p.id === l.part_id)?.name || l.description}</span>
+                      <span className="text-xs">
+                        <span className="text-[var(--muted)]">{Number(l.qty)} pack{Number(l.qty) === 1 ? "" : "s"}</span>
+                        {l.po_id && (
+                          <Link href={`/dashboard/purchase-orders/${l.po_id}`} className="ml-2 font-semibold text-blue-700 hover:underline">On {poNumbers[l.po_id] || "PO"}</Link>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {supplierToOrder.length > 0 && (
+                <div className="mt-3">
+                  <button onClick={createPurchaseOrders} disabled={busy === "po"} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60">
+                    {busy === "po" ? "Creating…" : `Create draft purchase order (${supplierToOrder.length} item${supplierToOrder.length === 1 ? "" : "s"})`}
+                  </button>
+                </div>
+              )}
+            </div>
+            {fulfilMsg && <p className={`text-sm ${fulfilMsg.ok ? "text-green-700" : "text-red-700"}`}>{fulfilMsg.text}</p>}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
