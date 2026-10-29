@@ -622,9 +622,9 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         )}
       </div>
 
-      ) : lines.length > 0 ? (
-        <p className="text-xs text-amber-700">Warehouse / supplier and delivery options need migration 0053 to be run in Supabase first.</p>
-      ) : null}
+      {!hasFulfilCols && lines.length > 0 && (
+        <p className="mt-5 text-xs text-amber-700">Warehouse / supplier and delivery options need migration 0053 to be run in Supabase first.</p>
+      )}
 
       <div className={`mt-5 grid items-start gap-5 ${hasFulfilCols ? "xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]" : ""}`}>
         <div className="space-y-5">
