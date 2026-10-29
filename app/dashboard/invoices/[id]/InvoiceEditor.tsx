@@ -383,7 +383,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
       {msg && <p className={`mt-3 rounded-lg p-3 text-sm ${msg.ok ? "bg-green-50 text-green-800" : "bg-[#fde8e8] text-[#b91c1c]"}`}>{msg.text}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <a href={`/api/invoices/pdf?id=${inv.id}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">View / download PDF</a>
+        <Link href={`/dashboard/invoices/${inv.id}/pdf`} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">View / download PDF</Link>
         {draft && (
           <button onClick={() => save({ status: "Sent", sent_at: new Date().toISOString() }, "Marked as sent.")} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">
             Mark as sent (without emailing)
