@@ -483,6 +483,7 @@ export default function PartsTable({
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -808,6 +809,61 @@ export default function PartsTable({
     }
   }
 
+  function openEdit(p: Part) {
+    setEditingId(p.id);
+    setForm({
+      code: p.code || "",
+      name: p.name,
+      type: p.type || "",
+      supplier_id: p.supplier_id || "",
+      coverage_m2: p.coverage_m2,
+      pack_cost_ex_gst: p.pack_cost_ex_gst,
+      installer_rate_per_m2: p.installer_rate_per_m2,
+      supply_charge_per_pack: p.supply_charge_per_pack,
+      price_retail: p.price_retail,
+      price_trade: p.price_trade,
+      price_regency: p.price_regency,
+      supply_install_rate_per_m2: p.supply_install_rate_per_m2,
+      pack_per_multi: p.pack_per_multi,
+      pack_unit: p.pack_unit ?? "pack",
+      multi_unit: p.multi_unit ?? "multi",
+      multi: p.multi,
+      pks: p.pks,
+      is_stock_item: p.is_stock_item,
+    });
+    setModalOpen(true);
+  }
+
+  function closeModal() {
+    setModalOpen(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  async function saveEdit() {
+    const orig = parts.find((x) => x.id === editingId);
+    if (!orig) return;
+    setSaving(true);
+    const { pack_unit, multi_unit, ...rest } = form;
+    const newPack = pack_unit.trim() || "pack";
+    const newBulk = multi_unit.trim();
+    // Unit names need migration 0076: only sent when they actually changed.
+    const unitsChanged = newPack !== (orig.pack_unit ?? "pack") || newBulk !== (orig.multi_unit ?? "multi");
+    const payload = { ...rest, ...(unitsChanged ? { pack_unit: newPack, multi_unit: newBulk } : {}), supplier_id: form.supplier_id || null };
+    const { data, error } = await supabase.from("parts").update(payload).eq("id", orig.id).select().single();
+    if (!error && data) {
+      setParts((prev) => prev.map((x) => (x.id === orig.id ? (data as Part) : x)));
+      const changed = (Object.keys(payload) as string[])
+        .filter((k) => String((payload as any)[k] ?? "") !== String((orig as any)[k] ?? ""))
+        .join(", ");
+      logAudit(supabase, { eventType: "update", entityType: "part", entityId: orig.id, entityLabel: data.name, details: changed ? `Edited: ${changed}` : "Edited" });
+      closeModal();
+    } else if (error) {
+      alert(error.message);
+    }
+    setSaving(false);
+  }
+
   async function saveNew() {
     setSaving(true);
     const { pack_unit, multi_unit, ...rest } = form;
@@ -835,7 +891,14 @@ export default function PartsTable({
       case "name":
         return (
           <div className="flex w-full items-center gap-1.5 px-2">
-            <InlineCell value={p.name} onCommit={(v) => patch(p, "name", v)} />
+            <button
+              type="button"
+              onClick={() => openEdit(p)}
+              title="Click to edit this item"
+              className="w-full truncate py-1 text-left font-medium hover:text-accent hover:underline"
+            >
+              {p.name}
+            </button>
           </div>
         );
       case "stockType":
@@ -1621,7 +1684,7 @@ export default function PartsTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
-              <h2 className="text-lg font-bold">Add item</h2>
+              <h2 className="text-lg font-bold">{editingId ? "Edit item" : "Add item"}</h2>
             </div>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
               <div className="grid grid-cols-3 gap-4">
@@ -1812,15 +1875,15 @@ export default function PartsTable({
               </p>
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
-              <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm">
+              <button onClick={closeModal} className="rounded-lg px-4 py-2 text-sm">
                 Cancel
               </button>
               <button
-                onClick={saveNew}
+                onClick={editingId ? saveEdit : saveNew}
                 disabled={saving || !form.name}
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {saving ? "Saving..." : "Save item"}
+                {saving ? "Saving..." : editingId ? "Save changes" : "Save item"}
               </button>
             </div>
           </div>
