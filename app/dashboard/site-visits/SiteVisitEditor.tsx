@@ -109,6 +109,13 @@ export default function SiteVisitEditor({
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"details" | "crm">("details");
+  // Which quote this visit is linked to (can be changed to a different quote by number).
+  const [linked, setLinked] = useState<{ id: string; number: number } | null>(
+    visit?.project_id && visit?.projects?.quote_number ? { id: visit.project_id, number: visit.projects.quote_number } : null
+  );
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkNo, setLinkNo] = useState("");
+  const [linkMsg, setLinkMsg] = useState<string | null>(null);
 
   const builder = isBuilderVisit(form.visit_type);
   const creating = useRef<Promise<string | null> | null>(null);
@@ -438,7 +445,36 @@ export default function SiteVisitEditor({
     router.refresh();
   }
 
-  const quoteNumber = visit?.projects?.quote_number;
+  async function linkToQuote() {
+    if (!visitId) return;
+    const n = parseInt(linkNo.replace(/\D/g, ""), 10);
+    if (!n) {
+      setLinkMsg("Type a quote number, e.g. 1041.");
+      return;
+    }
+    const { data: q } = await supabase.from("projects").select("id, quote_number, archived").eq("quote_number", n).maybeSingle();
+    if (!q) {
+      setLinkMsg(`No quote Q${n} found.`);
+      return;
+    }
+    const { error: upErr } = await supabase.from("site_visits").update({ project_id: q.id }).eq("id", visitId);
+    if (upErr) {
+      setLinkMsg("Could not link: " + upErr.message);
+      return;
+    }
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "site visit",
+      entityId: visitId,
+      entityLabel: `SV${visitNumber}`,
+      details: `Linked to quote Q${q.quote_number}${linked ? ` (was Q${linked.number})` : ""}`,
+    });
+    setLinked({ id: q.id, number: q.quote_number });
+    setLinkOpen(false);
+    setLinkNo("");
+    setLinkMsg(null);
+    router.refresh();
+  }
   const statusLine =
     saveState === "saving"
       ? "Saving…"
@@ -478,12 +514,21 @@ export default function SiteVisitEditor({
             >
               Print / PDF
             </Link>
-            {visit?.project_id && quoteNumber ? (
+            <button
+              onClick={() => {
+                setLinkOpen((o) => !o);
+                setLinkMsg(null);
+              }}
+              className="px-2 text-sm text-[var(--muted)] hover:underline"
+            >
+              {linked ? "Change quote" : "Link to a quote"}
+            </button>
+            {linked ? (
               <Link
-                href={`/dashboard/quotes/${visit.project_id}`}
+                href={`/dashboard/quotes/${linked.id}`}
                 className="rounded-lg border border-[#b7dfc2] bg-[#e6f4ea] px-4 py-2 text-sm font-medium text-[#1f6b35]"
               >
-                Open quote Q{quoteNumber}
+                Open quote Q{linked.number}
               </Link>
             ) : (
               <button
@@ -499,6 +544,28 @@ export default function SiteVisitEditor({
           </div>
         )}
       </div>
+
+      {visitId && linkOpen && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] p-3 text-sm">
+          <span className="font-medium">Link this visit to quote Q</span>
+          <input
+            className="w-28 rounded-lg border border-[var(--border)] px-3 py-1.5"
+            inputMode="numeric"
+            placeholder="1041"
+            value={linkNo}
+            onChange={(e) => setLinkNo(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") linkToQuote();
+            }}
+            autoFocus
+          />
+          <button onClick={linkToQuote} className="rounded-lg bg-accent px-4 py-1.5 font-medium text-white">
+            Link
+          </button>
+          {linked && <span className="text-[var(--muted)]">Currently linked to Q{linked.number}; this replaces it.</span>}
+          {linkMsg && <span className="font-medium text-red-700">{linkMsg}</span>}
+        </div>
+      )}
 
       {crmEnabled && visitId && (
         <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
