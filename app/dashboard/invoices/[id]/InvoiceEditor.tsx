@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
 import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, round4, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
-import { fmtSplit } from "@/lib/picking";
+import { fmtPicked, plural, unitsOf } from "@/lib/units";
 
 type Full = Invoice & {
   customers: { name: string; contact_email: string | null; accounts_contact_name?: string | null; accounts_contact_email?: string | null; accounts_contact_phone?: string | null } | null;
@@ -17,7 +17,7 @@ type Full = Invoice & {
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
 
-type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null; pack_per_multi?: number | null; stock_on_hand?: number | null };
+type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null; pack_per_multi?: number | null; stock_on_hand?: number | null; pack_unit?: string | null; multi_unit?: string | null };
 
 export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts, suppliers = [], initialPoNumbers = {} }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[]; suppliers?: { id: string; name: string }[]; initialPoNumbers?: Record<string, string> }) {
   const supabase = createClient();
@@ -95,13 +95,12 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   // Picking from the warehouse, right on the invoice: multis (full multi-packs) and/or loose packs, same as the picking slip.
   const [pickEntry, setPickEntry] = useState<Record<string, { multi: string; pks: string }>>({});
   const [pickBusy, setPickBusy] = useState("");
-  const perMulti = (l: InvoiceLine) => Number(parts.find((p) => p.id === l.part_id)?.pack_per_multi) || 0;
 
   async function pickLine(l: InvoiceLine) {
     const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
     const multi = Number(e.multi) || 0;
     const pks = Number(e.pks) || 0;
-    if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: "Enter how many multis and/or loose packs you picked." });
+    if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: "Enter how many you picked." });
     setPickBusy(l.id);
     const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
     setPickBusy("");
@@ -774,14 +773,15 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <div className="space-y-5">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Pick from warehouse</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">Enter the multis and/or loose packs you picked off the shelf, then Mark picked. Stock comes off inventory.</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Enter what you picked off the shelf, then Mark picked. Stock comes off inventory.</p>
               {warehouseLines.length === 0 ? (
                 <p className="mt-3 text-sm text-[var(--muted)]">No warehouse items. Set an item to &quot;Warehouse (pick)&quot; in the table above.</p>
               ) : (
                 <ul className="mt-3 divide-y divide-[var(--border)] text-sm">
                   {warehouseLines.map((l) => {
                     const part = parts.find((p) => p.id === l.part_id);
-                    const ppm = perMulti(l);
+                    const u = unitsOf(part);
+                    const ppm = u.perBulk;
                     const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
                     const box = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
                     return (
@@ -789,22 +789,22 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                           <span className="font-medium">{part?.name || l.description}</span>
                           <span className="text-xs text-[var(--muted)]">
-                            need {Number(l.qty)} pack{Number(l.qty) === 1 ? "" : "s"}
-                            {ppm > 1 ? ` · ${ppm} packs/multi` : ""}
+                            need {Number(l.qty)} {plural(u.one, Number(l.qty))}
+                            {u.hasBulk ? ` · ${ppm} ${plural(u.one, ppm)}/${u.bulk}` : ""}
                             {part?.stock_on_hand != null ? ` · stock ${Number(part.stock_on_hand)}` : ""}
                           </span>
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {l.picked ? (
                             <>
-                              <span className="font-semibold text-green-700">✓ {fmtSplit(Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
+                              <span className="font-semibold text-green-700">✓ {fmtPicked(part, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
                               <button onClick={() => undoPick(l)} disabled={pickBusy === l.id} className="text-xs text-red-700 underline">Undo</button>
                             </>
                           ) : (
                             <>
-                              {ppm > 1 && (
+                              {u.hasBulk && (
                                 <>
-                                  <span className="text-xs text-[var(--muted)]">Multis</span>
+                                  <span className="text-xs text-[var(--muted)] capitalize">{plural(u.bulk, 2)}</span>
                                   <input
                                     className={box}
                                     inputMode="decimal"
@@ -817,7 +817,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                                   />
                                 </>
                               )}
-                              <span className="text-xs text-[var(--muted)]">Loose packs</span>
+                              <span className="text-xs text-[var(--muted)]">{u.hasBulk ? `Loose ${plural(u.one, 2)}` : `${plural(u.one, 2)} picked`}</span>
                               <input className={box} inputMode="decimal" value={e.pks} onChange={(ev) => setPickEntry({ ...pickEntry, [l.id]: { multi: e.multi, pks: ev.target.value } })} />
                               <button onClick={() => pickLine(l)} disabled={pickBusy === l.id} className="rounded-lg bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
                             </>
@@ -839,7 +839,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Order from supplier</h2>
-              <p className="mt-1 text-xs text-[var(--muted)]">Ordered in packs, so there is nothing to pick.</p>
+              <p className="mt-1 text-xs text-[var(--muted)]">Ordered in whole units from the supplier, so there is nothing to pick.</p>
               {lines.filter((l) => isStockLine(l) && isSupplierLine(l)).length === 0 ? (
                 <p className="mt-3 text-sm text-[var(--muted)]">No items set to &quot;Order from supplier&quot;.</p>
               ) : (
@@ -848,7 +848,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                     <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2">
                       <span className="font-medium">{parts.find((p) => p.id === l.part_id)?.name || l.description}</span>
                       <span className="text-xs">
-                        <span className="text-[var(--muted)]">{Number(l.qty)} pack{Number(l.qty) === 1 ? "" : "s"}</span>
+                        <span className="text-[var(--muted)]">{Number(l.qty)} {plural(unitsOf(parts.find((p) => p.id === l.part_id)).one, Number(l.qty))}</span>
                         {l.po_id && (
                           <Link href={`/dashboard/purchase-orders/${l.po_id}`} className="ml-2 font-semibold text-blue-700 hover:underline">On {poNumbers[l.po_id] || "PO"}</Link>
                         )}

@@ -21,6 +21,8 @@ type Part = {
   price_regency: number;
   supply_install_rate_per_m2: number;
   pack_per_multi: number;
+  pack_unit?: string | null;
+  multi_unit?: string | null;
   multi: number;
   pks: number;
   stock_on_hand: number;
@@ -59,6 +61,8 @@ const emptyForm = {
   price_regency: 0,
   supply_install_rate_per_m2: 0,
   pack_per_multi: 0,
+  pack_unit: "pack",
+  multi_unit: "multi",
   multi: 0,
   pks: 0,
   is_stock_item: true,
@@ -76,6 +80,8 @@ const COLUMN_TO_CSV_FIELD: Record<string, string | null> = {
   type: "type",
   coverage: "coverage_m2",
   packPerMulti: "pack_per_multi",
+  packUnit: null,
+  bulkUnit: null,
   packCost: "pack_cost_ex_gst",
   covCostM2: null,
   supplyInstall: "supply_install_rate_per_m2",
@@ -252,6 +258,8 @@ const INVENTORY_COLS = [
   { key: "type", label: "Type", align: "center" as Align, width: 100 },
   { key: "coverage", label: "Coverage/pack", align: "center" as Align, width: 110 },
   { key: "packPerMulti", label: "Pack per multi", align: "center" as Align, width: 110 },
+  { key: "packUnit", label: "Unit", align: "center" as Align, width: 80 },
+  { key: "bulkUnit", label: "Bulk unit", align: "center" as Align, width: 90 },
   { key: "packCost", label: "Pack cost ex", align: "center" as Align, width: 110 },
   { key: "covCostM2", label: "Cov/Cost/m²", align: "center" as Align, width: 110 },
   { key: "supplyInstall", label: "Supply+install/m²", align: "center" as Align, width: 130 },
@@ -787,7 +795,10 @@ export default function PartsTable({
 
   async function saveNew() {
     setSaving(true);
-    const payload = { ...form, supplier_id: form.supplier_id || null };
+    const { pack_unit, multi_unit, ...rest } = form;
+    // Unit names need migration 0076: only sent when they differ from the defaults.
+    const unitsChanged = (pack_unit.trim() || "pack") !== "pack" || multi_unit.trim() !== "multi";
+    const payload = { ...rest, ...(unitsChanged ? { pack_unit: pack_unit.trim() || "pack", multi_unit: multi_unit.trim() } : {}), supplier_id: form.supplier_id || null };
     const { data, error } = await supabase.from("parts").insert(payload).select().single();
     if (!error && data) {
       setParts((prev) => [data as Part, ...prev]);
@@ -924,6 +935,10 @@ export default function PartsTable({
         return (
           <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer alwaysEditable />
         );
+      case "packUnit":
+        return <InlineCell value={p.pack_unit ?? "pack"} onCommit={(v) => patch(p, "pack_unit", String(v).trim() || "pack")} align="center" />;
+      case "bulkUnit":
+        return <InlineCell value={p.multi_unit ?? "multi"} onCommit={(v) => patch(p, "multi_unit", String(v).trim())} align="center" />;
       case "packPerMulti":
         return (
           <InlineCell
@@ -1660,6 +1675,16 @@ export default function PartsTable({
               </div>
 
               <p className="text-xs font-medium uppercase text-[var(--muted)]">Stock</p>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-1 text-sm">
+                  Single unit name <span className="text-xs text-[var(--muted)]">(pack, roll, box)</span>
+                  <input className="rounded-lg border border-[var(--border)] px-3 py-2" value={form.pack_unit} onChange={(e) => setForm({ ...form, pack_unit: e.target.value })} />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Bulk unit name <span className="text-xs text-[var(--muted)]">(multi, carton; blank if none)</span>
+                  <input className="rounded-lg border border-[var(--border)] px-3 py-2" value={form.multi_unit} onChange={(e) => setForm({ ...form, multi_unit: e.target.value })} />
+                </label>
+              </div>
               <div className="grid grid-cols-3 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
                   Pack per multi

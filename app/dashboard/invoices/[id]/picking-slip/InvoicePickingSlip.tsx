@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
-import { fmtSplit } from "@/lib/picking";
+import { fmtPicked, plural, unitsOf } from "@/lib/units";
 import { fmtDate, invNo } from "@/lib/invoices";
 
 type Line = {
@@ -15,7 +15,7 @@ type Line = {
   picked: boolean;
   multi_picked: number | null;
   packs_picked: number | null;
-  parts: { id: string; name: string; code: string | null; pack_per_multi: number; stock_on_hand: number } | null;
+  parts: { id: string; name: string; code: string | null; pack_per_multi: number; stock_on_hand: number; pack_unit?: string | null; multi_unit?: string | null } | null;
 };
 
 export default function InvoicePickingSlip({ invoice, lines: initial }: { invoice: any; lines: Line[] }) {
@@ -139,7 +139,7 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Code</th>
               <th className="px-2 py-1.5">Product</th>
-              <th className="px-2 py-1.5 text-right">Packs needed</th>
+              <th className="px-2 py-1.5 text-right">Qty needed</th>
               <th className="px-2 py-1.5 text-right">System stock</th>
               <th className="rounded-r-lg px-2 py-1.5">Picked</th>
             </tr>
@@ -150,28 +150,32 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
                 <td className="px-2 py-2 text-gray-500">{l.parts?.code || "—"}</td>
                 <td className="px-2 py-2 font-medium">
                   {l.parts?.name || l.description}
-                  {Number(l.parts?.pack_per_multi) > 1 && <span className="ml-1 font-normal text-gray-400">({l.parts!.pack_per_multi}/multi)</span>}
+                  {unitsOf(l.parts).hasBulk && <span className="ml-1 font-normal text-gray-400">({l.parts!.pack_per_multi}/{unitsOf(l.parts).bulk})</span>}
                 </td>
                 <td className="px-2 py-2 text-right font-semibold">
-                  {Number(l.qty)} pack{Number(l.qty) === 1 ? "" : "s"}
+                  {Number(l.qty)} {plural(unitsOf(l.parts).one, Number(l.qty))}
                 </td>
                 <td className="px-2 py-2 text-right text-gray-600">{Number(l.parts?.stock_on_hand ?? 0)}</td>
                 <td className="px-2 py-2">
                   {l.picked ? (
                     <span className="inline-flex items-center gap-2">
-                      <span className="font-semibold text-green-700">✓ {fmtSplit(Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
+                      <span className="font-semibold text-green-700">✓ {fmtPicked(l.parts, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
                       <button onClick={() => undo(l)} disabled={busy === l.id} className="text-xs text-red-700 underline print:hidden">Undo</button>
                     </span>
                   ) : (
                     <span className="inline-flex flex-wrap items-center gap-1 print:hidden">
-                      <span className="text-xs text-gray-500">Multi</span>
-                      <input className={field} inputMode="decimal" value={entry[l.id]?.multi ?? ""} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: e.target.value, pks: entry[l.id]?.pks ?? String(l.qty) } })} />
-                      <span className="text-xs text-gray-500">Pks</span>
+                      {unitsOf(l.parts).hasBulk && (
+                        <>
+                          <span className="text-xs capitalize text-gray-500">{plural(unitsOf(l.parts).bulk, 2)}</span>
+                          <input className={field} inputMode="decimal" value={entry[l.id]?.multi ?? ""} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: e.target.value, pks: entry[l.id]?.pks ?? String(l.qty) } })} />
+                        </>
+                      )}
+                      <span className="text-xs capitalize text-gray-500">{unitsOf(l.parts).hasBulk ? "Loose" : plural(unitsOf(l.parts).one, 2)}</span>
                       <input className={field} inputMode="decimal" value={entry[l.id]?.pks ?? String(l.qty)} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: entry[l.id]?.multi ?? "", pks: e.target.value } })} />
                       <button onClick={() => pick(l)} disabled={busy === l.id} className="rounded bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
                     </span>
                   )}
-                  {!l.picked && <span className="hidden whitespace-nowrap text-gray-400 print:inline">Multi: ______ &nbsp; Pks: ______</span>}
+                  {!l.picked && <span className="hidden whitespace-nowrap text-gray-400 print:inline">{unitsOf(l.parts).hasBulk ? `${plural(unitsOf(l.parts).bulk, 2)}: ______ \u00a0 Loose: ______` : `${plural(unitsOf(l.parts).one, 2)}: ______`}</span>}
                 </td>
               </tr>
             ))}

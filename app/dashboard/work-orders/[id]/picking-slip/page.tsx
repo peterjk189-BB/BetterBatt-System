@@ -6,7 +6,7 @@ import PickingSlip from "./PickingSlip";
 export default async function PickingSlipPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
 
-  const [{ data: workOrder }, { data: lines }] = await Promise.all([
+  const [{ data: workOrder }, linesRes] = await Promise.all([
     supabase
       .from("work_orders")
       .select("id, wo_number, stock_delivery_date, projects(quote_number, lot_no, address, suburb, customers(name))")
@@ -15,13 +15,23 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     supabase
       .from("work_order_lines")
       .select(
-        "id, qty, note, part_id, allocated, allocated_at, picked, picked_at, multi_picked, packs_picked, parts(id, name, code, coverage_m2, pack_cost_ex_gst, supplier_id, stock_on_hand, pack_per_multi, is_stock_item)"
+        "id, qty, note, part_id, allocated, allocated_at, picked, picked_at, multi_picked, packs_picked, parts(id, name, code, coverage_m2, pack_cost_ex_gst, supplier_id, stock_on_hand, pack_per_multi, is_stock_item, pack_unit, multi_unit)"
       )
       .eq("work_order_id", params.id)
       .order("sort_order"),
   ]);
 
   if (!workOrder) notFound();
+  // Unit names need migration 0076; until it is run, fall back to the plain columns.
+  let lines = linesRes.data;
+  if (linesRes.error) {
+    const retry = await supabase
+      .from("work_order_lines")
+      .select("id, qty, note, part_id, allocated, allocated_at, picked, picked_at, multi_picked, packs_picked, parts(id, name, code, coverage_m2, pack_cost_ex_gst, supplier_id, stock_on_hand, pack_per_multi, is_stock_item)")
+      .eq("work_order_id", params.id)
+      .order("sort_order");
+    lines = retry.data;
+  }
 
   // Returned-stock columns come from migration 0041; fetched separately so this page still works before it's run.
   const { data: returns } = await supabase

@@ -1,5 +1,6 @@
 "use client";
 
+import { plural, unitsOf } from "@/lib/units";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,8 @@ type Part = {
   supplier_id: string | null;
   stock_on_hand: number;
   pack_per_multi: number;
+  pack_unit?: string | null;
+  multi_unit?: string | null;
 };
 
 type Line = {
@@ -507,8 +510,9 @@ export default function PickingSlip({
                       {status === "allocated" && (
                         <>
                           <div className="flex items-end gap-1.5">
-                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                              Multi
+                            {unitsOf(l.parts).hasBulk && (
+                            <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                              {unitsOf(l.parts).bulk}
                               <input
                                 type="number"
                                 step="1"
@@ -519,8 +523,9 @@ export default function PickingSlip({
                                 className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
                               />
                             </label>
-                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                              Pks
+                            )}
+                            <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                              {unitsOf(l.parts).hasBulk ? plural(unitsOf(l.parts).one, 2) : plural(unitsOf(l.parts).one, 2)}
                               <input
                                 type="number"
                                 step="1"
@@ -547,8 +552,9 @@ export default function PickingSlip({
                       {status === "picked" && (
                         <>
                           <div className="flex items-end gap-1.5">
-                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                              Back: Multi
+                            {unitsOf(l.parts).hasBulk && (
+                            <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                              Back: {unitsOf(l.parts).bulk}
                               <input
                                 type="number"
                                 step="1"
@@ -559,8 +565,9 @@ export default function PickingSlip({
                                 className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
                               />
                             </label>
-                            <label className="flex flex-col items-end text-[10px] text-[var(--muted)]">
-                              Pks
+                            )}
+                            <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                              {unitsOf(l.parts).hasBulk ? plural(unitsOf(l.parts).one, 2) : `Back: ${plural(unitsOf(l.parts).one, 2)}`}
                               <input
                                 type="number"
                                 step="1"
