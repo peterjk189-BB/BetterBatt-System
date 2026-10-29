@@ -14,7 +14,7 @@ export default async function InvoicePickingSlipPage({ params }: { params: { id:
   ]);
   if (!invoice) notFound();
   // Unit names need migration 0076; until it is run, fall back to the plain columns.
-  let lines = linesRes.data;
+  let lines: any[] | null = linesRes.data;
   if (linesRes.error) {
     const retry = await supabase
       .from("invoice_lines")

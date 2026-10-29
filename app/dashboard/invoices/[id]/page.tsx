@@ -21,7 +21,7 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   ]);
   if (!invoice) notFound();
   // Unit names need migration 0076; until it is run, fall back to the plain columns.
-  let parts = partsRes.data;
+  let parts: any[] | null = partsRes.data;
   if (partsRes.error) {
     const retry = await supabase
       .from("parts")
