@@ -37,6 +37,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [custName, setCustName] = useState("");
   const [discText, setDiscText] = useState<string | null>(null);
   const [poNumbers, setPoNumbers] = useState<Record<string, string>>(initialPoNumbers);
+  const [deliveryMsg, setDeliveryMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [fulfilMsg, setFulfilMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
@@ -118,7 +119,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   /** Delivery / pick-up details save on their own, so they can still be changed after the invoice is sent. */
   async function saveDelivery() {
     setBusy("delivery");
-    const { error } = await supabase
+    setDeliveryMsg(null);
+    const { data, error } = await supabase
       .from("invoices")
       .update({
         delivery_method: inv.delivery_method ?? "delivery",
@@ -129,10 +131,12 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           ? { delivery_contact_name: inv.delivery_contact_name?.trim() || null, delivery_contact_phone: inv.delivery_contact_phone?.trim() || null, delivery_time: inv.delivery_time || null }
           : {}),
       })
-      .eq("id", inv.id);
+      .eq("id", inv.id)
+      .select("id");
     setBusy("");
-    if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
-    setFulfilMsg({ ok: true, text: "Delivery details saved." });
+    if (!error && (!data || data.length === 0)) return setDeliveryMsg({ ok: false, text: "Nothing was saved (no permission to change this invoice?)." });
+    if (error) return setDeliveryMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
+    setDeliveryMsg({ ok: true, text: "Delivery details saved." });
     logAudit(supabase, { eventType: "update", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: "Delivery details updated" });
   }
 
@@ -499,7 +503,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             <p className="mt-2 text-xs text-amber-700">Delivery time and site contact need migration 0054 to be run in Supabase first.</p>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Save delivery</button>
+            <button onClick={saveDelivery} disabled={busy === "delivery"} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">{busy === "delivery" ? "Saving…" : "Save delivery"}</button>
+            {deliveryMsg && <span className={`text-sm ${deliveryMsg.ok ? "text-green-700" : "text-red-700"}`}>{deliveryMsg.text}</span>}
           </div>
         </div>
         ) : null}
