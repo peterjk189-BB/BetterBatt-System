@@ -1,10 +1,11 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { plural, unitsOf } from "@/lib/units";
 
 type Part = {
   id: string;
@@ -248,6 +249,20 @@ function InlineCell({
       />
     </div>
   );
+}
+
+// Inventory sections: products are grouped by the unit they are counted in (Insulation = packs, Rolls, Boxes...), non-stock items last.
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+function groupKeyOf(p: Part) {
+  return p.is_stock_item ? unitsOf(p).one.toLowerCase() : "~non";
+}
+function groupLabel(key: string) {
+  if (key === "~non") return "Non-stock items";
+  if (key === "pack") return "Insulation";
+  return cap(plural(key, 2));
+}
+function groupRank(key: string) {
+  return key === "pack" ? 0 : key === "~non" ? 2 : 1;
 }
 
 const INVENTORY_COLS = [
@@ -932,6 +947,9 @@ export default function PartsTable({
           <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer alwaysEditable />
         );
       case "multi":
+        if (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0)) {
+          return <span className="block text-center text-[var(--muted)]">—</span>;
+        }
         return (
           <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer alwaysEditable />
         );
@@ -940,6 +958,9 @@ export default function PartsTable({
       case "bulkUnit":
         return <InlineCell value={p.multi_unit ?? "multi"} onCommit={(v) => patch(p, "multi_unit", String(v).trim())} align="center" />;
       case "packPerMulti":
+        if (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0)) {
+          return <span className="block text-center text-[var(--muted)]">—</span>;
+        }
         return (
           <InlineCell
             type="number"
@@ -983,8 +1004,25 @@ export default function PartsTable({
       .filter((p) => p.archived === showArchived)
       .filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
       .filter((p) => supplierFilter === null || (p.supplier_id ? supplierById[p.supplier_id] || "Unassigned" : "Unassigned") === supplierFilter)
-      .sort((a, b) => Number(b.is_stock_item) - Number(a.is_stock_item) || a.name.localeCompare(b.name));
+      .sort((a, b) => {
+        const ka = groupKeyOf(a);
+        const kb = groupKeyOf(b);
+        return groupRank(ka) - groupRank(kb) || groupLabel(ka).localeCompare(groupLabel(kb)) || a.name.localeCompare(b.name);
+      });
   }, [parts, showArchived, search, supplierFilter, supplierById]);
+
+  // Per section: how many items, and the bulk unit name if any product in it has one (drives the sub-headings).
+  const groupInfo = useMemo(() => {
+    const m = new Map<string, { count: number; bulk: string | null }>();
+    for (const p of visible) {
+      const k = groupKeyOf(p);
+      const g = m.get(k) ?? { count: 0, bulk: null };
+      g.count += 1;
+      if (!g.bulk && unitsOf(p).hasBulk) g.bulk = unitsOf(p).bulk;
+      m.set(k, g);
+    }
+    return m;
+  }, [visible]);
 
   // ---- Sell price calculator: percentages -> Retail / Trade / Regency prices -------------------
   const [pricerOpen, setPricerOpen] = useState(false);
@@ -1493,9 +1531,59 @@ export default function PartsTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((p) => (
+            {visible.map((p, idx) => {
+              const gk = groupKeyOf(p);
+              const firstOfGroup = idx === 0 || groupKeyOf(visible[idx - 1]) !== gk;
+              const gi = groupInfo.get(gk);
+              const unit = unitsOf(p).one;
+              const subLabel = (key: string): string => {
+                if (gk === "~non") return "";
+                switch (key) {
+                  case "coverage":
+                    return `m² per ${unit}`;
+                  case "pks":
+                    return cap(plural(unit, 2));
+                  case "multi":
+                    return gi?.bulk ? cap(plural(gi.bulk, 2)) : "—";
+                  case "packPerMulti":
+                    return gi?.bulk ? `${cap(plural(unit, 2))} per ${gi.bulk}` : "—";
+                  case "stock":
+                    return `Stock (${plural(unit, 2)})`;
+                  default:
+                    return "";
+                }
+              };
+              return (
+              <Fragment key={p.id}>
+              {firstOfGroup && (
+                <>
+                  <tr className="border-t border-[var(--border)] bg-[#f2f0ec]">
+                    <td colSpan={visibleColOrder.length} className="px-3 py-2">
+                      <span className="sticky left-3 inline-flex items-baseline gap-2 font-semibold">
+                        {groupLabel(gk)}
+                        <span className="text-xs font-normal text-[var(--muted)]">
+                          {gi?.count ?? 0} product{(gi?.count ?? 0) === 1 ? "" : "s"}
+                          {gk !== "~non" ? ` · counted in ${plural(unit, 2)}${gi?.bulk ? ` and ${plural(gi.bulk, 2)}` : ""}` : ""}
+                        </span>
+                      </span>
+                    </td>
+                  </tr>
+                  {gk !== "~non" && (
+                    <tr className="border-t border-[var(--border)] bg-[var(--surface)] text-[11px] uppercase tracking-wide text-[var(--muted)]">
+                      {visibleColOrder.map((key) => (
+                        <td
+                          key={key}
+                          style={frozenLeft[key] !== undefined ? { left: frozenLeft[key] } : undefined}
+                          className={`px-1 py-1 text-center ${frozenLeft[key] !== undefined ? "sticky z-[5] bg-white" : ""}`}
+                        >
+                          {subLabel(key)}
+                        </td>
+                      ))}
+                    </tr>
+                  )}
+                </>
+              )}
               <tr
-                key={p.id}
                 className="group border-t border-[var(--border)] hover:bg-black/[0.02]"
               >
                 {visibleColOrder.map((key) => (
@@ -1514,7 +1602,9 @@ export default function PartsTable({
                   </td>
                 ))}
               </tr>
-            ))}
+              </Fragment>
+              );
+            })}
             {visible.length === 0 && (
               <tr>
                 <td colSpan={visibleColOrder.length} className="px-4 py-8 text-center text-[var(--muted)]">
