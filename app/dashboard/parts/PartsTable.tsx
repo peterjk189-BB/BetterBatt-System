@@ -5,7 +5,6 @@ import Papa from "papaparse";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
-import { plural, unitsOf } from "@/lib/units";
 
 type Part = {
   id: string;
@@ -204,8 +203,6 @@ function InlineCell({
   prefix,
   integer = false,
   alwaysEditable = false,
-  suffix,
-  disabled = false,
 }: {
   value: string | number;
   onCommit: (v: string | number) => void;
@@ -214,12 +211,8 @@ function InlineCell({
   prefix?: string;
   integer?: boolean;
   alwaysEditable?: boolean;
-  /** Small unit label after the number ("rolls"). */
-  suffix?: string;
-  /** Greyed out and not editable (e.g. Multi for a product with no bulk unit). */
-  disabled?: boolean;
 }) {
-  const locked = (useContext(EditLockContext) && !alwaysEditable) || disabled;
+  const locked = useContext(EditLockContext) && !alwaysEditable;
   const [v, setV] = useState(String(value));
 
   useEffect(() => {
@@ -233,7 +226,7 @@ function InlineCell({
   const prefixWidthCap = prefix ? "max-w-[6rem]" : "";
 
   return (
-    <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]} ${disabled ? "opacity-30" : ""}`}>
+    <div className={`min-w-0 flex-1 flex items-center gap-1 ${JUSTIFY[align]}`}>
       {prefix && <span className="shrink-0 text-[var(--muted)]">{prefix}</span>}
       <input
         type={type}
@@ -253,7 +246,6 @@ function InlineCell({
             : "hover:border-[var(--border)] focus:border-accent focus:bg-white focus:outline-none"
         } ${TEXT_ALIGN[align]}`}
       />
-      {suffix && <span className="shrink-0 pr-1 text-xs text-[var(--muted)]">{suffix}</span>}
     </div>
   );
 }
@@ -278,9 +270,9 @@ const INVENTORY_COLS = [
   { key: "priceTradeInc", label: "Trade inc GST", align: "center" as Align, width: 100 },
   { key: "priceRegency", label: "Regency ex GST", align: "center" as Align, width: 100 },
   { key: "priceRegencyInc", label: "Regency inc GST", align: "center" as Align, width: 100 },
-  { key: "pks", label: "Pks", align: "center" as Align, width: 110 },
-  { key: "multi", label: "Multi", align: "center" as Align, width: 110 },
-  { key: "stock", label: "Stock on hand", align: "center" as Align, width: 190 },
+  { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
+  { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
+  { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
   { key: "totalM2", label: "Total m²", align: "center" as Align, width: 100 },
   { key: "value", label: "Inventory value", align: "center" as Align, width: 130 },
   { key: "actions", label: "", align: "center" as Align, width: 90 },
@@ -848,13 +840,8 @@ export default function PartsTable({
         );
       case "type":
         return <InlineCell value={p.type || ""} onCommit={(v) => patch(p, "type", v)} align="center" />;
-      case "stock": {
-        // In the product's own units: "23 packs (4 multis + 3)", "14 rolls", "15 boxes (2 cartons + 3)".
-        const u = unitsOf(p);
-        const total = Number(p.stock_on_hand) || 0;
-        const split = u.hasBulk && Number(p.multi) > 0 ? ` (${p.multi} ${plural(u.bulk, Number(p.multi))} + ${Number(p.pks) || 0})` : "";
-        return `${total} ${plural(u.one, total)}${split}`;
-      }
+      case "stock":
+        return p.stock_on_hand;
       case "totalM2":
         return (p.stock_on_hand * p.coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 1 });
       case "supplier":
@@ -942,20 +929,11 @@ export default function PartsTable({
         );
       case "pks":
         return (
-          <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer alwaysEditable suffix={plural(unitsOf(p).one, Number(p.pks) || 0)} />
+          <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer alwaysEditable />
         );
       case "multi":
         return (
-          <InlineCell
-            type="number"
-            value={p.multi}
-            onCommit={(v) => patch(p, "multi", v)}
-            align="center"
-            integer
-            alwaysEditable
-            disabled={!unitsOf(p).hasBulk && !(Number(p.multi) > 0)}
-            suffix={unitsOf(p).hasBulk ? plural(unitsOf(p).bulk, Number(p.multi) || 0) : undefined}
-          />
+          <InlineCell type="number" value={p.multi} onCommit={(v) => patch(p, "multi", v)} align="center" integer alwaysEditable />
         );
       case "packUnit":
         return <InlineCell value={p.pack_unit ?? "pack"} onCommit={(v) => patch(p, "pack_unit", String(v).trim() || "pack")} align="center" />;
