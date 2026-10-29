@@ -90,7 +90,7 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
         {msg && <span className={`text-sm ${msg.ok ? "text-green-700" : "text-red-700"}`}>{msg.text}</span>}
       </div>
 
-      <div ref={printableRef} className="mx-auto max-w-5xl rounded-xl border border-[var(--border)] bg-white p-8 text-black print:border-none print:p-0">
+      <div ref={printableRef} className="mx-auto max-w-5xl paper-sheet rounded-xl border border-[var(--border)] bg-white p-8 text-black print:border-none print:p-0">
         <div className="flex items-center justify-between rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div>
             <div className="text-3xl font-bold">Better Batt Insulation</div>

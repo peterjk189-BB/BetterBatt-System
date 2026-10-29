@@ -479,3 +479,27 @@ html[data-theme="dark"] .bg-cyan-100{background-color:#143f4d}
 html[data-theme="dark"] .text-cyan-900{color:#a5e6f5}
 html[data-theme="dark"] .bg-lime-100{background-color:#2f4116}
 html[data-theme="dark"] .text-lime-900{color:#d3f09a}
+
+/* Printable sheets stay on white paper in dark mode too, so they read well on screen and the PDF made from them is not dark. */
+@media screen {
+html[data-theme="dark"] .paper-sheet{background-color:#ffffff;color:#201f1c;border-color:#d8d5cd;color-scheme:light}
+html[data-theme="dark"] .paper-sheet .bg-white{background-color:#ffffff}
+html[data-theme="dark"] .paper-sheet .bg-gray-50{background-color:#f9fafb}
+html[data-theme="dark"] .paper-sheet .bg-gray-100{background-color:#f3f4f6}
+html[data-theme="dark"] .paper-sheet .bg-gray-200{background-color:#e5e7eb}
+html[data-theme="dark"] .paper-sheet .text-black{color:#000000}
+html[data-theme="dark"] .paper-sheet .text-gray-900{color:#111827}
+html[data-theme="dark"] .paper-sheet .text-gray-700{color:#374151}
+html[data-theme="dark"] .paper-sheet .text-gray-600{color:#4b5563}
+html[data-theme="dark"] .paper-sheet .text-gray-500{color:#6b7280}
+html[data-theme="dark"] .paper-sheet .text-gray-400{color:#9ca3af}
+html[data-theme="dark"] .paper-sheet .text-gray-300{color:#d1d5db}
+html[data-theme="dark"] .paper-sheet .text-red-700{color:#b91c1c}
+html[data-theme="dark"] .paper-sheet .text-green-700{color:#15803d}
+html[data-theme="dark"] .paper-sheet .text-amber-700{color:#b45309}
+html[data-theme="dark"] .paper-sheet .text-blue-700{color:#1d4ed8}
+html[data-theme="dark"] .paper-sheet .border-gray-100{border-color:#f3f4f6}
+html[data-theme="dark"] .paper-sheet .border-gray-200{border-color:#e5e7eb}
+html[data-theme="dark"] .paper-sheet .border-gray-300{border-color:#d1d5db}
+html[data-theme="dark"] .paper-sheet input,html[data-theme="dark"] .paper-sheet select,html[data-theme="dark"] .paper-sheet textarea{background-color:#ffffff;color:#000000;border-color:#d1d5db}
+}

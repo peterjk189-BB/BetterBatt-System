@@ -180,7 +180,7 @@ export default function PriceBook({ parts, suppliers }: { parts: Part[]; supplie
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-[var(--border)] bg-white p-6 text-black print:mt-0 print:border-none print:p-0">
+      <div className="mt-4 paper-sheet rounded-xl border border-[var(--border)] bg-white p-6 text-black print:mt-0 print:border-none print:p-0">
         <div className="flex items-end justify-between border-b-2 border-black pb-3">
           <div>
             <div className="text-2xl font-bold">Better Batt Insulation</div>

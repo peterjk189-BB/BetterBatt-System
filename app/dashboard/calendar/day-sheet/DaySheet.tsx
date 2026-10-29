@@ -135,7 +135,7 @@ export default function DaySheet({
         {err && <span className="text-sm text-red-700">{err}</span>}
       </div>
 
-      <div ref={printableRef} className="mx-auto max-w-[1100px] rounded-xl border border-[var(--border)] bg-white p-6 text-black print:max-w-none print:border-none print:p-0">
+      <div ref={printableRef} className="mx-auto max-w-[1100px] paper-sheet rounded-xl border border-[var(--border)] bg-white p-6 text-black print:max-w-none print:border-none print:p-0">
         <div className="flex items-end justify-between rounded-lg bg-[#141413] px-5 py-3 text-white">
           <div>
             <div className="text-xl font-bold">Better Batt Insulation · Day sheet</div>

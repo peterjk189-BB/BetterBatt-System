@@ -144,7 +144,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
 
       <div
         ref={printableRef}
-        className="mx-auto max-w-5xl rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
+        className="mx-auto max-w-5xl paper-sheet rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
       >
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
           <div className="flex items-center justify-between">
