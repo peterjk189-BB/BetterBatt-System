@@ -118,7 +118,7 @@ export default function QuotePrintView({
   const renderRows = (list: typeof computed) =>
     list.map((l, i) => (
       <Fragment key={i}>
-        <tr className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
+        <tr data-pdf-keep={l.note ? "next" : "yes"} className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
           <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
           {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
           {showPrices && (
@@ -126,7 +126,7 @@ export default function QuotePrintView({
           )}
         </tr>
         {l.note && (
-          <tr className="quote-note border-b border-gray-300">
+          <tr data-pdf-keep="yes" className="quote-note border-b border-gray-300">
             <td colSpan={colCount} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
               {l.note}
             </td>
@@ -199,6 +199,11 @@ export default function QuotePrintView({
           .quote-terms-para {
             break-inside: avoid;
             page-break-inside: avoid;
+          }
+          /* Option titles stay with their first line. */
+          .quote-heading {
+            break-after: avoid;
+            page-break-after: avoid;
           }
         }
       `}</style>
@@ -284,7 +289,7 @@ export default function QuotePrintView({
         <div className="mt-4 flex justify-end">
           {/* Customer discount is folded into the subtotal below but not itemized here —
               it's commercial info the customer doesn't need to see broken out. */}
-          <div className="quote-totals w-64 rounded-lg bg-[#f6f5f2] p-3.5">
+          <div data-pdf-keep="yes" className="quote-totals w-64 rounded-lg bg-[#f6f5f2] p-3.5">
             <div className="flex justify-between py-0.5 text-sm text-[#6b6862]">
               <span>Subtotal</span>
               <span className="text-[#201f1c]">{fmtCurrency(subtotal)}</span>
@@ -302,20 +307,20 @@ export default function QuotePrintView({
 
         {optionData.length > 0 && (
           <div className="mt-6">
-            <div className="border-b-2 border-[#201f1c] pb-1">
+            <div data-pdf-keep="next" className="quote-heading border-b-2 border-[#201f1c] pb-1">
               <div className="text-lg font-extrabold uppercase tracking-wide text-[#201f1c]">Optional extras</div>
               <div className="text-xs font-semibold text-[#4a4842]">Not included in the total above</div>
             </div>
             {optionData.map((o) => (
-              <div key={o.key} className="quote-totals mt-3">
-                <div className="flex items-center justify-between rounded-lg bg-[#f6f5f2] px-2.5 py-2 text-sm font-bold">
+              <div key={o.key} className="mt-3">
+                <div data-pdf-keep="next" className="quote-heading flex items-center justify-between rounded-lg bg-[#f6f5f2] px-2.5 py-2 text-sm font-bold">
                   <span>{optionTitle(project.option_titles, o.key)}</span>
                   {o.accepted && <span className="text-xs font-semibold text-green-700">Accepted</span>}
                 </div>
                 <table className="w-full text-sm">
                   <tbody>{renderRows(o.lines)}</tbody>
                 </table>
-                <div className="mt-1.5 flex justify-end">
+                <div data-pdf-keep="yes" className="quote-totals mt-1.5 flex justify-end">
                   <div className="w-64 text-sm">
                     <div className="flex justify-between py-0.5 text-[#6b6862]">
                       <span>Subtotal</span>
@@ -334,7 +339,7 @@ export default function QuotePrintView({
               </div>
             ))}
             {acceptedOptSub > 0 && (
-              <div className="quote-totals mt-3 flex justify-end">
+              <div data-pdf-keep="yes" className="quote-totals mt-3 flex justify-end">
                 <div className="flex w-64 justify-between rounded-lg bg-[#f6f5f2] p-3.5 text-base font-extrabold">
                   <span>Total with accepted options</span>
                   <span>{fmtCurrency(grandTotal)}</span>
@@ -353,7 +358,7 @@ export default function QuotePrintView({
                 .map((p) => p.trim())
                 .filter(Boolean)
                 .map((paragraph, i) => (
-                  <p key={i} className="quote-terms-para text-[9.5px] leading-relaxed text-[#6b6862]">
+                  <p key={i} data-pdf-keep="yes" className="quote-terms-para text-[9.5px] leading-relaxed text-[#6b6862]">
                     {paragraph}
                   </p>
                 ))}

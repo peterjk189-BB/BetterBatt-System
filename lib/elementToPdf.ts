@@ -23,6 +23,10 @@ export async function elementToPdf(
   const maxPixels = 14_000_000;
   const pixels = baseWidth * baseHeight * scale * scale;
   if (pixels > maxPixels) scale = Math.max(0.6, Math.sqrt(maxPixels / Math.max(1, baseWidth * baseHeight)));
+  // Blocks marked data-pdf-keep must not be cut by a page break (data-pdf-keep="next" also keeps the block with the one after it).
+  // Measured in the cloned layout, in CSS px from the top of the element.
+  const keeps: { top: number; bottom: number }[] = [];
+  let glue = false;
   // useCORS lets photos stored in Supabase draw onto the canvas.
   const canvas: HTMLCanvasElement = await html2canvas(el, {
     scale,
@@ -35,18 +39,48 @@ export async function elementToPdf(
       clone.style.width = `${baseWidth}px`;
       clone.style.maxWidth = "none";
       clone.style.margin = "0";
+      const top0 = clone.getBoundingClientRect().top;
+      clone.querySelectorAll<HTMLElement>("[data-pdf-keep]").forEach((n) => {
+        const r = n.getBoundingClientRect();
+        const rect = { top: r.top - top0, bottom: r.bottom - top0 };
+        if (glue && keeps.length) keeps[keeps.length - 1].bottom = rect.bottom;
+        else keeps.push(rect);
+        glue = n.getAttribute("data-pdf-keep") === "next";
+      });
     },
   });
 
   const pdf = new jsPDF({ orientation, unit: "mm", format: "a4", compress: true });
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const pagePx = Math.floor((canvas.width * pageH) / pageW); // canvas pixels that fill one page
+  // With keep-together blocks the pages get a little white space top and bottom, so a block moved to the next page isn't hard against the edge.
+  const smart = keeps.length > 0;
+  const topMm = smart ? 10 : 0;
+  const bottomMm = smart ? 10 : 0;
+  const mmToPx = canvas.width / pageW;
 
   let y = 0;
   let first = true;
   while (y < canvas.height) {
-    const sliceH = Math.min(pagePx, canvas.height - y);
+    const pageTopMm = first ? 0 : topMm;
+    const pagePx = Math.floor((pageH - pageTopMm - bottomMm) * mmToPx); // canvas pixels that fit on this page
+    let end = Math.min(y + pagePx, canvas.height);
+    if (smart && end < canvas.height) {
+      // If the cut would slice through a keep-together block, cut just above it instead (unless it would leave an empty page).
+      let moved = true;
+      while (moved) {
+        moved = false;
+        for (const k of keeps) {
+          const kt = k.top * scale;
+          const kb = k.bottom * scale;
+          if (kt > y + 20 && kt < end && kb > end) {
+            end = Math.floor(kt);
+            moved = true;
+          }
+        }
+      }
+    }
+    const sliceH = end - y;
     const slice = document.createElement("canvas");
     slice.width = canvas.width;
     slice.height = sliceH;
@@ -55,7 +89,7 @@ export async function elementToPdf(
     ctx.fillRect(0, 0, slice.width, slice.height);
     ctx.drawImage(canvas, 0, y, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
     if (!first) pdf.addPage();
-    pdf.addImage(slice.toDataURL("image/jpeg", 0.72), "JPEG", 0, 0, pageW, (sliceH * pageW) / canvas.width, undefined, "FAST");
+    pdf.addImage(slice.toDataURL("image/jpeg", 0.72), "JPEG", 0, pageTopMm, pageW, (sliceH * pageW) / canvas.width, undefined, "FAST");
     first = false;
     y += sliceH;
   }
