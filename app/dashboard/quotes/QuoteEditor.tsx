@@ -1399,19 +1399,20 @@ export default function QuoteEditor({
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3 text-sm">
           <span className="font-medium">Round the total (inc GST):</span>
           {[
-            { label: "Down to $10", step: 10, mode: "down" },
+            { label: "Nearest $1", step: 1, mode: "near" },
+            { label: "Round down", step: 1, mode: "down" },
+            { label: "Round up", step: 1, mode: "up" },
+            { label: "Nearest $5", step: 5, mode: "near" },
             { label: "Nearest $10", step: 10, mode: "near" },
-            { label: "Down to $50", step: 50, mode: "down" },
-            { label: "Nearest $50", step: 50, mode: "near" },
-            { label: "Nearest $100", step: 100, mode: "near" },
           ].map((b) => (
             <button
               key={b.label}
               type="button"
               onClick={() => {
-                // Work from the total before any rounding adjustment of this kind, so pressing again doesn't compound.
+                // Keeps your discount/markup and only nudges it by the few cents needed to land on the rounded total.
                 const t = Math.round(total * 100) / 100;
-                const r = b.mode === "down" ? Math.floor(t / b.step + 1e-9) * b.step : Math.round(t / b.step) * b.step;
+                const r =
+                  b.mode === "down" ? Math.floor(t / b.step + 1e-9) * b.step : b.mode === "up" ? Math.ceil(t / b.step - 1e-9) * b.step : Math.round(t / b.step) * b.step;
                 setTotalTo(r);
               }}
               className="rounded-lg border border-[var(--border)] px-3 py-1 hover:border-accent"
@@ -1441,7 +1442,7 @@ export default function QuoteEditor({
             Set
           </button>
           <span className="w-full text-xs text-[var(--muted)]">
-            Total now {fmtCurrency(total)}. This fills in the adjustment above so the total including GST comes out exactly.
+            Total now {fmtCurrency(total)}. The few cents are added to or taken off your discount/markup above, so the total including GST comes out on a round figure.
           </span>
         </div>
       </div>
