@@ -15,6 +15,7 @@ type WorkOrder = {
   po_number: string | null;
   po_value: number | null;
   jsa_received: boolean;
+  authorised_at?: string | null;
   archived: boolean;
   projects: { quote_number: number; address: string | null; suburb: string | null; customers: { name: string } | null } | null;
   subcontractors: { name: string } | null;
@@ -136,6 +137,7 @@ export default function WorkOrdersList({
               {isStaff && <th className="px-4 py-2 text-right">P/O value</th>}
               <th className="px-4 py-2 text-right">Tasks</th>
               <th className="px-4 py-2 text-right">Contractor cost</th>
+              <th className="px-4 py-2">Emailed</th>
               <th className="px-4 py-2">JSA</th>
               <th className="px-4 py-2">Job status</th>
               {showArchived && isStaff && <th className="px-4 py-2"></th>}
@@ -163,6 +165,15 @@ export default function WorkOrdersList({
                   {isStaff && <td className="px-4 py-2 text-right">{fmtCurrency(w.po_value || 0)}</td>}
                   <td className="px-4 py-2 text-right">{s.count}</td>
                   <td className="px-4 py-2 text-right">{fmtCurrency(s.cost)}</td>
+                  <td className="px-4 py-2 whitespace-nowrap">
+                    {w.authorised_at ? (
+                      <span className="text-green-700">
+                        ✓ {new Date(w.authorised_at).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                    ) : (
+                      <span className="text-[var(--muted)]">Not emailed</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2">
                     {w.jsa_received ? (
                       <span className="text-green-700">✓</span>
@@ -187,7 +198,7 @@ export default function WorkOrdersList({
             })}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={11} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} work orders found — open an accepted quote and start
                   one, or add manually.
                 </td>
