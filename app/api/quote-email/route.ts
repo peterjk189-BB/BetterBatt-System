@@ -59,6 +59,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
+  // Remember who it went to and when (columns exist after migration 0078; ignored if not yet run).
+  const emailedAt = new Date().toISOString();
+  await supabase.from("projects").update({ emailed_at: emailedAt, emailed_to: toEmail }).eq("id", project.id);
+
   await logAudit(supabase, {
     eventType: "update",
     entityType: "quote",
@@ -67,5 +71,5 @@ export async function POST(req: Request) {
     details: `Emailed quote link to ${toEmail}`,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, emailed_at: emailedAt, emailed_to: toEmail });
 }

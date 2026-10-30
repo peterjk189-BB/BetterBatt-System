@@ -16,6 +16,8 @@ type Project = {
   suburb: string | null;
   entry_date: string;
   quote_markup: number;
+  emailed_at?: string | null;
+  emailed_to?: string | null;
   archived: boolean;
   customers: { name: string; discount_pct: number | null } | null;
 };
@@ -141,6 +143,7 @@ export default function QuotesList({
               <th className="px-4 py-2">Site address</th>
               <th className="px-4 py-2">Site visit</th>
               <th className="px-4 py-2">Date</th>
+              <th className="px-4 py-2">Emailed</th>
               <th className="px-4 py-2">Outcome</th>
               <th className="px-4 py-2 text-right">Est. total (ex markup)</th>
               <th className="px-4 py-2"></th>
@@ -178,6 +181,18 @@ export default function QuotesList({
                   })()}
                 </td>
                 <td className="px-4 py-2 text-[var(--muted)]">{p.entry_date ? new Date(p.entry_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU") : "—"}</td>
+                <td className="px-4 py-2 text-xs">
+                  {p.emailed_at ? (
+                    <>
+                      <span className="whitespace-nowrap text-green-700">
+                        ✓ {new Date(p.emailed_at).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
+                      </span>
+                      {p.emailed_to && <div className="max-w-[180px] truncate text-[var(--muted)]" title={p.emailed_to}>{p.emailed_to}</div>}
+                    </>
+                  ) : (
+                    <span className="text-[var(--muted)]">Not sent</span>
+                  )}
+                </td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${OUTCOME_COLORS[p.outcome]}`}>
                     {p.outcome}
@@ -201,7 +216,7 @@ export default function QuotesList({
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={10} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} quotes found.
                 </td>
               </tr>

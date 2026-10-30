@@ -54,6 +54,8 @@ type Project = {
   price_tier?: string | null;
   archived: boolean;
   share_token?: string | null;
+  emailed_at?: string | null;
+  emailed_to?: string | null;
   accepted_at?: string | null;
   accepted_name?: string | null;
   option_titles?: Record<string, string> | null;
@@ -252,6 +254,7 @@ export default function QuoteEditor({
         return;
       }
       setEmailSent(true);
+      setEmailedInfo({ at: data.emailed_at || new Date().toISOString(), to: data.emailed_to || emailAddress.trim() });
     } catch {
       setEmailError("Something went wrong");
     } finally {
@@ -308,6 +311,9 @@ export default function QuoteEditor({
   // Optional extras ("Option A", "Option B"...). Lines with option_key belong to that option.
   const [optionKeys, setOptionKeys] = useState<string[]>(() => usedOptionKeys(lineItems, project?.option_titles));
   const [optTitles, setOptTitles] = useState<Record<string, string>>(project?.option_titles ?? {});
+  const [emailedInfo, setEmailedInfo] = useState<{ at: string; to: string } | null>(
+    project?.emailed_at ? { at: project.emailed_at, to: project.emailed_to || "" } : null
+  );
   const [optAccepted, setOptAccepted] = useState<string[]>(project?.option_accepted ?? []);
   // Internal travel allowance: contractor cost only, never shown to the customer. Tick the box, then add amounts.
   const [travel, setTravel] = useState<{ note: string; amount: string }[]>(() =>
@@ -770,6 +776,13 @@ export default function QuoteEditor({
           <h1 className="mt-1 text-2xl font-bold">
             {isNew ? "New quote" : `Quote Q${project!.quote_number}`}
           </h1>
+          {!isNew && (
+            <p className={`mt-1 text-sm ${emailedInfo ? "text-green-700" : "text-[var(--muted)]"}`}>
+              {emailedInfo
+                ? `✓ Emailed${emailedInfo.to ? ` to ${emailedInfo.to}` : ""} on ${new Date(emailedInfo.at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`
+                : "Not emailed to the customer yet"}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {!isNew && isAdmin && (
