@@ -6,6 +6,7 @@ import Link from "next/link";
 import PoSendActions from "./PoSendActions";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { plural, unitsOf } from "@/lib/units";
 import { fuelLevyAmount } from "@/lib/poFuel";
 
 type Supplier = { id: string; name: string };
@@ -17,6 +18,11 @@ type Part = {
   pack_per_multi: number;
   pack_cost_ex_gst: number;
   supplier_id: string | null;
+  multi?: number | null;
+  pks?: number | null;
+  stock_on_hand?: number | null;
+  pack_unit?: string | null;
+  multi_unit?: string | null;
 };
 
 type PurchaseOrder = {
@@ -654,6 +660,8 @@ export default function PurchaseOrderEditor({
               <tr>
                 <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Item</th>
+                <th className="px-3 py-2 text-right">In stock</th>
+                <th className="px-3 py-2 text-right">Packs per multi</th>
                 {showJobs && <th className="px-3 py-2">Job</th>}
                 <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
@@ -694,6 +702,31 @@ export default function PurchaseOrderEditor({
                       )}
                     </select>
                   </td>
+                  {(() => {
+                    const sp = l.part_id ? partById[l.part_id] : undefined;
+                    if (!sp) {
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-right text-[var(--muted)]">—</td>
+                          <td className="px-3 py-2 text-right text-[var(--muted)]">—</td>
+                        </>
+                      );
+                    }
+                    const u = unitsOf(sp);
+                    const per = Number(sp.pack_per_multi) || 0;
+                    const total = Number(sp.stock_on_hand) || 0;
+                    return (
+                      <>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          <span className="font-semibold">{total} {plural(u.one, total)}</span>
+                          <span className="block text-xs text-[var(--muted)]">
+                            {u.hasBulk ? `${Number(sp.multi) || 0} ${plural(u.bulk, Number(sp.multi) || 0)} + ${Number(sp.pks) || 0} loose` : "no multis"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">{u.hasBulk && per > 1 ? per : "—"}</td>
+                      </>
+                    );
+                  })()}
                   {showJobs && (
                     <td className="px-3 py-2">
                       {l.work_order_id ? (
@@ -751,7 +784,7 @@ export default function PurchaseOrderEditor({
               ))}
               {lineItems.length === 0 && (
                 <tr>
-                  <td colSpan={(showJobs ? 9 : 8) - (siteDelivery ? 2 : 0)} className="px-4 py-8 text-center text-[var(--muted)]">
+                  <td colSpan={(showJobs ? 11 : 10) - (siteDelivery ? 2 : 0)} className="px-4 py-8 text-center text-[var(--muted)]">
                     No line items yet.
                   </td>
                 </tr>
