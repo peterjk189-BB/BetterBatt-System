@@ -24,6 +24,11 @@ function presetRange(p: string): [string, string] {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
+  if (p === "week") {
+    // Weeks run Monday to Sunday.
+    const mon = new Date(y, m, now.getDate() - ((now.getDay() + 6) % 7));
+    return [iso(mon), iso(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6))];
+  }
   if (p === "month") return [iso(new Date(y, m, 1)), iso(new Date(y, m + 1, 0))];
   if (p === "lastmonth") return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
   // Australian financial year runs 1 July - 30 June.
@@ -149,6 +154,7 @@ export default function ProductSalesReport() {
         <label className="flex flex-col gap-1 text-xs text-[var(--muted)]">
           Period
           <select value={preset} onChange={(e) => choosePreset(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--fg,inherit)]">
+            <option value="week">This week</option>
             <option value="month">This month</option>
             <option value="lastmonth">Last month</option>
             <option value="fy">This financial year</option>
