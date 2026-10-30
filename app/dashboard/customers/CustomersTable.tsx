@@ -55,6 +55,9 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   const [catFilter, setCatFilter] = useState<"All" | Customer["category"]>("All");
   const [letter, setLetter] = useState("");
   const [modalTab, setModalTab] = useState<"details" | "crm">("details");
+  const [mergeFrom, setMergeFrom] = useState<Customer | null>(null);
+  const [mergeInto, setMergeInto] = useState("");
+  const [merging, setMerging] = useState(false);
 
   function openNew() {
     setModalTab("details");
@@ -118,6 +121,23 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
       }
     }
     setSaving(false);
+  }
+
+  async function doMerge() {
+    const keep = customers.find((x) => x.id === mergeInto);
+    if (!mergeFrom || !keep) return;
+    if (!confirm(`Move everything from "${mergeFrom.name}" into "${keep.name}" and archive "${mergeFrom.name}"? This can't be undone automatically.`)) return;
+    setMerging(true);
+    const { error } = await supabase.rpc("merge_customers", { keep_id: keep.id, dup_id: mergeFrom.id });
+    setMerging(false);
+    if (error) {
+      alert(/merge_customers/.test(error.message) ? "Run migration 0077 in Supabase first (merge customers)." : error.message);
+      return;
+    }
+    setCustomers((prev) => prev.map((x) => (x.id === mergeFrom.id ? { ...x, archived: true } : x)));
+    logAudit(supabase, { eventType: "update", entityType: "customer", entityId: keep.id, entityLabel: keep.name, details: `Merged "${mergeFrom.name}" into this customer` });
+    setMergeFrom(null);
+    setMergeInto("");
   }
 
   async function toggleArchive(c: Customer) {
@@ -265,6 +285,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                   <button onClick={() => openEdit(c)} className="text-accent hover:underline">
                     Edit
                   </button>
+                  {isAdmin && !c.archived && (
+                    <button onClick={() => { setMergeFrom(c); setMergeInto(""); }} className="ml-3 text-[var(--muted)] hover:underline">
+                      Merge
+                    </button>
+                  )}
                   {isAdmin && (
                     <button
                       onClick={() => toggleArchive(c)}
@@ -465,6 +490,36 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                 className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mergeFrom && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-[var(--surface)] p-6">
+            <h2 className="text-lg font-bold">Merge customer</h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              All quotes, invoices, site visits and notes for <strong>{mergeFrom.name}</strong> move to the customer you pick below.
+              <strong> {mergeFrom.name}</strong> is then archived.
+            </p>
+            <label className="mt-4 flex flex-col gap-1 text-sm">
+              Keep this customer
+              <select value={mergeInto} onChange={(e) => setMergeInto(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-2">
+                <option value="">Choose…</option>
+                {customers
+                  .filter((x) => !x.archived && x.id !== mergeFrom.id)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>{x.name}</option>
+                  ))}
+              </select>
+            </label>
+            <div className="mt-5 flex justify-end gap-3">
+              <button onClick={() => setMergeFrom(null)} className="rounded-lg px-4 py-2 text-sm">Cancel</button>
+              <button onClick={doMerge} disabled={!mergeInto || merging} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                {merging ? "Merging..." : "Merge"}
               </button>
             </div>
           </div>
