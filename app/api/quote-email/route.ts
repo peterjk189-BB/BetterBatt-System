@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
-import { sendEmail, siteUrl } from "@/lib/email";
+import { sendEmail, siteUrl, brandedEmailHtml } from "@/lib/email";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -40,21 +40,15 @@ export async function POST(req: Request) {
       kind: "quotes",
     to: toEmail,
     subject: `Your quote from Better Batt Insulation (Q${project.quote_number})`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="margin-bottom: 4px;">Quote Q${project.quote_number}</h2>
-        <p style="color: #555;">
-          Hi ${customerName || "there"},<br/><br/>
-          Here's your quote from Better Batt Insulation. Click below to view it and accept online.
-        </p>
-        <p style="margin: 24px 0;">
-          <a href="${link}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;">
-            View &amp; accept quote
-          </a>
-        </p>
-        <p style="color: #999; font-size: 12px;">Or copy this link: ${link}</p>
-      </div>
-    `,
+    html: brandedEmailHtml({
+      previewText: `Your quote Q${project.quote_number} from Better Batt Insulation is ready to view and accept online.`,
+      heading: `Your quote is ready`,
+      bodyHtml: `<p style="margin:0 0 14px;">Hi ${customerName || "there"},</p>
+        <p style="margin:0;">Thank you for the opportunity to quote. Your quote from Better Batt Insulation is ready. Use the button below to review the details and accept it online. If you have any questions, just reply to this email.</p>`,
+      rows: [{ label: "Quote number", value: `Q${project.quote_number}` }],
+      buttonText: "View & accept quote",
+      buttonUrl: link,
+    }),
   });
 
   if (!result.ok) {
