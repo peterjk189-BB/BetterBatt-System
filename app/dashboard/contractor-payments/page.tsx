@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import ContractorPaymentsTable from "./ContractorPaymentsTable";
 import ExtrasApproval from "./ExtrasApproval";
+import Link from "next/link";
 
 export default async function ContractorPaymentsPage() {
   const supabase = await createClient();
@@ -27,6 +28,11 @@ export default async function ContractorPaymentsPage() {
 
   return (
     <>
+      <div className="mb-4 flex justify-end">
+        <Link href="/dashboard/contractor-payments/invoices" className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent">
+          Contractor tax invoices
+        </Link>
+      </div>
       <ExtrasApproval extras={(pendingExtras ?? []) as any} parts={(parts ?? []) as any} />
       <ContractorPaymentsTable subs={subs ?? []} lines={(lines ?? []) as any} />
     </>

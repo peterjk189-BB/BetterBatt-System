@@ -306,6 +306,9 @@ function ReviewModal({ invite, onClose, onDone }: { invite: Invite; onClose: () 
       return setErr((error?.message || "Could not create the subcontractor") + " (has migration 0030 been run?)");
     }
 
+    // Optional tax invoicing: switch it on if they asked for it (needs migration 0079; ignored until then).
+    if (d.invoicing_opt_in) await supabase.from("subcontractors").update({ invoicing_enabled: true }).eq("id", sub.id);
+
     const rows = files.map((f) => ({
       subcontractor_id: sub.id,
       category: FILE_KIND_CATEGORY[f.kind] || "Other document",
@@ -362,6 +365,7 @@ function ReviewModal({ invite, onClose, onDone }: { invite: Invite; onClose: () 
           <Row k="Trading name" v={d.trading_name} />
           <Row k="ABN" v={d.abn} />
           <Row k="GST registered" v={d.gst_registered ? "Yes" : "No"} />
+          <Row k="Wants tax invoicing in the app" v={d.invoicing_opt_in ? "Yes" : "No"} />
           <Row k="Address" v={`${d.address}${d.postcode ? " " + d.postcode : ""}`} />
           <Row k="Mobile" v={d.phone} />
           <Row k="Email" v={d.email} />

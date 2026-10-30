@@ -27,6 +27,15 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
         .eq("work_order_id", params.id),
     ]);
     if (!wo) notFound();
+    // Optional tax invoicing: only shown to contractors the office has switched it on for.
+    let invoicing: { enabled: boolean; invoices: { id: string; invoice_number: string; status: string }[] } | undefined;
+    if (subId) {
+      const { data: s } = await supabase.from("subcontractors").select("invoicing_enabled").eq("id", subId).single();
+      if ((s as any)?.invoicing_enabled) {
+        const { data: inv } = await supabase.from("contractor_invoices").select("id, invoice_number, status").eq("work_order_id", params.id).eq("subcontractor_id", subId).order("seq");
+        invoicing = { enabled: true, invoices: (inv ?? []) as any };
+      }
+    }
     const proj = (wo as any).projects;
     return (
       <ContractorWorkOrder
@@ -36,6 +45,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
         extras={(cExtras ?? []) as any}
         subcontractorId={subId}
         progress={{ swms: (cSwms ?? []) as any, inspections: (cIns ?? []) as any }}
+        invoicing={invoicing}
       />
     );
   }

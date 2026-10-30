@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { lineRate } from "@/lib/woRate";
 import { woLinePacks } from "@/lib/picking";
 import JobProgressStrip from "./JobProgressStrip";
-import type { ProgressInspection, ProgressSwms } from "@/lib/jobProgress";
+import { jobProgress, type ProgressInspection, type ProgressSwms } from "@/lib/jobProgress";
 
 type WoLine = {
   id: string;
@@ -45,7 +45,10 @@ export default function ContractorWorkOrder({
   extras,
   subcontractorId,
   progress,
+  invoicing,
 }: {
+  /** Tax invoicing for this contractor: switched on by the office; invoices already made for this job. */
+  invoicing?: { enabled: boolean; invoices: { id: string; invoice_number: string; status: string }[] };
   workOrder: { id: string; wo_number: string; notes: string | null };
   site: string;
   lines: WoLine[];
@@ -114,6 +117,30 @@ export default function ContractorWorkOrder({
           + Start SWMS for this job
         </Link>
       </div>
+
+      {invoicing?.enabled && (() => {
+        const p = jobProgress(progress.swms, progress.inspections);
+        const ready = p.swmsDone && p.stage === "passed";
+        return (
+          <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="font-semibold">Tax invoice</div>
+                <div className="text-xs text-[var(--muted)]">
+                  {ready ? "SWMS signed and inspection passed. You can invoice this job." : "Available once the SWMS is signed and the inspection has passed."}
+                  {invoicing.invoices.length > 0 && ` Invoices so far: ${invoicing.invoices.map((i) => `${i.invoice_number} (${i.status})`).join(", ")}.`}
+                </div>
+              </div>
+              <Link
+                href={`/dashboard/work-orders/${workOrder.id}/invoice`}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold ${ready ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}
+              >
+                {invoicing.invoices.length > 0 ? "View invoices" : ready ? "Create tax invoice" : "See what's needed"}
+              </Link>
+            </div>
+          </div>
+        );
+      })()}
 
       {workOrder.notes && (
         <div className="mt-4 rounded-lg bg-[#f6f5f2] px-3.5 py-2.5 text-sm text-[#201f1c]">{workOrder.notes}</div>

@@ -28,6 +28,7 @@ export type OnboardingData = {
   trading_name: string;
   abn: string;
   gst_registered: boolean;
+  invoicing_opt_in?: boolean;
   address: string;
   postcode: string;
   phone: string;

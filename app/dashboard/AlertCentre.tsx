@@ -34,6 +34,7 @@ const KIND_ICON: Record<string, string> = {
   inspection_booked: "🔍",
   inspection_failed: "⚠️",
   email_bounce: "📧",
+  contractor_invoice: "🧾",
 };
 
 /**

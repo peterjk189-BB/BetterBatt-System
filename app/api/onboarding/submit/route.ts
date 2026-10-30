@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     trading_name: str(d.trading_name),
     abn: cleanAbn(str(d.abn, 20)),
     gst_registered: !!d.gst_registered,
+    invoicing_opt_in: !!d.invoicing_opt_in,
     address: str(d.address, 400),
     postcode: str(d.postcode, 10),
     phone: str(d.phone, 30),

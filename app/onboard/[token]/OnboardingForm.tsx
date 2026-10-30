@@ -6,7 +6,7 @@ import { parseAgreement } from "@/lib/subAgreement";
 
 type Uploaded = { kind: string; path: string; name: string };
 
-const STEPS = ["Business", "Documents", "Insurance", "Banking", "Agreement"];
+const STEPS = ["Business", "Documents", "Insurance", "Banking", "Invoicing", "Agreement"];
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2.5 text-base";
 const label = "block text-sm font-medium";
@@ -238,6 +238,7 @@ export default function OnboardingForm({
     bank_account_name: "",
     bank_bsb: "",
     bank_account_number: "",
+    invoicing_opt_in: false,
   });
   const [files, setFiles] = useState<Uploaded[]>([]);
   const [signedName, setSignedName] = useState("");
@@ -275,7 +276,7 @@ export default function OnboardingForm({
       if (f.bank_bsb.replace(/\D/g, "").length !== 6) return "BSB must be 6 digits.";
       if (f.bank_account_number.replace(/\D/g, "").length < 5) return "Please enter your account number.";
     }
-    if (s === 4) {
+    if (s === 5) {
       if (!signedName.trim()) return "Please type your full name to sign.";
       if (!agreed) return "Please tick the box to agree.";
       if (!signature) return "Please sign in the signature box.";
@@ -286,7 +287,7 @@ export default function OnboardingForm({
   function go(n: number) {
     setStep(n);
     setError("");
-    if (n !== 4) setSignature(null); // the signature pad is rebuilt when you come back
+    if (n !== 5) setSignature(null); // the signature pad is rebuilt when you come back
     setTimeout(() => top.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   }
 
@@ -297,7 +298,7 @@ export default function OnboardingForm({
   }
 
   async function submit() {
-    const msg = validate(4);
+    const msg = validate(5);
     if (msg) return setError(msg);
     setSubmitting(true);
     setError("");
@@ -394,6 +395,42 @@ export default function OnboardingForm({
         )}
 
         {step === 4 && (
+          <>
+            <p className="rounded-lg bg-[#f2f0ec] p-3 text-sm">
+              <strong>Optional: get paid faster.</strong> Instead of writing your own paperwork, you can turn a finished job into a tax invoice with one tap. It is already filled in from the work order.
+            </p>
+            <ol className="space-y-2.5 text-sm">
+              {[
+                ["Finish the job", "Do the work and add any extras on the work order in the app."],
+                ["Sign the SWMS", "You fill in the SWMS on site, as normal."],
+                ["Inspection passed", "Better Batt books the inspection. When it passes, the Create tax invoice button appears."],
+                ["Check and submit", "The invoice shows your ABN, GST and bank details. Check it and tap Submit."],
+                ["We approve and pay", "Better Batt checks it and pays you. Any extras you added are paid once approved, and show on the invoice as unapproved until then."],
+              ].map(([t, d], i) => (
+                <li key={i} className="flex gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center rounded-full bg-accent text-xs font-bold text-white">{i + 1}</span>
+                  <span>
+                    <strong>{t}.</strong> {d}
+                  </span>
+                </li>
+              ))}
+            </ol>
+            <div className="rounded-xl border border-[var(--border)] bg-white p-3 text-xs">
+              <div className="font-bold uppercase tracking-wide">Tax invoice (example)</div>
+              <div className="mt-1 text-[var(--muted)]">Your business · ABN · GST status · job address · work done · subtotal, GST, total · payment details</div>
+              <div className="mt-2 rounded border border-dashed border-red-400 bg-red-50 p-2 text-red-800">Unapproved extras: listed, but not charged until approved</div>
+            </div>
+            <label className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-white p-3 text-sm">
+              <input type="checkbox" className="mt-1" checked={f.invoicing_opt_in} onChange={(e) => setF({ ...f, invoicing_opt_in: e.target.checked })} />
+              <span>
+                <strong>Yes, I would like to submit my tax invoices through the app.</strong>
+                <span className="block text-xs text-[var(--muted)]">Optional. You can leave this unticked and ask the office to switch it on later. Your invoices are made from the details you have given here.</span>
+              </span>
+            </label>
+          </>
+        )}
+
+        {step === 5 && (
           <>
             <div className="max-h-[50vh] overflow-y-auto rounded-xl border border-[var(--border)] bg-white p-4 text-sm leading-relaxed">
               {parseAgreement(agreement).map((b, i) =>

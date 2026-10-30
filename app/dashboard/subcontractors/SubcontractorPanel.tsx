@@ -23,6 +23,7 @@ export type Subcontractor = {
   active: boolean;
   archived: boolean;
   gst_registered: boolean;
+  invoicing_enabled?: boolean;
   insurance_insurer?: string | null;
   insurance_policy?: string | null;
   insurance_cover?: number | null;
@@ -77,6 +78,15 @@ export default function SubcontractorPanel({
   onAttachmentsChange?: (files: Attachment[]) => void;
 }) {
   const supabase = createClient();
+  const [invoicingOn, setInvoicingOn] = useState(!!subcontractor.invoicing_enabled);
+  const [invoicingMsg, setInvoicingMsg] = useState("");
+  async function toggleInvoicing(on: boolean) {
+    setInvoicingMsg("");
+    const { error } = await supabase.from("subcontractors").update({ invoicing_enabled: on }).eq("id", subcontractor.id);
+    if (error) return setInvoicingMsg(/invoicing_enabled|schema cache/i.test(error.message) ? "Run migration 0079 in Supabase first." : error.message);
+    setInvoicingOn(on);
+    onSubcontractorChange?.({ ...subcontractor, invoicing_enabled: on });
+  }
   const [form, setForm] = useState({
     name: subcontractor.name,
     company_name: subcontractor.company_name || "",
@@ -426,6 +436,17 @@ export default function SubcontractorPanel({
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
             />
           </label>
+          {isAdmin && (
+            <label className="flex flex-col gap-0.5 text-sm">
+              <span className="flex items-center gap-2">
+                <input type="checkbox" checked={invoicingOn} onChange={(e) => toggleInvoicing(e.target.checked)} />
+                Can submit tax invoices in the app
+              </span>
+              <span className="pl-6 text-xs text-[var(--muted)]">
+                {invoicingMsg || "Optional. They can turn a finished job (SWMS signed, inspection passed) into a tax invoice for you to approve. Saves straight away."}
+              </span>
+            </label>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
