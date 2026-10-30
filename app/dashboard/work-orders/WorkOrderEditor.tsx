@@ -361,13 +361,26 @@ export default function WorkOrderEditor({
       notified.current.add(`${sid}|${l.task_date}`);
     }
     const notifyItems = Object.entries(bySub).map(([subcontractor_id, d]) => ({ subcontractor_id, dates: Array.from(d) }));
+    setResendNote(null);
     if (notifyItems.length > 0) {
-      fetch("/api/work-orders/notify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems }),
-        keepalive: true,
-      }).catch(() => {});
+      // Wait for the result so the office hears about a missing or refused email address straight away.
+      try {
+        const r = await fetch("/api/work-orders/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems }),
+        });
+        const j = await r.json().catch(() => ({}));
+        const problems: string[] = [];
+        if (!r.ok) problems.push(j.error || "The email could not be sent.");
+        if ((j.noEmail ?? []).length) problems.push(`Not emailed: no email address on file for ${(j.noEmail as string[]).join(", ")}. Add one on the Subcontractors page, then click Re-email contractor.`);
+        if ((j.failed ?? []).length) problems.push(`Email refused for ${(j.failed as string[]).join(", ")}. Check the address, then click Re-email contractor.`);
+        if (problems.length) setResendNote({ ok: false, text: problems.join(" ") });
+        else if (j.sent) setResendNote({ ok: true, text: `Emailed ${(j.to as string[]).join(", ")}.` });
+        else setResendNote({ ok: false, text: "Nothing was sent: there are no upcoming dates on this work order." });
+      } catch (e: any) {
+        setResendNote({ ok: false, text: e?.message || "Couldn't send the email. Click Re-email contractor to try again." });
+      }
     }
     logAudit(supabase, {
       eventType: "update",
@@ -406,8 +419,8 @@ export default function WorkOrderEditor({
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setResendNote({ ok: false, text: j.error || "Couldn't send the email." });
-      else if (!j.sent) setResendNote({ ok: false, text: "Nothing sent: there are no upcoming dates, or the contractor has no email on file." });
-      else setResendNote({ ok: true, text: `Emailed ${(j.to as string[]).join(", ")}.` });
+      else if (!j.sent) setResendNote({ ok: false, text: (j.noEmail ?? []).length ? `Nothing sent: no email address on file for ${(j.noEmail as string[]).join(", ")}.` : "Nothing sent: there are no upcoming dates on this work order." });
+      else setResendNote({ ok: !(j.failed ?? []).length, text: `Emailed ${(j.to as string[]).join(", ")}.${(j.noEmail ?? []).length ? ` No email on file for ${(j.noEmail as string[]).join(", ")}.` : ""}${(j.failed ?? []).length ? ` Refused: ${(j.failed as string[]).join(", ")}.` : ""}` });
     } catch (e: any) {
       setResendNote({ ok: false, text: e?.message || "Couldn't send the email." });
     }

@@ -119,7 +119,10 @@ export async function sendEmail({
   html,
   attachments,
   kind,
+  tags,
 }: {
+  /** Resend tags (letters, numbers, _ and - only). Come back on webhook events so a bounce can be traced to its work order. */
+  tags?: { name: string; value: string }[];
   /** Which address to send from: invoices (accounts@), quotes (quotes@) or jobs (jobs@). */
   kind?: EmailKind;
   to: string | string[];
@@ -143,7 +146,7 @@ export async function sendEmail({
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to, subject, html, ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}) }),
+      body: JSON.stringify({ from, to, subject, html, ...(tags?.length ? { tags } : {}), ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}) }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

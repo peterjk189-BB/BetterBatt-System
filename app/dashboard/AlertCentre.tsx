@@ -33,6 +33,7 @@ const KIND_ICON: Record<string, string> = {
   swms_completed: "🦺",
   inspection_booked: "🔍",
   inspection_failed: "⚠️",
+  email_bounce: "📧",
 };
 
 /**

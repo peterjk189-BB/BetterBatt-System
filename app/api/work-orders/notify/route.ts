@@ -51,6 +51,8 @@ export async function POST(req: Request) {
   const link = `${siteUrl()}/dashboard/calendar`;
   let emailed = 0;
   const sentTo: string[] = [];
+  const noEmail: string[] = []; // contractors with nobody to email
+  const failed: string[] = []; // addresses Resend refused outright
 
   for (const it of items) {
     // Only dates that really are on this contractor's lines, and not in the past.
@@ -76,9 +78,11 @@ export async function POST(req: Request) {
       if (!to || recipients.has(to.toLowerCase())) continue;
       recipients.set(to.toLowerCase(), (person.full_name || "").split(" ")[0] || "there");
     }
+    if (recipients.size === 0) noEmail.push(((sub as any)?.name as string) || "a contractor");
     for (const [to, first] of Array.from(recipients.entries())) {
       const r = await sendEmail({
       kind: "jobs",
+        tags: [{ name: "wo_id", value: String(woId).replace(/[^A-Za-z0-9_-]/g, "") }, { name: "type", value: "work_order_job" }],
         to,
         subject: `${resend ? "Reminder: job" : "Job"} scheduled for you — WO ${wo.wo_number}, ${dateText}`,
         html: brandedEmailHtml({
@@ -92,8 +96,10 @@ export async function POST(req: Request) {
       if (r.ok) {
         emailed += 1;
         sentTo.push(to);
+      } else {
+        failed.push(`${to} (${r.error})`);
       }
     }
   }
-  return NextResponse.json({ ok: true, sent: emailed > 0, emailed, to: sentTo });
+  return NextResponse.json({ ok: true, sent: emailed > 0, emailed, to: sentTo, noEmail, failed });
 }
