@@ -43,6 +43,14 @@ const emptyForm = {
   statement_account: false,
 };
 
+// A forgiving key for spotting the same customer typed two ways ("Smith Constructions Pty Ltd" = "smith constructions").
+function nameKey(n: string) {
+  return n
+    .toLowerCase()
+    .replace(/\b(pty|ltd|limited|p\/l|proprietary|the|and|group)\b/g, " ")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 export default function CustomersTable({ initial, isAdmin, crmEnabled = false }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean }) {
   const supabase = createClient();
   const [customers, setCustomers] = useState(initial);
@@ -58,6 +66,19 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   const [mergeFrom, setMergeFrom] = useState<Customer | null>(null);
   const [mergeInto, setMergeInto] = useState("");
   const [merging, setMerging] = useState(false);
+
+  // Existing customers that look like the one being typed (same name, one name inside the other, or same email).
+  const dupes = (() => {
+    const k = nameKey(form.name);
+    const em = form.contact_email.trim().toLowerCase();
+    if (k.length < 3 && !em) return [] as Customer[];
+    return customers.filter(
+      (c) =>
+        c.id !== editing?.id &&
+        ((k.length >= 3 && (nameKey(c.name) === k || (k.length >= 6 && nameKey(c.name).length >= 6 && (nameKey(c.name).includes(k) || k.includes(nameKey(c.name)))))) ||
+          (em && (c.contact_email || "").trim().toLowerCase() === em))
+    );
+  })();
 
   function openNew() {
     setModalTab("details");
@@ -87,6 +108,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   }
 
   async function save() {
+    if (!editing && dupes.length > 0 && !confirm(`This looks like a customer you already have (${dupes.slice(0, 3).map((d) => d.name).join(", ")}). Save it as a new customer anyway?`)) return;
     setSaving(true);
     // Only send the statement flag once migration 0055 exists (or when it's being switched on).
     const { statement_account, address, ...rest } = form;
@@ -355,6 +377,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
+                {dupes.length > 0 && (
+                  <span className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    Possible duplicate: {dupes.slice(0, 4).map((d) => `${d.name}${d.archived ? " (archived)" : ""}`).join(", ")}. Check before saving.
+                  </span>
+                )}
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
