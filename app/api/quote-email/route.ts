@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
+import { siteAddress } from "@/lib/siteAddress";
 import { sendEmail, siteUrl, brandedEmailHtml } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, quote_number, share_token, customers(name)")
+    .select("id, quote_number, share_token, lot_no, address, suburb, customers(name)")
     .eq("id", projectId)
     .single();
 
@@ -45,7 +46,10 @@ export async function POST(req: Request) {
       heading: `Your quote is ready`,
       bodyHtml: `<p style="margin:0 0 14px;">Hi ${customerName || "there"},</p>
         <p style="margin:0;">Thank you for the opportunity to quote. Your quote from Better Batt Insulation is ready. Use the button below to review the details and accept it online. If you have any questions, just reply to this email.</p>`,
-      rows: [{ label: "Quote number", value: `Q${project.quote_number}` }],
+      rows: [
+        { label: "Quote number", value: `Q${project.quote_number}` },
+        ...(siteAddress(project as any) ? [{ label: "Site address", value: siteAddress(project as any) }] : []),
+      ],
       buttonText: "View & accept quote",
       buttonUrl: link,
     }),
