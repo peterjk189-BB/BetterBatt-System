@@ -660,8 +660,8 @@ export default function PurchaseOrderEditor({
               <tr>
                 <th className="px-3 py-2">Code</th>
                 <th className="px-3 py-2">Item</th>
-                <th className="px-3 py-2 text-right">In stock</th>
-                <th className="px-3 py-2 text-right">Packs per multi</th>
+                <th className="px-3 py-2 text-right" style={{ background: "rgba(76,175,110,0.22)", boxShadow: "inset 0 2px 0 #4c8a5a" }}>In stock</th>
+                <th className="px-3 py-2 text-right" style={{ background: "rgba(76,175,110,0.22)", boxShadow: "inset 0 2px 0 #4c8a5a" }}>Packs per multi</th>
                 {showJobs && <th className="px-3 py-2">Job</th>}
                 <th className="px-3 py-2 text-right">Ordered (pks)</th>
                 <th className="px-3 py-2 text-right">Unit cost</th>
@@ -707,8 +707,8 @@ export default function PurchaseOrderEditor({
                     if (!sp) {
                       return (
                         <>
-                          <td className="px-3 py-2 text-right text-[var(--muted)]">—</td>
-                          <td className="px-3 py-2 text-right text-[var(--muted)]">—</td>
+                          <td className="px-3 py-2 text-right text-[var(--muted)]" style={{ background: "rgba(76,175,110,0.16)" }}>—</td>
+                          <td className="px-3 py-2 text-right text-[var(--muted)]" style={{ background: "rgba(76,175,110,0.16)" }}>—</td>
                         </>
                       );
                     }
@@ -717,13 +717,13 @@ export default function PurchaseOrderEditor({
                     const total = Number(sp.stock_on_hand) || 0;
                     return (
                       <>
-                        <td className="px-3 py-2 text-right tabular-nums">
+                        <td className="px-3 py-2 text-right tabular-nums" style={{ background: "rgba(76,175,110,0.16)" }}>
                           <span className="font-semibold">{total} {plural(u.one, total)}</span>
                           <span className="block text-xs text-[var(--muted)]">
                             {u.hasBulk ? `${Number(sp.multi) || 0} ${plural(u.bulk, Number(sp.multi) || 0)} + ${Number(sp.pks) || 0} loose` : "no multis"}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">{u.hasBulk && per > 1 ? per : "—"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]" style={{ background: "rgba(76,175,110,0.16)" }}>{u.hasBulk && per > 1 ? per : "—"}</td>
                       </>
                     );
                   })()}
