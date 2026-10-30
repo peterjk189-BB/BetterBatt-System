@@ -1,6 +1,7 @@
 "use client";
 
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment } from "./ProfitLossReport";
+import ProductSalesReport from "./ProductSalesReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { fuelLevyAmount } from "@/lib/poFuel";
@@ -760,7 +761,7 @@ function QuotesReport({ projects, projectLines }: { projects: Project[]; project
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl";
+type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales";
 
 export default function ReportsView({
   parts,
@@ -818,6 +819,7 @@ export default function ReportsView({
         {tabBtn("quotes", "Quotes win/loss")}
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
+        {tabBtn("sales", "Product sales")}
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
       </div>
@@ -826,6 +828,7 @@ export default function ReportsView({
       {tab === "quotes" && <QuotesReport projects={projects} projectLines={projectLines} />}
       {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
       {tab === "suppliers" && <SupplierReport poLines={poLines} poFuel={poFuel} />}
+      {tab === "sales" && <ProductSalesReport />}
       {tab === "pnl" && <ProfitLossReport {...pl} />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
