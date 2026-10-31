@@ -151,13 +151,17 @@ export default function WeeklyReport({
     }
   }
 
-  const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6b6862]";
-  const td = "border-t border-[#dedbd2] px-2 py-1.5 align-top";
+  const MUTED = "#6b6862";
+  const LINE = "#dedbd2";
+  const thS = { color: MUTED };
+  const tdS = { borderTop: `1px solid ${LINE}`, color: "#201f1c" };
+  const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide";
+  const td = "px-2 py-1.5 align-top";
   const tile = (label: string, value: string, sub: string) => (
-    <div key={label} className="rounded-xl border border-[#dedbd2] bg-[#f6f5f1] p-3">
-      <p className="text-xs text-[#6b6862]">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-[#201f1c]">{value}</p>
-      <p className="text-xs text-[#6b6862]">{sub}</p>
+    <div key={label} className="rounded-xl p-3" style={{ border: `1px solid ${LINE}`, backgroundColor: "#f6f5f1", color: "#201f1c" }}>
+      <p className="text-xs" style={{ color: MUTED }}>{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums" style={{ color: "#201f1c" }}>{value}</p>
+      <p className="text-xs" style={{ color: MUTED }}>{sub}</p>
     </div>
   );
 
@@ -180,7 +184,7 @@ export default function WeeklyReport({
           <div ref={printRef} className="paper-sheet space-y-5 rounded-xl border border-[var(--border)] bg-white p-5 text-[13px] text-[#201f1c]">
             <div>
               <p className="text-lg font-bold">Better Batt Insulation — Weekly report</p>
-              <p className="text-[#6b6862]">Mon {long(monday)} to Sun {long(sunday)}. All dollar figures exclude GST.</p>
+              <p style={{ color: MUTED }}>Mon {long(monday)} to Sun {long(sunday)}. All dollar figures exclude GST.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -193,38 +197,38 @@ export default function WeeklyReport({
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">1. Jobs completed</h3><span className="tabular-nums">{jobs.length} jobs · {money(jobsTotal)}</span></div>
-              <p className="mb-1 text-xs text-[#6b6862]">Work orders with a completed date in the week.</p>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Work orders with a completed date in the week.</p>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead><tr><th className={th}>WO</th><th className={th}>Customer</th><th className={th}>Site</th><th className={th}>Contractor</th><th className={th}>Completed</th><th className={th}>Inspection</th><th className={th + " text-right"}>Quote value</th></tr></thead>
+                  <thead><tr><th style={thS} className={th}>WO</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Contractor</th><th style={thS} className={th}>Completed</th><th style={thS} className={th}>Inspection</th><th style={thS} className={th + " text-right"}>Quote value</th></tr></thead>
                   <tbody>
                     {jobs.map((j) => (
-                      <tr key={j.id}><td className={td}>{j.wo}</td><td className={td}>{j.customer}</td><td className={td}>{j.site}</td><td className={td}>{j.contractor}</td><td className={td}>{short(j.date)}</td><td className={td}>{j.inspection}</td><td className={td + " text-right tabular-nums"}>{money(j.value)}</td></tr>
+                      <tr key={j.id}><td style={tdS} className={td}>{j.wo}</td><td style={tdS} className={td}>{j.customer}</td><td style={tdS} className={td}>{j.site}</td><td style={tdS} className={td}>{j.contractor}</td><td style={tdS} className={td}>{short(j.date)}</td><td style={tdS} className={td}>{j.inspection}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(j.value)}</td></tr>
                     ))}
-                    {!jobs.length && <tr><td className={td + " text-[#6b6862]"} colSpan={7}>No jobs completed this week.</td></tr>}
+                    {!jobs.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No jobs completed this week.</td></tr>}
                   </tbody>
-                  <tfoot><tr><td className={td + " font-bold"} colSpan={6}>Total</td><td className={td + " text-right font-bold tabular-nums"}>{money(jobsTotal)}</td></tr></tfoot>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={6}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(jobsTotal)}</td></tr></tfoot>
                 </table>
               </div>
             </section>
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">2. Cash sales</h3><span className="tabular-nums">{cash.kept.length} sales · {money(cashEx)}</span></div>
-              <p className="mb-1 text-xs text-[#6b6862]">Inventory items sold on invoices to anyone. Deliveries to job sites that have a work order are left out.</p>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Inventory items sold on invoices to anyone. Deliveries to job sites that have a work order are left out.</p>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead><tr><th className={th}>Invoice</th><th className={th}>Date</th><th className={th}>Customer</th><th className={th}>Items</th><th className={th + " text-right"}>Ex GST</th></tr></thead>
+                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Items</th><th style={thS} className={th + " text-right"}>Ex GST</th></tr></thead>
                   <tbody>
                     {cash.kept.map((r) => (
-                      <tr key={r.number}><td className={td}>INV-{r.number}</td><td className={td}>{short(r.date)}</td><td className={td}>{r.customer}</td><td className={td}>{r.items.join("; ")}</td><td className={td + " text-right tabular-nums"}>{money(r.ex)}</td></tr>
+                      <tr key={r.number}><td style={tdS} className={td}>INV-{r.number}</td><td style={tdS} className={td}>{short(r.date)}</td><td style={tdS} className={td}>{r.customer}</td><td style={tdS} className={td}>{r.items.join("; ")}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(r.ex)}</td></tr>
                     ))}
-                    {!cash.kept.length && <tr><td className={td + " text-[#6b6862]"} colSpan={5}>No cash sales this week.</td></tr>}
+                    {!cash.kept.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No cash sales this week.</td></tr>}
                   </tbody>
-                  <tfoot><tr><td className={td + " font-bold"} colSpan={4}>Total</td><td className={td + " text-right font-bold tabular-nums"}>{money(cashEx)}</td></tr></tfoot>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(cashEx)}</td></tr></tfoot>
                 </table>
               </div>
               {cash.left.length > 0 && (
-                <p className="mt-1 text-xs text-[#6b6862]">
+                <p className="mt-1 text-xs" style={{ color: MUTED }}>
                   {cash.left.length} invoice{cash.left.length === 1 ? "" : "s"} left out (deliveries to jobs with work orders): {cash.left.map((r) => `INV-${r.number}`).join(", ")}, {money(cash.leftEx)}.
                 </p>
               )}
@@ -232,17 +236,17 @@ export default function WeeklyReport({
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">3. Quotes</h3><span className="tabular-nums">{quotes.length} quotes · {money(quotesEx)}</span></div>
-              <p className="mb-1 text-xs text-[#6b6862]">Quotes created in the week, with their value ex GST.</p>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Quotes created in the week, with their value ex GST.</p>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead><tr><th className={th}>Quote</th><th className={th}>Customer</th><th className={th}>Site</th><th className={th}>Outcome</th><th className={th + " text-right"}>Value ex GST</th></tr></thead>
+                  <thead><tr><th style={thS} className={th}>Quote</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Outcome</th><th style={thS} className={th + " text-right"}>Value ex GST</th></tr></thead>
                   <tbody>
                     {quotes.map((q) => (
-                      <tr key={q.id}><td className={td}>Q{q.number}</td><td className={td}>{q.customer}</td><td className={td}>{q.site}</td><td className={td}>{q.outcome}</td><td className={td + " text-right tabular-nums"}>{money(q.ex)}</td></tr>
+                      <tr key={q.id}><td style={tdS} className={td}>Q{q.number}</td><td style={tdS} className={td}>{q.customer}</td><td style={tdS} className={td}>{q.site}</td><td style={tdS} className={td}>{q.outcome}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(q.ex)}</td></tr>
                     ))}
-                    {!quotes.length && <tr><td className={td + " text-[#6b6862]"} colSpan={5}>No quotes created this week.</td></tr>}
+                    {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this week.</td></tr>}
                   </tbody>
-                  <tfoot><tr><td className={td + " font-bold"} colSpan={4}>Total</td><td className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
                 </table>
               </div>
             </section>
