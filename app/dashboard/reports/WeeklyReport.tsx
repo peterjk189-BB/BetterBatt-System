@@ -154,10 +154,10 @@ export default function WeeklyReport({
   const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[#6b6862]";
   const td = "border-t border-[#dedbd2] px-2 py-1.5 align-top";
   const tile = (label: string, value: string, sub: string) => (
-    <div key={label} className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3">
-      <p className="text-xs text-[var(--muted)]">{label}</p>
-      <p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>
-      <p className="text-xs text-[var(--muted)]">{sub}</p>
+    <div key={label} className="rounded-xl border border-[#dedbd2] bg-[#f6f5f1] p-3">
+      <p className="text-xs text-[#6b6862]">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-[#201f1c]">{value}</p>
+      <p className="text-xs text-[#6b6862]">{sub}</p>
     </div>
   );
 
@@ -177,18 +177,19 @@ export default function WeeklyReport({
 
       {invLines && (
         <>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {tile("Jobs completed", String(jobs.length), `${money(jobsTotal)} quoted ex GST`)}
-            {tile("Cash sales", money(cashEx), `${cash.kept.length} invoices, ex GST`)}
-            {tile("Quotes", String(quotes.length), `${money(quotesEx)} ex GST`)}
-            {tile("Quotes accepted", String(accepted.length), money(acceptedEx) + " ex GST")}
-          </div>
-
           <div ref={printRef} className="paper-sheet space-y-5 rounded-xl border border-[var(--border)] bg-white p-5 text-[13px] text-[#201f1c]">
             <div>
               <p className="text-lg font-bold">Better Batt Insulation — Weekly report</p>
               <p className="text-[#6b6862]">Mon {long(monday)} to Sun {long(sunday)}. All dollar figures exclude GST.</p>
             </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {tile("Jobs completed", String(jobs.length), `${money(jobsTotal)} quoted ex GST`)}
+            {tile("Cash sales", money(cashEx), `${cash.kept.length} invoices, ex GST`)}
+            {tile("Quotes", String(quotes.length), `${money(quotesEx)} ex GST`)}
+            {tile("Quotes accepted", String(accepted.length), money(acceptedEx) + " ex GST")}
+            </div>
+
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">1. Jobs completed</h3><span className="tabular-nums">{jobs.length} jobs · {money(jobsTotal)}</span></div>
