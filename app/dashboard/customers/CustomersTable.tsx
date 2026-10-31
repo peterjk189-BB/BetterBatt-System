@@ -292,7 +292,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                 </tr>
               )}
               <tr className="border-t border-[var(--border)]">
-                <td className="px-4 py-2 font-medium">{c.name}</td>
+                <td className="px-4 py-2 font-medium"><button type="button" onClick={() => openEdit(c)} className="text-left hover:text-accent hover:underline" title="Click to edit">{c.name}</button></td>
                 <td className="px-4 py-2 whitespace-pre-line text-[var(--muted)]">{c.address || "—"}</td>
                 <td className="px-4 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs ${CATEGORY_COLORS[c.category]}`}>
