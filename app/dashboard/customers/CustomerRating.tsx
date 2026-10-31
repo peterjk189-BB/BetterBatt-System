@@ -48,7 +48,7 @@ export default function CustomerRating({ customerId, name, override, canOverride
     setOv(v);
     setMsg("");
     const { error } = await supabase.from("customers").update({ rating_override: v || null } as any).eq("id", customerId);
-    if (error) setMsg(error.message.includes("rating_override") ? "Run migration 0080 in Supabase first." : error.message);
+    if (error) setMsg(/rating_override|schema cache|Failed to fetch/i.test(error.message) ? "Couldn't save the grade. Run migration 0080 in the Supabase SQL Editor first." : error.message);
     else onOverride(v || null);
     load(v);
   }
@@ -56,6 +56,10 @@ export default function CustomerRating({ customerId, name, override, canOverride
   async function addNote(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
+    if (data && !data.notesAvailable) {
+      setMsg("Notes aren't switched on yet. Run migration 0080 in the Supabase SQL Editor, then reload this page.");
+      return;
+    }
     setSaving(true);
     setMsg("");
     const { data: u } = await supabase.auth.getUser();
@@ -67,7 +71,7 @@ export default function CustomerRating({ customerId, name, override, canOverride
     const { error } = await supabase.from("customer_notes").insert({ customer_id: customerId, category: cat, severity: sev, note: text.trim(), created_by: u.user?.id ?? null, created_by_name: who } as any);
     setSaving(false);
     if (error) {
-      setMsg(error.message.includes("customer_notes") ? "Run migration 0080 in Supabase first." : error.message);
+      setMsg(/customer_notes|schema cache|Failed to fetch/i.test(error.message) ? "Couldn't save. Run migration 0080 in the Supabase SQL Editor, reload this page and try again." : error.message);
       return;
     }
     setText("");
@@ -113,7 +117,7 @@ export default function CustomerRating({ customerId, name, override, canOverride
           </label>
         )}
       </div>
-      {r.overridden && <p className="text-xs text-[var(--muted)]">Overridden by the office. The system suggests {r.auto}.</p>}
+      {r.overridden && <p className="text-xs text-[var(--muted)]">{r.auto ? `Set by the office. The system suggests ${r.auto}.` : "Set by the office. There is no payment history or notes for the system to grade yet."}</p>}
 
       <div className="grid grid-cols-2 gap-2">
         {[
