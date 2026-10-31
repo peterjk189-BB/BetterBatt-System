@@ -3,6 +3,8 @@
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import CustomerRating, { GradeBadge } from "./CustomerRating";
+import type { Grade } from "@/lib/builderRating";
 import { logAudit } from "@/lib/audit";
 
 type Customer = {
@@ -19,6 +21,7 @@ type Customer = {
   accounts_contact_email?: string | null;
   accounts_contact_phone?: string | null;
   statement_account?: boolean;
+  rating_override?: string | null;
   archived: boolean;
 };
 
@@ -51,7 +54,7 @@ function nameKey(n: string) {
     .replace(/[^a-z0-9]/g, "");
 }
 
-export default function CustomersTable({ initial, isAdmin, crmEnabled = false }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean }) {
+export default function CustomersTable({ initial, isAdmin, crmEnabled = false, grades = {} }: { initial: Customer[]; isAdmin: boolean; crmEnabled?: boolean; grades?: Record<string, Grade | null> }) {
   const supabase = createClient();
   const [customers, setCustomers] = useState(initial);
   const [showArchived, setShowArchived] = useState(false);
@@ -62,10 +65,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState<"All" | Customer["category"]>("All");
   const [letter, setLetter] = useState("");
-  const [modalTab, setModalTab] = useState<"details" | "crm">("details");
+  const [modalTab, setModalTab] = useState<"details" | "crm" | "rating">("details");
   const [mergeFrom, setMergeFrom] = useState<Customer | null>(null);
   const [mergeInto, setMergeInto] = useState("");
   const [merging, setMerging] = useState(false);
+  const gradeMap = grades;
 
   // Existing customers that look like the one being typed (same name, one name inside the other, or same email).
   const dupes = (() => {
@@ -269,6 +273,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
               <th className="px-4 py-2">Name</th>
               <th className="px-4 py-2">Address</th>
               <th className="px-4 py-2">Category</th>
+              {crmEnabled && <th className="px-4 py-2">Rating</th>}
               <th className="px-4 py-2">Terms</th>
               <th className="px-4 py-2">Discount</th>
               <th className="px-4 py-2">Contact</th>
@@ -281,7 +286,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
               <Fragment key={c.id}>
               {(i === 0 || visible[i - 1].category !== c.category) && (
                 <tr className="border-t border-[var(--border)] bg-[#f7f5f1]">
-                  <td colSpan={8} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                  <td colSpan={9} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
                     {c.category === "Builder" ? "Builders" : c.category} ({visible.filter((x) => x.category === c.category).length})
                   </td>
                 </tr>
@@ -294,6 +299,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                     {c.category}
                   </span>
                 </td>
+                {crmEnabled && <td className="px-4 py-2"><button type="button" onClick={() => { openEdit(c); setModalTab("rating"); }}><GradeBadge grade={(c.rating_override as Grade) || gradeMap[c.id] || null} /></button></td>}
                 <td className="px-4 py-2">{c.payment_terms}</td>
                 <td className="px-4 py-2">{c.discount_pct}%</td>
                 <td className="px-4 py-2 text-[var(--muted)]">
@@ -326,7 +332,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={9} className="px-4 py-8 text-center text-[var(--muted)]">
                   No {showArchived ? "archived" : ""} customers found.
                 </td>
               </tr>
@@ -342,7 +348,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
               <h2 className="text-lg font-bold">{editing ? "Edit customer" : "Add customer"}</h2>
               {crmEnabled && editing && (
                 <div className="mt-3 flex gap-1">
-                  {([["details", "Details"], ["crm", "CRM"]] as const).map(([k, label]) => (
+                  {([["details", "Details"], ["crm", "CRM"], ["rating", "Rating"]] as const).map(([k, label]) => (
                     <button
                       key={k}
                       type="button"
@@ -355,6 +361,20 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                 </div>
               )}
             </div>
+            {crmEnabled && editing && modalTab === "rating" && (
+              <div className="flex-1 overflow-y-auto px-6 pb-4">
+                <CustomerRating
+                  customerId={editing.id}
+                  name={editing.name}
+                  override={editing.rating_override || null}
+                  canOverride={isAdmin}
+                  onOverride={(g) => {
+                    setEditing({ ...editing, rating_override: g });
+                    setCustomers((cs) => cs.map((x) => (x.id === editing.id ? { ...x, rating_override: g } : x)));
+                  }}
+                />
+              </div>
+            )}
             {crmEnabled && editing && modalTab === "crm" && (
               <div className="flex-1 overflow-y-auto px-6 pb-4">
                 <CrmPanel
@@ -369,7 +389,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false }:
                 />
               </div>
             )}
-            <div className={`flex-1 space-y-4 overflow-y-auto px-6 py-4 ${crmEnabled && editing && modalTab === "crm" ? "hidden" : ""}`}>
+            <div className={`flex-1 space-y-4 overflow-y-auto px-6 py-4 ${crmEnabled && editing && (modalTab === "crm" || modalTab === "rating") ? "hidden" : ""}`}>
               <label className="flex flex-col gap-1 text-sm">
                 Name
                 <input

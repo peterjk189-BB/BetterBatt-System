@@ -7,6 +7,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
+import RatingWarning from "@/app/dashboard/customers/RatingWarning";
 import { ensureLead } from "@/lib/crmActions";
 import { OPTION_KEYS, optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
@@ -768,6 +769,7 @@ export default function QuoteEditor({
 
   return (
     <div>
+      <RatingWarning customerId={form.customer_id} override={(selectedCustomer as any)?.rating_override ?? null} enabled={isAdmin || crmEnabled} />
       <div className="flex items-center justify-between">
         <div>
           <Link href="/dashboard/quotes" className="text-sm text-[var(--muted)] hover:underline">
