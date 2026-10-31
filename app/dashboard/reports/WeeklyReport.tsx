@@ -106,7 +106,7 @@ export default function WeeklyReport({
       const inv = l.invoices;
       if (!inv || inv.status === "Void" || inv.status === "Draft") continue;
       if (!l.part_id || !inWeek(inv.invoice_date)) continue;
-      const r = byInv.get(l.invoice_id) ?? { number: inv.invoice_number, date: inv.invoice_date, customer: inv.customers?.name || "Cash Sale", items: [], ex: 0, project: inv.project_id };
+      const r = byInv.get(l.invoice_id) ?? { number: inv.invoice_number, date: inv.invoice_date, customer: inv.customers?.name || "Cash Sale", items: [] as string[], ex: 0, project: inv.project_id as string | null };
       r.items.push(`${(l.description || "Item").trim()} × ${Number(l.qty) || 0}`);
       r.ex += Number(l.line_ex) || 0;
       byInv.set(l.invoice_id, r);
