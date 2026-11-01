@@ -111,6 +111,11 @@ export type SiteReport = {
   power_restored: boolean;
   other_note: string;
   stud_width: StudWidth;
+  /** Site clean-up: "" = not answered yet. */
+  leftover_packs: "" | "none" | "yes";
+  leftover_packs_note: string;
+  rubbish: "" | "none" | "yes";
+  rubbish_note: string;
 };
 
 export const EMPTY_SITE_REPORT: SiteReport = {
@@ -119,6 +124,10 @@ export const EMPTY_SITE_REPORT: SiteReport = {
   power_restored: false,
   other_note: "",
   stud_width: EMPTY_STUD_WIDTH,
+  leftover_packs: "",
+  leftover_packs_note: "",
+  rubbish: "",
+  rubbish_note: "",
 };
 
 /** Ticked once each item's done/confirmed, shown as a checklist on the form — matches the paper form's "Tick photo's taken" list. */
@@ -209,7 +218,7 @@ export const REMOVAL_HAZARDS: HazardRow[] = [
 ];
 
 /** Where a SWMS photo belongs: the general site photos, or the insulation-removal before / after areas. */
-export type PhotoSection = "removal_before" | "removal_after";
+export type PhotoSection = "removal_before" | "removal_after" | "leftover_packs" | "rubbish";
 
 export type Installer = { name: string; signed_name: string; signed_at: string | null };
 

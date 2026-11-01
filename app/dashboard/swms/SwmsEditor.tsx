@@ -717,6 +717,44 @@ export default function SwmsEditor({
         </div>
       </Section>
 
+      <Section title="Site clean-up" hint="Tell the office what is left on site so it can be collected. Please answer both before you finish.">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Leftover insulation packs</h3>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Toggle on={siteReport.leftover_packs === "none"} onClick={() => setSiteReport((s) => ({ ...s, leftover_packs: s.leftover_packs === "none" ? "" : "none" }))}>
+            No leftover packs
+          </Toggle>
+          <Toggle on={siteReport.leftover_packs === "yes"} onClick={() => setSiteReport((s) => ({ ...s, leftover_packs: s.leftover_packs === "yes" ? "" : "yes" }))}>
+            Leftover packs on site
+          </Toggle>
+        </div>
+        {siteReport.leftover_packs === "yes" && (
+          <div className="mt-3 space-y-3">
+            <Field label="What is left, how many packs, and where on site">
+              <textarea rows={3} className={inputCls} placeholder="e.g. 4 packs R2.5 wall batts and 2 packs R6.0 ceiling batts, stacked in the garage" value={siteReport.leftover_packs_note} onChange={(e) => setSiteReport((s) => ({ ...s, leftover_packs_note: e.target.value }))} />
+            </Field>
+            <SwmsPhotos initial={photos.filter((p) => p.swms_section === "leftover_packs")} ensureSwmsId={ensureId} section="leftover_packs" emptyText="No photos yet. Photograph the leftover packs." />
+          </div>
+        )}
+
+        <h3 className="mt-6 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Rubbish on site</h3>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Toggle on={siteReport.rubbish === "none"} onClick={() => setSiteReport((s) => ({ ...s, rubbish: s.rubbish === "none" ? "" : "none" }))}>
+            Site left clean, no rubbish
+          </Toggle>
+          <Toggle on={siteReport.rubbish === "yes"} onClick={() => setSiteReport((s) => ({ ...s, rubbish: s.rubbish === "yes" ? "" : "yes" }))}>
+            Rubbish left on site
+          </Toggle>
+        </div>
+        {siteReport.rubbish === "yes" && (
+          <div className="mt-3 space-y-3">
+            <Field label="What rubbish and where (offcuts, plastic, packaging, etc.)">
+              <textarea rows={3} className={inputCls} placeholder="e.g. Bags of offcuts and packaging by the front door, about 6 bags" value={siteReport.rubbish_note} onChange={(e) => setSiteReport((s) => ({ ...s, rubbish_note: e.target.value }))} />
+            </Field>
+            <SwmsPhotos initial={photos.filter((p) => p.swms_section === "rubbish")} ensureSwmsId={ensureId} section="rubbish" emptyText="No photos yet. Photograph the rubbish." />
+          </div>
+        )}
+      </Section>
+
       <Section title="Comments">
         <textarea rows={4} className={inputCls} value={form.comments} onChange={(e) => set("comments", e.target.value)} />
       </Section>

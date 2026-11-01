@@ -61,6 +61,8 @@ export default function SwmsPrintView({
   const generalPhotos = photos.filter((p) => !p.swms_section);
   const removalBefore = photos.filter((p) => p.swms_section === "removal_before");
   const removalAfter = photos.filter((p) => p.swms_section === "removal_after");
+  const leftoverPhotos = photos.filter((p) => p.swms_section === "leftover_packs");
+  const rubbishPhotos = photos.filter((p) => p.swms_section === "rubbish");
 
   return (
     <div>
@@ -234,6 +236,26 @@ export default function SwmsPrintView({
             </Box>
           ))}
         </div>
+
+        <h3 className="mt-6 border-b border-[#201f1c] pb-1 text-center font-bold">Site clean-up</h3>
+        {([
+          ["Leftover insulation packs", siteReport.leftover_packs, siteReport.leftover_packs_note, leftoverPhotos, "No leftover packs", "Leftover packs on site"],
+          ["Rubbish on site", siteReport.rubbish, siteReport.rubbish_note, rubbishPhotos, "Site left clean, no rubbish", "Rubbish left on site"],
+        ] as const).map(([label, ans, note, ph, noText, yesText]) => (
+          <div key={label} className="mt-3">
+            <h4 className="text-xs font-bold uppercase tracking-wide">{label}</h4>
+            <p className="mt-1">{ans === "yes" ? yesText : ans === "none" ? noText : "Not answered."}</p>
+            {ans === "yes" && note && <p className="mt-1 whitespace-pre-wrap">{note}</p>}
+            {ans === "yes" && ph.length > 0 && (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {ph.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={p.id} src={urls[p.storage_path]} alt={label} className="aspect-square w-full rounded border border-[#e4e1da] object-cover" />
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
 
         {record.comments && (
           <>
