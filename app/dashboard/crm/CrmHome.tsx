@@ -557,7 +557,7 @@ function Tasks({
           <Group title="Upcoming" list={upcoming} />
           {mine.length === 0 && (
             <p className="mt-6 rounded-xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-              No open tasks{who === userId ? " for you" : ""}. Tasks are created automatically 3 and 7 days after a quote is sent.
+              No open tasks{who === userId ? " for you" : ""}. Tasks are created automatically 7 and 15 days after a quote is sent.
             </p>
           )}
         </>

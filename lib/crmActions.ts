@@ -3,7 +3,10 @@ import { STAGES, addDaysISO, todayISO, type Stage } from "@/lib/crm";
 
 type Db = ReturnType<typeof createClient>;
 
-/** Auto follow-ups once a quote is out: a call at 3 days and again at 7. */
+/** Days after a quote goes out for the two automatic follow-up calls. */
+export const FOLLOW_UP_DAYS = { first: 7, second: 15 } as const;
+
+/** Auto follow-ups once a quote is out: a call at 7 days and again at 15. */
 export async function createFollowUps(
   supabase: Db,
   lead: { id: string; name: string; owner_id: string | null },
@@ -12,8 +15,8 @@ export async function createFollowUps(
   const assignee = lead.owner_id || userId;
   const today = todayISO();
   const { error } = await supabase.from("crm_tasks").insert([
-    { title: `Follow up quote — ${lead.name}`, kind: "Call", due_date: addDaysISO(today, 3), assigned_to: assignee, lead_id: lead.id, auto: true, created_by: userId },
-    { title: `Second follow up — ${lead.name}`, kind: "Call", due_date: addDaysISO(today, 7), assigned_to: assignee, lead_id: lead.id, auto: true, created_by: userId },
+    { title: `Follow up quote — ${lead.name}`, kind: "Call", due_date: addDaysISO(today, FOLLOW_UP_DAYS.first), assigned_to: assignee, lead_id: lead.id, auto: true, created_by: userId },
+    { title: `Second follow up — ${lead.name}`, kind: "Call", due_date: addDaysISO(today, FOLLOW_UP_DAYS.second), assigned_to: assignee, lead_id: lead.id, auto: true, created_by: userId },
   ]);
   return error;
 }
