@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { logAudit } from "@/lib/audit";
 import { siteAddress } from "@/lib/siteAddress";
-import { sendEmail, siteUrl, brandedEmailHtml } from "@/lib/email";
+import { sendEmail, siteUrl, brandedEmailHtml, cleanEmailAddress } from "@/lib/email";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -15,13 +15,17 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const projectId = typeof body.project_id === "string" ? body.project_id : undefined;
-  const toEmail = typeof body.to_email === "string" ? body.to_email.trim() : "";
+  const rawTo = typeof body.to_email === "string" ? body.to_email : "";
+  const toEmail = cleanEmailAddress(rawTo);
 
   if (!projectId) {
     return NextResponse.json({ error: "Missing project_id" }, { status: 400 });
   }
-  if (!toEmail) {
+  if (!rawTo.trim()) {
     return NextResponse.json({ error: "Please enter the customer's email address" }, { status: 400 });
+  }
+  if (!toEmail) {
+    return NextResponse.json({ error: "That doesn't look like a valid email address. Check it for typos, then try again." }, { status: 400 });
   }
 
   const { data: project } = await supabase

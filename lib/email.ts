@@ -157,3 +157,16 @@ export async function sendEmail({
     return { ok: false, error: err?.message || "Could not reach the email service" };
   }
 }
+
+/**
+ * Cleans a typed or pasted email address: removes invisible characters (non-breaking and zero-width spaces),
+ * "Name <a@b.com>" wrappers, and takes the first address if several were pasted. Returns "" if it still isn't an address.
+ */
+export function cleanEmailAddress(raw: string): string {
+  let v = String(raw || "").replace(/[\u00A0\u200B-\u200D\u2060\uFEFF]/g, " ").trim();
+  const angle = v.match(/<([^<>]+)>/);
+  if (angle) v = angle[1];
+  v = v.split(/[;,\s]+/).filter(Boolean)[0] || "";
+  v = v.replace(/^mailto:/i, "").replace(/^[<"'(]+|[>"'),.]+$/g, "");
+  return /^[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+$/.test(v) ? v : "";
+}
