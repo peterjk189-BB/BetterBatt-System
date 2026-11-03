@@ -1601,11 +1601,11 @@ export default function QuoteEditor({
 
       {emailOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-xl bg-[var(--surface)] p-5 shadow-xl">
+          <div className="w-full max-w-xl rounded-xl bg-[var(--surface)] p-5 shadow-xl">
             <h3 className="text-lg font-bold">Email quote to customer</h3>
             {emailSent ? (
               <>
-                <p className="mt-3 text-sm text-green-700">Sent to {emailAddress}.</p>
+                <p className="mt-3 break-words text-sm text-green-700">Sent to {emailAddress}.</p>
                 <div className="mt-5 flex justify-end">
                   <button
                     onClick={() => setEmailOpen(false)}
@@ -1618,10 +1618,14 @@ export default function QuoteEditor({
             ) : (
               <>
                 <label className="mt-4 flex flex-col gap-1 text-sm">
-                  Customer&apos;s email
-                  <input
+                  Email address (add more than one by separating them with a comma or a space)
+                  <textarea
                     autoFocus
-                    type="email"
+                    rows={3}
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={emailAddress}
                     onChange={(e) => setEmailAddress(e.target.value)}

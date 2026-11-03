@@ -170,3 +170,21 @@ export function cleanEmailAddress(raw: string): string {
   v = v.replace(/^mailto:/i, "").replace(/^[<"'(]+|[>"'),.]+$/g, "");
   return /^[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+$/.test(v) ? v : "";
 }
+
+/** Splits a typed list ("a@b.com, c@d.com" or separated by spaces, semicolons or new lines) into clean addresses. `bad` lists anything that isn't an address. */
+export function cleanEmailList(raw: string): { good: string[]; bad: string[] } {
+  const parts = String(raw || "")
+    .replace(/[\u00A0\u200B-\u200D\u2060\uFEFF]/g, " ")
+    .replace(/<([^<>]*)>/g, " $1 ")
+    .split(/[;,\s]+/)
+    .filter(Boolean);
+  const good: string[] = [];
+  const bad: string[] = [];
+  for (const part of parts) {
+    const a = cleanEmailAddress(part);
+    if (a) {
+      if (!good.some((g) => g.toLowerCase() === a.toLowerCase())) good.push(a);
+    } else bad.push(part);
+  }
+  return { good, bad };
+}
