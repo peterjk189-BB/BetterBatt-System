@@ -3,6 +3,11 @@
 
 export type WeekPdfContractor = {
   name: string;
+  company: string; // company / trading name, "" if none
+  abn: string;
+  bankName: string;
+  bsb: string;
+  account: string;
   gstRegistered: boolean;
   jobs: number; // distinct work orders with paid lines
   exGst: number; // paid lines only
@@ -72,7 +77,7 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     ["GST", money(tot.gst)],
     ["TOTAL PAID INC GST", money(tot.inc)],
   ];
-  const tw = (R - L - 5 * 3) / 6;
+  const tw = (R - L - 4 * 3) / 5;
   tiles.forEach(([k, v], i) => {
     const x = L + i * (tw + 3);
     doc.setFillColor(246, 245, 242);
@@ -88,7 +93,8 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
   });
 
   // Table
-  const c = { name: L + 2, gst: 120, jobs: 150, ex: 195, g: 235, inc: R - 2 };
+  // gst is left-aligned; jobs/ex/g/inc are right edges; bank is left-aligned.
+  const c = { name: L + 2, gst: 80, jobs: 108, ex: 136, g: 158, inc: 186, bank: 194 };
   let y = 66;
   const head = () => {
     doc.setFillColor(246, 245, 242);
@@ -102,6 +108,7 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text("EX GST", c.ex, y, { align: "right" });
     doc.text("GST", c.g, y, { align: "right" });
     doc.text("TOTAL INC GST", c.inc, y, { align: "right" });
+    doc.text("BANK DETAILS (PAY TO)", c.bank, y);
     y += 8;
   };
   head();
@@ -113,11 +120,24 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
       head();
     }
     const g = gstOf(r, r.exGst);
+    if (y > 178) {
+      doc.addPage();
+      y = 20;
+      head();
+    }
+    const small = (t: string, x: number, yy: number) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(85, 82, 76);
+      doc.text(t, x, yy);
+    };
     doc.setFontSize(9.5);
     doc.setTextColor(20, 20, 19);
     doc.setFont("helvetica", "bold");
-    doc.text(doc.splitTextToSize(r.name, 70)[0], c.name, y);
+    doc.text(doc.splitTextToSize(r.company || r.name, 58)[0], c.name, y);
+    small([r.company ? r.name : "", r.abn ? `ABN ${r.abn}` : ""].filter(Boolean).join(" · "), c.name, y + 4.2);
     doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
     doc.setTextColor(85, 82, 76);
     doc.text(r.gstRegistered ? "Yes" : "No", c.gst, y);
     doc.setTextColor(20, 20, 19);
@@ -126,9 +146,18 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text(r.gstRegistered ? money(g) : "—", c.g, y, { align: "right" });
     doc.setFont("helvetica", "bold");
     doc.text(money(r.exGst + g), c.inc, y, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    if (r.bsb || r.account || r.bankName) {
+      doc.text(doc.splitTextToSize(r.bankName || "—", 86)[0], c.bank, y);
+      small(`BSB ${r.bsb || "—"}   Account ${r.account || "—"}`, c.bank, y + 4.2);
+    } else {
+      doc.setTextColor(185, 28, 28);
+      doc.text("No bank details on file", c.bank, y);
+    }
     doc.setDrawColor(236, 233, 227);
-    doc.line(L, y + 3, R, y + 3);
-    y += 9;
+    doc.line(L, y + 6.5, R, y + 6.5);
+    y += 12;
   }
 
   if (list.length === 0) {

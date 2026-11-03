@@ -8,7 +8,19 @@ import { logAudit } from "@/lib/audit";
 import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
 import { downloadWeekSummaryPdf, mondayOfDay, addDays } from "@/lib/contractorWeekPdf";
 
-type Sub = { id: string; name: string; phone: string | null; email: string | null; gst_registered: boolean };
+type Sub = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  gst_registered: boolean;
+  company_name?: string | null;
+  trading_name?: string | null;
+  abn?: string | null;
+  bank_account_name?: string | null;
+  bank_bsb?: string | null;
+  bank_account_number?: string | null;
+};
 
 type Line = {
   id: string;
@@ -190,7 +202,17 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       .filter((s) => map.has(s.id))
       .map((s) => {
         const e = map.get(s.id)!;
-        return { name: s.name, gstRegistered: s.gst_registered, jobs: e.jobs.size, exGst: e.exGst };
+        return {
+          name: s.name,
+          company: s.company_name || s.trading_name || "",
+          abn: s.abn || "",
+          bankName: s.bank_account_name || "",
+          bsb: s.bank_bsb || "",
+          account: s.bank_account_number || "",
+          gstRegistered: s.gst_registered,
+          jobs: e.jobs.size,
+          exGst: e.exGst,
+        };
       });
     try {
       await downloadWeekSummaryPdf(start, rows);

@@ -8,7 +8,7 @@ export default async function ContractorPaymentsPage() {
   const [{ data: subs }, { data: lines }, { data: pendingExtras }, { data: parts }] = await Promise.all([
     supabase
       .from("subcontractors")
-      .select("id, name, phone, email, gst_registered")
+      .select("id, name, phone, email, gst_registered, company_name, trading_name, abn, bank_account_name, bank_bsb, bank_account_number")
       .eq("archived", false)
       .order("name"),
     supabase
