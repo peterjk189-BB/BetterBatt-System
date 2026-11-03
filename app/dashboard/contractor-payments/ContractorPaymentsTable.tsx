@@ -174,25 +174,23 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
-  // One page for the whole week (Mon–Sun by work date): every contractor with work, paid and unpaid, regardless of the filters above.
+  // One page for the whole week (Mon–Sun by work date): every contractor paid for the week, regardless of the filters above.
   async function exportWeekPdf() {
     const start = mondayOfDay(weekDay);
     const end = addDays(start, 6);
-    const map = new Map<string, { jobs: Set<string>; exGst: number; paidExGst: number; unpaidExGst: number }>();
+    const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
-      if (!l.contractorId || !l.task_date || l.task_date < start || l.task_date > end) continue;
-      const e = map.get(l.contractorId) ?? { jobs: new Set<string>(), exGst: 0, paidExGst: 0, unpaidExGst: 0 };
+      if (!l.contractorId || !l.paid || !l.task_date || l.task_date < start || l.task_date > end) continue;
+      const e = map.get(l.contractorId) ?? { jobs: new Set<string>(), exGst: 0 };
       e.jobs.add(l.work_order_id);
       e.exGst += l.cost;
-      if (l.paid) e.paidExGst += l.cost;
-      else e.unpaidExGst += l.cost;
       map.set(l.contractorId, e);
     }
     const rows = subs
       .filter((s) => map.has(s.id))
       .map((s) => {
         const e = map.get(s.id)!;
-        return { name: s.name, gstRegistered: s.gst_registered, jobs: e.jobs.size, exGst: e.exGst, paidExGst: e.paidExGst, unpaidExGst: e.unpaidExGst };
+        return { name: s.name, gstRegistered: s.gst_registered, jobs: e.jobs.size, exGst: e.exGst };
       });
     try {
       await downloadWeekSummaryPdf(start, rows);
@@ -264,7 +262,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           <button
             onClick={exportWeekPdf}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-            title="One PDF for the whole week (Mon–Sun by work date): every contractor, paid and unpaid"
+            title="One PDF for the whole week (Mon–Sun by work date): every contractor paid"
           >
             Weekly summary PDF
           </button>

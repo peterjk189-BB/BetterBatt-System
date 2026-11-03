@@ -4,10 +4,8 @@
 export type WeekPdfContractor = {
   name: string;
   gstRegistered: boolean;
-  jobs: number; // distinct work orders
-  exGst: number; // everything in the week (paid + unpaid)
-  paidExGst: number;
-  unpaidExGst: number;
+  jobs: number; // distinct work orders with paid lines
+  exGst: number; // paid lines only
 };
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -44,10 +42,8 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
       ex: t.ex + r.exGst,
       gst: t.gst + gstOf(r, r.exGst),
       inc: t.inc + r.exGst + gstOf(r, r.exGst),
-      paid: t.paid + r.paidExGst + gstOf(r, r.paidExGst),
-      unpaid: t.unpaid + r.unpaidExGst + gstOf(r, r.unpaidExGst),
     }),
-    { jobs: 0, ex: 0, gst: 0, inc: 0, paid: 0, unpaid: 0 }
+    { jobs: 0, ex: 0, gst: 0, inc: 0 }
   );
 
   // Header band
@@ -60,7 +56,7 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(201, 198, 191);
-  doc.text("Contractor payments — weekly summary", L + 6, 29.5);
+  doc.text("Contractor payments made — weekly summary", L + 6, 29.5);
   doc.setFontSize(7.5);
   doc.text("WEEK (MON–SUN)", R - 6, 19, { align: "right" });
   doc.setTextColor(255, 255, 255);
@@ -73,9 +69,8 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     ["CONTRACTORS", String(list.length)],
     ["JOBS", String(tot.jobs)],
     ["TOTAL EX GST", money(tot.ex)],
-    ["TOTAL INC GST", money(tot.inc)],
-    ["PAID", money(tot.paid)],
-    ["STILL TO PAY", money(tot.unpaid)],
+    ["GST", money(tot.gst)],
+    ["TOTAL PAID INC GST", money(tot.inc)],
   ];
   const tw = (R - L - 5 * 3) / 6;
   tiles.forEach(([k, v], i) => {
@@ -88,12 +83,12 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text(k, x + 3, 46.5);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11.5);
-    doc.setTextColor(k === "STILL TO PAY" && tot.unpaid > 0.004 ? 185 : 20, k === "STILL TO PAY" && tot.unpaid > 0.004 ? 28 : 20, k === "STILL TO PAY" && tot.unpaid > 0.004 ? 28 : 19);
+    doc.setTextColor(20, 20, 19);
     doc.text(v, x + 3, 53.5);
   });
 
   // Table
-  const c = { name: L + 2, gst: 92, jobs: 112, ex: 140, g: 166, inc: 194, paid: 224, unpaid: R - 2 };
+  const c = { name: L + 2, gst: 120, jobs: 150, ex: 195, g: 235, inc: R - 2 };
   let y = 66;
   const head = () => {
     doc.setFillColor(246, 245, 242);
@@ -107,8 +102,6 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text("EX GST", c.ex, y, { align: "right" });
     doc.text("GST", c.g, y, { align: "right" });
     doc.text("TOTAL INC GST", c.inc, y, { align: "right" });
-    doc.text("PAID", c.paid, y, { align: "right" });
-    doc.text("STILL TO PAY", c.unpaid, y, { align: "right" });
     y += 8;
   };
   head();
@@ -120,8 +113,6 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
       head();
     }
     const g = gstOf(r, r.exGst);
-    const paid = r.paidExGst + gstOf(r, r.paidExGst);
-    const unpaid = r.unpaidExGst + gstOf(r, r.unpaidExGst);
     doc.setFontSize(9.5);
     doc.setTextColor(20, 20, 19);
     doc.setFont("helvetica", "bold");
@@ -135,11 +126,6 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text(r.gstRegistered ? money(g) : "—", c.g, y, { align: "right" });
     doc.setFont("helvetica", "bold");
     doc.text(money(r.exGst + g), c.inc, y, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.text(money(paid), c.paid, y, { align: "right" });
-    if (unpaid > 0.004) doc.setTextColor(185, 28, 28);
-    doc.setFont("helvetica", "bold");
-    doc.text(money(unpaid), c.unpaid, y, { align: "right" });
     doc.setDrawColor(236, 233, 227);
     doc.line(L, y + 3, R, y + 3);
     y += 9;
@@ -149,7 +135,7 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(107, 104, 98);
-    doc.text("No contractor work recorded for this week.", c.name, y);
+    doc.text("No contractor payments recorded for this week.", c.name, y);
   } else {
     if (y > 184) {
       doc.addPage();
@@ -165,8 +151,6 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text(money(tot.ex), c.ex, y + 3.5, { align: "right" });
     doc.text(money(tot.gst), c.g, y + 3.5, { align: "right" });
     doc.text(money(tot.inc), c.inc, y + 3.5, { align: "right" });
-    doc.text(money(tot.paid), c.paid, y + 3.5, { align: "right" });
-    doc.text(money(tot.unpaid), c.unpaid, y + 3.5, { align: "right" });
   }
 
   const pages = doc.getNumberOfPages();
@@ -177,7 +161,7 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(107, 104, 98);
-    doc.text(`Better Batt Insulation · work done ${range} · printed ${dFull(new Date())} · GST added at 10% for GST-registered contractors only`, L, 203);
+    doc.text(`Better Batt Insulation · paid work done ${range} · printed ${dFull(new Date())} · GST added at 10% for GST-registered contractors only`, L, 203);
     doc.text(`Page ${p} of ${pages}`, R, 203, { align: "right" });
   }
   doc.save(`Contractor-Payments-Week-${weekStart}.pdf`);
