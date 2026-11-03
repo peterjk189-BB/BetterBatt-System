@@ -21,12 +21,22 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
 
   if (!project) notFound();
 
+  // Lines can point at a product that has since been archived in Inventory (e.g. replaced by a newer
+  // version). Load those too, so the line still shows its product instead of a blank picker.
+  const activeIds = new Set((parts ?? []).map((p: any) => p.id));
+  const missingIds = Array.from(new Set((lines ?? []).map((l: any) => l.part_id).filter((id: string | null) => id && !activeIds.has(id))));
+  let archivedParts: any[] = [];
+  if (missingIds.length > 0) {
+    const { data } = await supabase.from("parts").select("*").in("id", missingIds);
+    archivedParts = ((data ?? []) as any[]).map((p) => ({ ...p, name: `${p.name} (archived)` }));
+  }
+
   return (
     <QuoteEditor
       project={project}
       lines={lines ?? []}
       customers={customers ?? []}
-      parts={parts ?? []}
+      parts={[...(parts ?? []), ...archivedParts]}
       workOrders={(workOrders ?? []) as any}
       isAdmin={role === "admin"}
       crmEnabled={role === "admin" || role === "office"}
