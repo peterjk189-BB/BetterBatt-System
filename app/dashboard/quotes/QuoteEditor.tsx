@@ -50,6 +50,7 @@ type Project = {
   entry_date: string;
   notes: string | null;
   contractor_notes?: string | null;
+  internal_notes?: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
   price_tier?: string | null;
@@ -277,6 +278,7 @@ export default function QuoteEditor({
     entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
     notes: project?.notes || "",
     contractor_notes: project?.contractor_notes || "",
+    internal_notes: project?.internal_notes || "",
     // Saved markup includes the travel allowance (so every quote view/total picks it up); take it back out for editing.
     quote_markup:
       Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0) - (Number(project?.non_compliance_fee?.amount) || 0)) * 100) / 100,
@@ -523,6 +525,8 @@ export default function QuoteEditor({
       notes: form.notes || null,
       // Contractor notes need migration 0074; only sent when used (or already present) so saving still works before it is run.
       ...(form.contractor_notes.trim() || project?.contractor_notes !== undefined ? { contractor_notes: form.contractor_notes.trim() || null } : {}),
+      // Internal notes need migration 0082; only sent when used (or already present) so saving still works before it is run.
+      ...(form.internal_notes.trim() || project?.internal_notes !== undefined ? { internal_notes: form.internal_notes.trim() || null } : {}),
       quote_markup: Math.round((adjustmentAmount + travelTotal + ncTotal) * 100) / 100,
       show_qty_on_quote: form.show_qty_on_quote,
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
@@ -1055,6 +1059,19 @@ export default function QuoteEditor({
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.suburb}
             onChange={(e) => setForm({ ...form, suburb: e.target.value })}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span>
+            Internal notes{" "}
+            <span className="font-normal text-[var(--muted)]">(internal only — not shown to the customer or the contractor)</span>
+          </span>
+          <textarea
+            className="rounded-lg border border-[var(--border)] px-3 py-2"
+            rows={2}
+            placeholder="e.g. Builder asked for price by Friday, energy report rev C"
+            value={form.internal_notes}
+            onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}
           />
         </label>
 

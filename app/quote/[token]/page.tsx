@@ -13,6 +13,11 @@ export default async function PublicQuotePage({ params }: { params: { token: str
 
   if (!project) notFound();
 
+  // Office-only fields never go to the customer's browser.
+  const publicProject = { ...(project as any) };
+  delete publicProject.internal_notes;
+  delete publicProject.contractor_notes;
+
   const [{ data: lines }, { data: settings }] = await Promise.all([
     admin
       .from("project_lines")
@@ -24,7 +29,7 @@ export default async function PublicQuotePage({ params }: { params: { token: str
 
   return (
     <PublicQuoteView
-      project={project as any}
+      project={publicProject}
       lines={(lines ?? []) as any}
       termsAndConditions={settings?.terms_and_conditions ?? ""}
       token={params.token}
