@@ -118,9 +118,9 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
 
 export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const W = 210;
-  const H = 297;
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  const W = 297;
+  const H = 210;
   const M = 15;
   const R = W - M;
   const GREY: [number, number, number] = [249, 250, 251];
@@ -188,7 +188,7 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
   doc.text(`${ds.jobs.length} job${ds.jobs.length === 1 ? "" : "s"} · ${Math.round(totalM2 * 10) / 10} m²`, R - 3 - 45, y + 9.4);
   y += 14 + 6;
 
-  const c = { prod: M + 3, note: M + 70, qty: R - 50, packs: R - 33, cost: R - 3 };
+  const c = { prod: M + 3, note: M + 100, qty: R - 50, packs: R - 33, cost: R - 3 };
   const newPage = () => {
     footer();
     doc.addPage();
@@ -220,8 +220,8 @@ export async function buildDaySheetPdf(ds: DaySheet): Promise<Uint8Array> {
     doc.text(`${Math.round(j.m2 * 10) / 10} m²`, R - 3, y + 5, { align: "right" });
     y += headH + 1.5;
     for (const l of j.lines) {
-      const prod = doc.splitTextToSize(l.product, 64) as string[];
-      const note = doc.splitTextToSize(l.note || "", 50) as string[];
+      const prod = doc.splitTextToSize(l.product, 94) as string[];
+      const note = doc.splitTextToSize(l.note || "", 100) as string[];
       const rows = Math.max(prod.length, note.length, 1);
       if (y + rows * 4 + 2 > H - 18) newPage();
       doc.setFont("helvetica", "normal");
