@@ -53,9 +53,12 @@ export default function PartPicker({
   const matches = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (!words.length) return sorted;
+    // Spaces/dashes/dots are ignored in the fallback, so "enviroseal" still finds "Enviro-Seal" / "Enviro Seal".
+    const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const q = squash(query);
     return sorted.filter((p) => {
       const n = p.name.toLowerCase();
-      return words.every((w) => n.includes(w));
+      return words.every((w) => n.includes(w)) || (q.length >= 3 && squash(p.name).includes(q));
     });
   }, [sorted, query]);
 
