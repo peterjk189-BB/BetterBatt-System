@@ -60,7 +60,10 @@ export async function POST(req: Request) {
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
+    // Show the exact address that was sent, so a typo or odd character is visible.
+    const odd = [...toEmail].filter((c) => c.charCodeAt(0) > 126 || c.charCodeAt(0) < 33).map((c) => "U+" + c.charCodeAt(0).toString(16).toUpperCase());
+    const detail = /`to`|to field|email address/i.test(result.error) ? ` Address sent: "${toEmail}"${odd.length ? ` (hidden characters: ${odd.join(", ")})` : ""}.` : "";
+    return NextResponse.json({ error: result.error + detail }, { status: 400 });
   }
 
   // Remember who it went to and when (columns exist after migration 0078; ignored if not yet run).
