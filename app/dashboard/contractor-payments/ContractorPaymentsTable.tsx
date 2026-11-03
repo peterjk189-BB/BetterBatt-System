@@ -6,6 +6,7 @@ import { lineRate } from "@/lib/woRate";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
+import { downloadWeekSummaryPdf, mondayOfDay, addDays } from "@/lib/contractorWeekPdf";
 
 type Sub = { id: string; name: string; phone: string | null; email: string | null; gst_registered: boolean };
 
@@ -58,6 +59,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [contractorFilter, setContractorFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
+  const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
 
   const computed = useMemo(
     () =>
@@ -171,6 +174,33 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
+  // One page for the whole week (Mon–Sun by work date): every contractor with work, paid and unpaid, regardless of the filters above.
+  async function exportWeekPdf() {
+    const start = mondayOfDay(weekDay);
+    const end = addDays(start, 6);
+    const map = new Map<string, { jobs: Set<string>; exGst: number; paidExGst: number; unpaidExGst: number }>();
+    for (const l of computed) {
+      if (!l.contractorId || !l.task_date || l.task_date < start || l.task_date > end) continue;
+      const e = map.get(l.contractorId) ?? { jobs: new Set<string>(), exGst: 0, paidExGst: 0, unpaidExGst: 0 };
+      e.jobs.add(l.work_order_id);
+      e.exGst += l.cost;
+      if (l.paid) e.paidExGst += l.cost;
+      else e.unpaidExGst += l.cost;
+      map.set(l.contractorId, e);
+    }
+    const rows = subs
+      .filter((s) => map.has(s.id))
+      .map((s) => {
+        const e = map.get(s.id)!;
+        return { name: s.name, gstRegistered: s.gst_registered, jobs: e.jobs.size, exGst: e.exGst, paidExGst: e.paidExGst, unpaidExGst: e.unpaidExGst };
+      });
+    try {
+      await downloadWeekSummaryPdf(start, rows);
+    } catch (e: any) {
+      alert(`Couldn't create the PDF: ${e?.message || e}`);
+    }
+  }
+
   function exportCsv() {
     const header = [
       "Contractor",
@@ -226,12 +256,25 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     <div>
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Contractor Payments</h1>
-        <button
-          onClick={exportCsv}
-          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
-        >
-          Export CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+            Week of
+            <input type="date" value={weekDay} onChange={(e) => e.target.value && setWeekDay(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" />
+          </label>
+          <button
+            onClick={exportWeekPdf}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
+            title="One PDF for the whole week (Mon–Sun by work date): every contractor, paid and unpaid"
+          >
+            Weekly summary PDF
+          </button>
+          <button
+            onClick={exportCsv}
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
