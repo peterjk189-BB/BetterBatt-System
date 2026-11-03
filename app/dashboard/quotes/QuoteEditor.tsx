@@ -58,6 +58,9 @@ type Project = {
   share_token?: string | null;
   emailed_at?: string | null;
   emailed_to?: string | null;
+  first_viewed_at?: string | null;
+  last_viewed_at?: string | null;
+  view_count?: number | null;
   accepted_at?: string | null;
   accepted_name?: string | null;
   option_titles?: Record<string, string> | null;
@@ -787,6 +790,14 @@ export default function QuoteEditor({
               {emailedInfo
                 ? `✓ Emailed${emailedInfo.to ? ` to ${emailedInfo.to}` : ""} on ${new Date(emailedInfo.at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`
                 : "Not emailed to the customer yet"}
+              {emailedInfo && project!.view_count ? (
+                <span className="ml-2 text-blue-700">
+                  · 👀 Opened {project!.view_count} time{project!.view_count === 1 ? "" : "s"}
+                  {project!.last_viewed_at ? `, last ${new Date(project!.last_viewed_at).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}
+                </span>
+              ) : emailedInfo ? (
+                <span className="ml-2 text-[var(--muted)]">· Not opened yet</span>
+              ) : null}
             </p>
           )}
         </div>

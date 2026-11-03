@@ -18,6 +18,8 @@ type Project = {
   quote_markup: number;
   emailed_at?: string | null;
   emailed_to?: string | null;
+  last_viewed_at?: string | null;
+  view_count?: number | null;
   archived: boolean;
   customers: { name: string; discount_pct: number | null } | null;
 };
@@ -188,6 +190,11 @@ export default function QuotesList({
                         ✓ {new Date(p.emailed_at).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
                       </span>
                       {p.emailed_to && <div className="max-w-[180px] truncate text-[var(--muted)]" title={p.emailed_to}>{p.emailed_to}</div>}
+                      {p.view_count ? (
+                        <div className="whitespace-nowrap text-blue-700" title={`Last opened ${p.last_viewed_at ? new Date(p.last_viewed_at).toLocaleString("en-AU") : ""}`}>
+                          👀 Opened{p.view_count > 1 ? ` ${p.view_count}×` : ""}
+                        </div>
+                      ) : null}
                     </>
                   ) : (
                     <span className="text-[var(--muted)]">Not sent</span>

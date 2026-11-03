@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import PublicQuoteView from "./PublicQuoteView";
+import { recordQuoteView } from "@/lib/quoteViews";
 
 export default async function PublicQuotePage({ params }: { params: { token: string } }) {
   const admin = createAdminClient();
@@ -13,10 +14,15 @@ export default async function PublicQuotePage({ params }: { params: { token: str
 
   if (!project) notFound();
 
+  await recordQuoteView(admin, project);
+
   // Office-only fields never go to the customer's browser.
   const publicProject = { ...(project as any) };
   delete publicProject.internal_notes;
   delete publicProject.contractor_notes;
+  delete publicProject.first_viewed_at;
+  delete publicProject.last_viewed_at;
+  delete publicProject.view_count;
 
   const [{ data: lines }, { data: settings }] = await Promise.all([
     admin

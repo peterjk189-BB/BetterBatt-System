@@ -8,14 +8,16 @@ export default async function QuotesPage() {
   const projCols = "id, quote_number, customer_id, job_type, category, outcome, lot_no, address, suburb, entry_date, quote_markup, archived, customers(name, discount_pct)";
   const [projRes, { data: lines }, { data: parts }] = await Promise.all([
     // emailed_at / emailed_to exist after migration 0078; fall back without them until it is run.
-    supabase.from("projects").select(projCols + ", emailed_at, emailed_to").order("quote_number", { ascending: false }),
+    supabase.from("projects").select(projCols + ", emailed_at, emailed_to, last_viewed_at, view_count").order("quote_number", { ascending: false }),
     supabase.from("project_lines").select("id, project_id, part_id, qty_m2"),
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
   ]);
 
   let projects: any[] | null = projRes.data as any;
   if (projRes.error) {
-    const fb = await supabase.from("projects").select(projCols).order("quote_number", { ascending: false });
+    // Without the opened-tracking columns (migration 0082), then without the emailed columns (0078).
+    let fb: any = await supabase.from("projects").select(projCols + ", emailed_at, emailed_to").order("quote_number", { ascending: false });
+    if (fb.error) fb = await supabase.from("projects").select(projCols).order("quote_number", { ascending: false });
     projects = fb.data as any;
   }
 
