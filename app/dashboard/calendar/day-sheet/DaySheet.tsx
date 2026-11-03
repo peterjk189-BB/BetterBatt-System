@@ -45,12 +45,12 @@ function siteOf(p: Row["work_orders"]["projects"]) {
 
 export default function DaySheet({
   date,
-  contractorId,
+  selectedIds,
   contractors,
   rows,
 }: {
   date: string;
-  contractorId: string;
+  selectedIds: string[];
   contractors: { id: string; name: string }[];
   rows: Row[];
   allContractorsCount: number;
@@ -60,16 +60,31 @@ export default function DaySheet({
   const [downloading, setDownloading] = useState(false);
   const [err, setErr] = useState("");
 
-  const go = (d: string, c: string) => router.push(`/dashboard/calendar/day-sheet?date=${d}${c ? `&contractor_id=${c}` : ""}`);
+  const go = (d: string, ids: string[]) => router.push(`/dashboard/calendar/day-sheet?date=${d}${ids.length ? `&contractor_ids=${ids.join(",")}` : ""}`);
+  const toggle = (id: string) => go(date, selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  const showContractorCol = selectedIds.length !== 1;
   const shift = (days: number) => {
     const d = new Date(date + "T00:00:00");
     d.setDate(d.getDate() + days);
     const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    go(iso, contractorId);
+    go(iso, selectedIds);
   };
 
   const dateLabel = new Date(date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const contractorName = contractors.find((c) => c.id === contractorId)?.name;
+  const selectedNames = contractors.filter((c) => selectedIds.includes(c.id)).map((c) => c.name);
+  const contractorName = selectedNames.length === 1 ? selectedNames[0] : undefined;
+  // Per-contractor summary for the top of the sheet.
+  const perContractor = (() => {
+    const m = new Map<string, { name: string; jobs: Set<string>; m2: number }>();
+    for (const r of rows) {
+      const k = r.contractor?.id || "none";
+      const e = m.get(k) ?? { name: r.contractor?.name || "No contractor", jobs: new Set<string>(), m2: 0 };
+      e.jobs.add(r.work_orders.id);
+      if (r.parts?.is_stock_item !== false) e.m2 += Number(r.qty) || 0;
+      m.set(k, e);
+    }
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
   const stockRows = rows.filter((r) => r.parts?.is_stock_item !== false);
   const totalM2 = stockRows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
   const jobs = new Set(rows.map((r) => r.work_orders.id)).size;
@@ -117,15 +132,31 @@ export default function DaySheet({
         </Link>
         <div className="flex items-center gap-1">
           <button onClick={() => shift(-1)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm hover:border-accent" aria-label="Previous day">&larr;</button>
-          <input type="date" value={date} onChange={(e) => e.target.value && go(e.target.value, contractorId)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" />
+          <input type="date" value={date} onChange={(e) => e.target.value && go(e.target.value, selectedIds)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" />
           <button onClick={() => shift(1)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm hover:border-accent" aria-label="Next day">&rarr;</button>
         </div>
-        <select value={contractorId} onChange={(e) => go(date, e.target.value)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm">
-          <option value="">All contractors</option>
-          {contractors.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Contractors">
+          <button
+            onClick={() => go(date, [])}
+            aria-pressed={selectedIds.length === 0}
+            className={`rounded-full border px-3 py-1.5 text-sm ${selectedIds.length === 0 ? "border-accent bg-accent text-white" : "border-[var(--border)] hover:border-accent"}`}
+          >
+            All contractors
+          </button>
+          {contractors.map((c) => {
+            const on = selectedIds.includes(c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => toggle(c.id)}
+                aria-pressed={on}
+                className={`rounded-full border px-3 py-1.5 text-sm ${on ? "border-accent bg-accent text-white" : "border-[var(--border)] hover:border-accent"}`}
+              >
+                {on ? "✓ " : ""}{c.name}
+              </button>
+            );
+          })}
+        </div>
         <button onClick={downloadPdf} disabled={downloading} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
           {downloading ? "Making PDF…" : "Download PDF"}
         </button>
@@ -139,7 +170,7 @@ export default function DaySheet({
         <div className="flex items-end justify-between rounded-lg bg-[#141413] px-5 py-3 text-white">
           <div>
             <div className="text-xl font-bold">Better Batt Insulation · Day sheet</div>
-            <div className="text-sm text-gray-300">{contractorName ? `Contractor: ${contractorName}` : "All contractors"}</div>
+            <div className="text-sm text-gray-300">{selectedNames.length ? `Contractor${selectedNames.length === 1 ? "" : "s"}: ${selectedNames.join(", ")}` : "All contractors"}</div>
           </div>
           <div className="text-right">
             <div className="text-xl font-bold">{dateLabel}</div>
@@ -149,6 +180,16 @@ export default function DaySheet({
           </div>
         </div>
 
+        {perContractor.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            {perContractor.map((c) => (
+              <div key={c.name} className="rounded-md border border-gray-300 bg-gray-50 px-2.5 py-1">
+                <span className="font-semibold">{c.name}</span> · {c.jobs.size} job{c.jobs.size === 1 ? "" : "s"} · {c.m2.toLocaleString("en-AU", { maximumFractionDigits: 1 })} m²
+              </div>
+            ))}
+          </div>
+        )}
+
         <table className="mt-3 w-full border-collapse text-[11px] leading-tight">
           <thead>
             <tr className="bg-gray-100 text-left text-[9px] uppercase tracking-wide text-gray-600">
@@ -156,7 +197,7 @@ export default function DaySheet({
               <th className="px-1.5 py-1">WO</th>
               <th className="px-1.5 py-1">Customer / site</th>
               <th className="px-1.5 py-1">Site contact</th>
-              {!contractorId && <th className="px-1.5 py-1">Contractor</th>}
+              {showContractorCol && <th className="px-1.5 py-1">Contractor</th>}
               <th className="px-1.5 py-1">Task / product</th>
               <th className="px-1.5 py-1 text-right">m²</th>
               <th className="px-1.5 py-1">Notes</th>
@@ -192,7 +233,7 @@ export default function DaySheet({
                             <span className="text-gray-400">—</span>
                           )}
                         </td>
-                        {!contractorId && (
+                        {showContractorCol && (
                           <td rowSpan={span} className="px-1.5 py-1">
                             <div>{r.contractor?.name || "—"}</div>
                             {r.contractor?.phone && <div className="text-gray-600">{r.contractor.phone}</div>}
@@ -210,7 +251,7 @@ export default function DaySheet({
             )}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={contractorId ? 8 : 9} className="py-8 text-center text-gray-400">
+                <td colSpan={showContractorCol ? 9 : 8} className="py-8 text-center text-gray-400">
                   Nothing scheduled on this day.
                 </td>
               </tr>

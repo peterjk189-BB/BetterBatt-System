@@ -3,13 +3,16 @@ import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
 import DaySheet from "./DaySheet";
 
-export default async function DaySheetPage({ searchParams }: { searchParams: { date?: string; contractor_id?: string } }) {
+export default async function DaySheetPage({ searchParams }: { searchParams: { date?: string; contractor_id?: string; contractor_ids?: string } }) {
   const role = await getEffectiveRole();
   if (role === "installer") redirect("/dashboard/calendar");
 
   const supabase = await createClient();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
   const date = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.date || "") ? (searchParams.date as string) : today;
+
+  // ?contractor_ids=a,b,c (several) — ?contractor_id=a still works for old links. Empty = everyone.
+  const selected = (searchParams.contractor_ids || searchParams.contractor_id || "").split(",").map((x) => x.trim()).filter(Boolean);
 
   const [{ data: lines }, { data: contractors }] = await Promise.all([
     supabase
@@ -27,7 +30,7 @@ export default async function DaySheetPage({ searchParams }: { searchParams: { d
       const c = l.subcontractors || l.work_orders.subcontractors;
       return { ...l, contractor: c ? { id: c.id as string, name: c.name as string, phone: (c.phone as string) || null } : null };
     })
-    .filter((l) => !searchParams.contractor_id || l.contractor?.id === searchParams.contractor_id)
+    .filter((l) => selected.length === 0 || (l.contractor?.id && selected.includes(l.contractor.id)))
     .sort(
       (a, b) =>
         String(a.task_time || "99:99").localeCompare(String(b.task_time || "99:99")) ||
@@ -45,7 +48,7 @@ export default async function DaySheetPage({ searchParams }: { searchParams: { d
   return (
     <DaySheet
       date={date}
-      contractorId={searchParams.contractor_id || ""}
+      selectedIds={selected}
       contractors={Array.from(dayContractors.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))}
       rows={rows as any}
       allContractorsCount={(contractors ?? []).length}
