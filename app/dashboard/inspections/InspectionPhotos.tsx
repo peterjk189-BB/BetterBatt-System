@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import PhotoViewer from "../PhotoViewer";
 import type { InspectionPhoto } from "@/lib/inspections";
 
 /** Phone photos are 3–6 MB; shrink to 1600px JPEG before upload so uploads work on site on 4G. */
@@ -198,27 +199,17 @@ export default function InspectionPhotos({
       </datalist>
 
       {viewing && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={() => setViewing(null)}>
-          <div className="flex items-center justify-between gap-3 px-4 py-3 text-white" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}>
-            <span className="truncate text-sm">{viewing.caption || "Photo"}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removePhoto(viewing);
-                }}
-                className="rounded-lg border border-red-400/60 px-3 py-1.5 text-sm text-red-200"
-              >
-                Delete
-              </button>
-              <button className="rounded-lg border border-white/30 px-3 py-1.5 text-sm">Close</button>
-            </div>
-          </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={urls[viewing.storage_path]} alt={viewing.caption || "Photo"} className="max-h-full max-w-full object-contain" />
-          </div>
-        </div>
+        <PhotoViewer
+          photos={photos}
+          urls={urls}
+          currentId={viewing.id}
+          onChange={(id) => setViewing(photos.find((x) => x.id === id) ?? null)}
+          onClose={() => setViewing(null)}
+          onDelete={(id) => {
+            const ph = photos.find((x) => x.id === id);
+            if (ph) removePhoto(ph);
+          }}
+        />
       )}
     </div>
   );
