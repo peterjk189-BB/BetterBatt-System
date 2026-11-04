@@ -23,5 +23,10 @@ export default async function InvoicePickingSlipPage({ params }: { params: { id:
       .order("sort_order");
     lines = retry.data;
   }
+  // Spare packs put back (migration 0087) are fetched separately so this page still works before it's run.
+  const { data: backRows } = await supabase.from("invoice_lines").select("id, packs_returned").eq("invoice_id", params.id);
+  const backById: Record<string, number> = {};
+  for (const r of (backRows ?? []) as any[]) backById[r.id] = Number(r.packs_returned) || 0;
+  lines = (lines ?? []).map((l: any) => ({ ...l, packs_returned: backById[l.id] || 0 }));
   return <InvoicePickingSlip invoice={invoice as any} lines={((lines ?? []) as any[]).filter((l) => l.fulfilment !== "supplier" && l.part_id && l.parts?.is_stock_item !== false)} />;
 }

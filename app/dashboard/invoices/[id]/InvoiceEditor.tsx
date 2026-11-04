@@ -110,12 +110,23 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     setFulfilMsg({ ok: true, text: "Picked. Stock taken off inventory." });
   }
 
+  // Whole multis out, spare packs straight back: e.g. 14 packs sold, 5 per multi -> pick 3 multis, put 1 pack back.
+  async function pickWhole(l: InvoiceLine, multis: number, spare: number) {
+    setPickBusy(l.id);
+    let { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multis, p_pks: 0 });
+    if (!error && spare > 0) ({ error } = await supabase.rpc("return_invoice_line", { p_line_id: l.id, p_pks: spare }));
+    setPickBusy("");
+    if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0087 been run?)" });
+    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: multis, packs_picked: 0, packs_returned: spare } : x)));
+    setFulfilMsg({ ok: true, text: `Picked ${multis} multi${multis === 1 ? "" : "s"}, ${spare} back to stock.` });
+  }
+
   async function undoPick(l: InvoiceLine) {
     setPickBusy(l.id);
     const { error } = await supabase.rpc("unpick_invoice_line", { p_line_id: l.id });
     setPickBusy("");
     if (error) return setFulfilMsg({ ok: false, text: error.message });
-    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: false, multi_picked: null, packs_picked: null } : x)));
+    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: false, multi_picked: null, packs_picked: null, packs_returned: 0 } : x)));
     setFulfilMsg({ ok: true, text: "Pick undone. Stock put back." });
   }
 
@@ -798,7 +809,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {l.picked ? (
                             <>
-                              <span className="font-semibold text-green-700">✓ {fmtPicked(part, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
+                              <span className="font-semibold text-green-700">✓ {fmtPicked(part, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
                               <button onClick={() => undoPick(l)} disabled={pickBusy === l.id} className="text-xs text-red-700 underline">Undo</button>
                             </>
                           ) : (
@@ -821,6 +832,15 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                               <span className="text-xs text-[var(--muted)]">{u.hasBulk ? `Loose ${plural(u.one, 2)}` : `${plural(u.one, 2)} picked`}</span>
                               <input className={box} inputMode="decimal" value={e.pks} onChange={(ev) => setPickEntry({ ...pickEntry, [l.id]: { multi: e.multi, pks: ev.target.value } })} />
                               <button onClick={() => pickLine(l)} disabled={pickBusy === l.id} className="rounded-lg bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
+                              {u.hasBulk && ppm > 1 && Number(l.qty) > 0 && Number(l.qty) % ppm !== 0 && (() => {
+                                const multis = Math.ceil(Number(l.qty) / ppm);
+                                const spare = multis * ppm - Number(l.qty);
+                                return (
+                                  <button onClick={() => pickWhole(l, multis, spare)} disabled={pickBusy === l.id} className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-accent disabled:opacity-60">
+                                    Pick {multis} multi{multis === 1 ? "" : "s"}, {spare} back to stock
+                                  </button>
+                                );
+                              })()}
                             </>
                           )}
                         </div>

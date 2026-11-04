@@ -15,6 +15,7 @@ type Line = {
   picked: boolean;
   multi_picked: number | null;
   packs_picked: number | null;
+  packs_returned?: number | null;
   parts: { id: string; name: string; code: string | null; pack_per_multi: number; stock_on_hand: number; pack_unit?: string | null; multi_unit?: string | null } | null;
 };
 
@@ -46,12 +47,23 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
     setMsg({ ok: true, text: "Picked. Stock taken off inventory." });
   }
 
+  // Whole multis out, spare packs straight back: e.g. 14 packs sold, 5 per multi -> pick 3 multis, put 1 pack back.
+  async function pickWhole(l: Line, multis: number, spare: number) {
+    setBusy(l.id);
+    let { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multis, p_pks: 0 });
+    if (!error && spare > 0) ({ error } = await supabase.rpc("return_invoice_line", { p_line_id: l.id, p_pks: spare }));
+    setBusy("");
+    if (error) return setMsg({ ok: false, text: error.message + " (has migration 0087 been run?)" });
+    setLines(lines.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: multis, packs_picked: 0, packs_returned: spare } : x)));
+    setMsg({ ok: true, text: `Picked ${multis} multi${multis === 1 ? "" : "s"}, ${spare} back to stock.` });
+  }
+
   async function undo(l: Line) {
     setBusy(l.id);
     const { error } = await supabase.rpc("unpick_invoice_line", { p_line_id: l.id });
     setBusy("");
     if (error) return setMsg({ ok: false, text: error.message });
-    setLines(lines.map((x) => (x.id === l.id ? { ...x, picked: false, multi_picked: null, packs_picked: null } : x)));
+    setLines(lines.map((x) => (x.id === l.id ? { ...x, picked: false, multi_picked: null, packs_picked: null, packs_returned: 0 } : x)));
     setMsg({ ok: true, text: "Pick undone. Stock put back." });
   }
 
@@ -159,7 +171,7 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
                 <td className="px-2 py-2">
                   {l.picked ? (
                     <span className="inline-flex items-center gap-2">
-                      <span className="font-semibold text-green-700">✓ {fmtPicked(l.parts, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}</span>
+                      <span className="font-semibold text-green-700">✓ {fmtPicked(l.parts, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
                       <button onClick={() => undo(l)} disabled={busy === l.id} className="text-xs text-red-700 underline print:hidden">Undo</button>
                     </span>
                   ) : (
@@ -173,6 +185,18 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
                       <span className="text-xs capitalize text-gray-500">{unitsOf(l.parts).hasBulk ? "Loose" : plural(unitsOf(l.parts).one, 2)}</span>
                       <input className={field} inputMode="decimal" value={entry[l.id]?.pks ?? String(l.qty)} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: entry[l.id]?.multi ?? "", pks: e.target.value } })} />
                       <button onClick={() => pick(l)} disabled={busy === l.id} className="rounded bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
+                      {(() => {
+                        const ppm = Number(l.parts?.pack_per_multi) || 0;
+                        const need = Number(l.qty) || 0;
+                        if (!unitsOf(l.parts).hasBulk || ppm <= 1 || need <= 0 || need % ppm === 0) return null;
+                        const multis = Math.ceil(need / ppm);
+                        const spare = multis * ppm - need;
+                        return (
+                          <button onClick={() => pickWhole(l, multis, spare)} disabled={busy === l.id} className="rounded border border-gray-300 px-3 py-1 text-xs font-medium disabled:opacity-60">
+                            Pick {multis} multi{multis === 1 ? "" : "s"}, {spare} back to stock
+                          </button>
+                        );
+                      })()}
                     </span>
                   )}
                   {!l.picked && <span className="hidden whitespace-nowrap text-gray-400 print:inline">{unitsOf(l.parts).hasBulk ? `${plural(unitsOf(l.parts).bulk, 2)}: ______ \u00a0 Loose: ______` : `${plural(unitsOf(l.parts).one, 2)}: ______`}</span>}
