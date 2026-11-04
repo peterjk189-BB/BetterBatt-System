@@ -297,6 +297,13 @@ export default function PickingSlip({
   };
   const unreturn = (l: Line) =>
     run(l.id, "Undid return", async () => await supabase.rpc("unreturn_wo_line", { p_line_id: l.id }));
+  // Whole multis out, spare packs straight back: e.g. 14 packs needed, 5 per multi -> pick 3 multis, put 1 pack back on the shelf.
+  const pickWholeMultis = (l: Line, multis: number, spare: number) =>
+    run(l.id, `Picked ${multis} multi${multis === 1 ? "" : "s"}, ${spare} back to stock`, async () => {
+      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multis, p_pks: 0 });
+      if (r.error || spare <= 0) return r;
+      return await supabase.rpc("return_wo_line", { p_line_id: l.id, p_multi: 0, p_pks: spare });
+    });
   const pick = (l: Line) => {
     const multi = Math.round(Number(pickMulti[l.id] || 0)) || 0;
     const pks = Math.round(Number(pickPks[l.id] || 0)) || 0;
@@ -656,6 +663,22 @@ export default function PickingSlip({
                               Confirm pick
                             </button>
                           </div>
+                          {(() => {
+                            const ppm = Number(l.parts.pack_per_multi) || 0;
+                            if (!unitsOf(l.parts).hasBulk || ppm <= 1 || needed <= 0 || needed % ppm === 0) return null;
+                            const multis = Math.ceil(needed / ppm);
+                            const spare = multis * ppm - needed;
+                            return (
+                              <button
+                                onClick={() => pickWholeMultis(l, multis, spare)}
+                                disabled={busy}
+                                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:border-accent disabled:opacity-60"
+                                title={`${needed} packs needed, ${ppm} per multi`}
+                              >
+                                Pick {multis} multi{multis === 1 ? "" : "s"}, {spare} back to stock
+                              </button>
+                            );
+                          })()}
                           <button onClick={() => deallocate(l)} disabled={busy} className="text-xs text-[var(--muted)] hover:underline">
                             Release allocation
                           </button>
