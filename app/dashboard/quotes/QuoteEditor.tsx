@@ -43,7 +43,7 @@ type Project = {
   contact_email: string | null;
   job_type: string;
   category: string | null;
-  outcome: "Open" | "Accepted" | "Lost" | "Cancelled";
+  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
   lot_no: string | null;
   address: string | null;
   suburb: string | null;
@@ -100,7 +100,7 @@ export type QuotePrefill = {
 
 const JOB_TYPES = ["SUPPLY & INSTALL", "SUPPLY ONLY"];
 const CATEGORIES = ["Builder", "Retro Fit", "Private"];
-const OUTCOMES = ["Open", "Accepted", "Lost", "Cancelled"];
+const OUTCOMES = ["Open", "Accepted", "Complete", "Lost", "Cancelled"];
 
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -835,7 +835,7 @@ export default function QuoteEditor({
               Email to customer
             </button>
           )}
-          {!isNew && (
+          {!isNew && form.outcome !== "Complete" && (
             <Link
               href={`/dashboard/work-orders/new?project_id=${project!.id}`}
               className={
@@ -847,7 +847,7 @@ export default function QuoteEditor({
               {workOrders.length > 0 ? "Create another work order" : "Create work order"}
             </Link>
           )}
-          {!isNew && (isAdmin || crmEnabled) && project!.outcome === "Accepted" && (
+          {!isNew && (isAdmin || crmEnabled) && (form.outcome === "Accepted" || form.outcome === "Complete") && (
             <Link
               href={`/dashboard/invoices/new?project_id=${project!.id}`}
               className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"

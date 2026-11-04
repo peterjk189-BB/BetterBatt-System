@@ -252,7 +252,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
   issued.forEach((i) => i.project_id && invBy.set(i.project_id, [...(invBy.get(i.project_id) ?? []), i]));
 
   const jobs = data.projects
-    .filter((p) => !p.archived && p.outcome === "Accepted" && inR(p.entry_date, start, end))
+    .filter((p) => !p.archived && (p.outcome === "Accepted" || p.outcome === "Complete") && inR(p.entry_date, start, end))
     .map((p) => {
       const pl = linesBy.get(p.id) ?? [];
       const wl = (wosBy.get(p.id) ?? []).flatMap((id) => woLinesBy.get(id) ?? []);
@@ -280,7 +280,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
 
   // ---- quote to cash ---------------------------------------------------------------
   const inPeriodQuotes = data.projects.filter((p) => !p.archived && inR(p.entry_date, start, end));
-  const accepted = inPeriodQuotes.filter((p) => p.outcome === "Accepted");
+  const accepted = inPeriodQuotes.filter((p) => p.outcome === "Accepted" || p.outcome === "Complete");
   const lost = inPeriodQuotes.filter((p) => p.outcome === "Lost").length;
   const invoicedJobs = accepted.filter((p) => (invBy.get(p.id) ?? []).length > 0);
   const paidJobs = invoicedJobs.filter((p) => (invBy.get(p.id) ?? []).every((i) => (paidBy.get(i.id) ?? 0) >= (Number(i.total) || 0) - 0.005));
@@ -305,7 +305,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
     if (p.stage === "awaiting-swms") waitingSwms += 1;
     if (p.stage === "reinspection-due") reinspect += 1;
   }
-  const acceptedNoInvoice = data.projects.filter((p) => !p.archived && p.outcome === "Accepted" && !(invBy.get(p.id) ?? []).length).length;
+  const acceptedNoInvoice = data.projects.filter((p) => !p.archived && (p.outcome === "Accepted" || p.outcome === "Complete") && !(invBy.get(p.id) ?? []).length).length;
   const draftPos = data.pos.filter((p) => !p.archived && p.status === "Draft").length;
   const in30 = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 30));
   const insuranceSoon = data.subs.filter((s) => !s.archived && s.insurance_expiry && s.insurance_expiry <= in30).length;

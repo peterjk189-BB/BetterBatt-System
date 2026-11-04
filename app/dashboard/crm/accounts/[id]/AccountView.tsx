@@ -77,7 +77,7 @@ export default function AccountView({
   const [taskWho, setTaskWho] = useState(initialCustomer.crm_owner_id || userId);
 
   const next = nextCheckin(c.checkin_every_days, c.last_contact_at, today);
-  const accepted = quotes.filter((q) => q.outcome === "Accepted").length;
+  const accepted = quotes.filter((q) => q.outcome === "Accepted" || q.outcome === "Complete").length;
 
   async function saveCheckin(days: number | null, owner: string | null) {
     setError(null);

@@ -56,7 +56,7 @@ type Project = {
   quote_number: number;
   customer_id: string | null;
   job_type: string;
-  outcome: "Open" | "Accepted" | "Lost" | "Cancelled";
+  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
   entry_date: string;
   quote_markup: number;
   price_tier?: string | null;
@@ -344,7 +344,7 @@ function CustomerReport({ projects, projectLines }: { projects: Project[]; proje
       const value = computeProjectValue(p, linesByProject.get(p.id) || []);
       row.quotes += 1;
       row.totalValue += value;
-      if (p.outcome === "Accepted") {
+      if (p.outcome === "Accepted" || p.outcome === "Complete") {
         row.accepted += 1;
         row.acceptedValue += value;
       } else if (p.outcome === "Lost") {
@@ -588,7 +588,7 @@ function QuotesReport({ projects, projectLines }: { projects: Project[]; project
   const add = (t: Tally, outcome: string, value: number) => {
     t.quotes += 1;
     t.value += value;
-    if (outcome === "Accepted") { t.won += 1; t.wonValue += value; }
+    if (outcome === "Accepted" || outcome === "Complete") { t.won += 1; t.wonValue += value; }
     else if (outcome === "Lost") { t.lost += 1; t.lostValue += value; }
     else if (outcome === "Cancelled") { t.cancelled += 1; }
     else { t.open += 1; t.openValue += value; }

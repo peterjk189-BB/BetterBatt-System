@@ -136,7 +136,7 @@ export default function ProfitLossReport({
 
     const out: JobRow[] = [];
     for (const p of projects) {
-      if (p.archived || p.outcome !== "Accepted") continue;
+      if (p.archived || p.outcome !== "Accepted" && p.outcome !== "Complete") continue;
       if (!inRange(p.entry_date, start, end)) continue;
       const pl = linesByProject.get(p.id) ?? [];
       const quoted = quoteTotals(p as any, pl as any).ex;

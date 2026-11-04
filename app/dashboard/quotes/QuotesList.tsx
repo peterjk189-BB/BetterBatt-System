@@ -10,7 +10,7 @@ type Project = {
   customer_id: string | null;
   job_type: string;
   category: string | null;
-  outcome: "Open" | "Accepted" | "Lost" | "Cancelled";
+  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
   lot_no?: string | null;
   address?: string | null;
   suburb: string | null;
@@ -36,6 +36,7 @@ type Part = {
 const OUTCOME_COLORS: Record<string, string> = {
   Open: "bg-blue-100 text-blue-800",
   Accepted: "bg-green-100 text-green-800",
+  Complete: "bg-emerald-200 text-emerald-900",
   Lost: "bg-red-100 text-red-800",
   Cancelled: "bg-gray-200 text-gray-700",
 };
@@ -114,7 +115,7 @@ export default function QuotesList({
           onChange={(e) => setOutcomeFilter(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
         >
-          {["All", "Open", "Accepted", "Lost", "Cancelled"].map((o) => (
+          {["All", "Open", "Accepted", "Complete", "Lost", "Cancelled"].map((o) => (
             <option key={o}>{o}</option>
           ))}
         </select>

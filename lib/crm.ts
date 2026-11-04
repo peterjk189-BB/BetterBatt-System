@@ -115,7 +115,7 @@ export function effectiveStage(l: Pick<Lead, "stage" | "projects" | "site_visits
   const rank = (s: Stage) => STAGES.indexOf(s);
   let stage: Stage = l.stage;
   const outcome = l.projects?.outcome;
-  if (outcome === "Accepted") return "Won";
+  if (outcome === "Accepted" || outcome === "Complete") return "Won";
   if (outcome === "Lost" || outcome === "Cancelled") return "Lost";
   if (l.projects && rank(stage) < rank("Quote sent")) stage = "Quote sent";
   if (l.site_visits && rank(stage) < rank("Site visit booked")) stage = "Site visit booked";

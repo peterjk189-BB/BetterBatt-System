@@ -8,7 +8,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
   const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)";
   const lineSel = "id, project_id, qty_m2, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
   const loadProjects = (cols: string) =>
-    supabase.from("projects").select(cols).eq("outcome", "Accepted").eq("archived", false).order("quote_number", { ascending: false });
+    supabase.from("projects").select(cols).in("outcome", ["Accepted", "Complete"]).eq("archived", false).order("quote_number", { ascending: false });
   const [pr, ln, { data: invoices, error: invErr }, { data: customers }] = await Promise.all([
     loadProjects(projSel + ", price_tier"),
     supabase.from("project_lines").select(lineSel + ", price_retail, price_trade, price_regency)"),

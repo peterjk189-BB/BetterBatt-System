@@ -138,7 +138,7 @@ export default function WeeklyReport({
   const jobsTotal = jobs.reduce((s, j) => s + j.value, 0);
   const cashEx = cash.kept.reduce((s, r) => s + r.ex, 0);
   const quotesEx = quotes.reduce((s, q) => s + q.ex, 0);
-  const accepted = quotes.filter((q) => q.outcome === "Accepted");
+  const accepted = quotes.filter((q) => q.outcome === "Accepted" || q.outcome === "Complete");
   const acceptedEx = accepted.reduce((s, q) => s + q.ex, 0);
 
   async function exportPdf() {
