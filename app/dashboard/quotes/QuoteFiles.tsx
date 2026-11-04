@@ -133,7 +133,7 @@ export default function QuoteFiles({ projectId }: { projectId: string | null }) 
     <div className="sm:col-span-3">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm">Attachments</span>
-        <span className="text-xs text-[var(--muted)]">(plans, emails, photos or PDFs — for the office, never shown to the customer. Tick “Contractor” to show a file on the contractor\u2019s work order)</span>
+        <span className="text-xs text-[var(--muted)]">(plans, emails, photos or PDFs — for the office, never shown to the customer. Tick “Contractor” to show a file on the contractor’s work order)</span>
         <button
           type="button"
           disabled={!projectId || !!busy}

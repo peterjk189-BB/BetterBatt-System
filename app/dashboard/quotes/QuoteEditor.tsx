@@ -1129,7 +1129,9 @@ export default function QuoteEditor({
         </div>
 
         <label className="flex flex-col gap-1 text-sm sm:col-span-3">
-          Notes
+          <span>
+            Notes <span className="text-xs text-[var(--muted)]">(included on the quote for the customer to see)</span>
+          </span>
           <textarea
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             rows={2}
