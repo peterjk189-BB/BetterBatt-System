@@ -1,6 +1,7 @@
 "use client";
 
 import CallLink from "../CallLink";
+import QuoteFiles from "./QuoteFiles";
 import PartPicker from "@/app/dashboard/PartPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1150,6 +1151,8 @@ export default function QuoteEditor({
             onChange={(e) => setForm({ ...form, contractor_notes: e.target.value })}
           />
         </label>
+
+        <QuoteFiles projectId={project?.id ?? null} />
       </div>
 
       {/* Line items */}
