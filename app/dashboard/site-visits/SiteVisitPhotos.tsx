@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { VisitPhoto } from "@/lib/siteVisit";
+import PhotoViewer from "../PhotoViewer";
 import SitePlanSketch, { type SketchBackground } from "./SitePlanSketch";
 
 const CAPTION_SUGGESTIONS = [
@@ -204,8 +205,8 @@ export default function SiteVisitPhotos({
     await supabase.from("attachments").update({ caption: caption || null }).eq("id", p.id);
   }
 
-  async function removePhoto(p: VisitPhoto) {
-    if (!confirm(`Delete this ${p.category === "Site plan" ? "site plan" : p.category === "Other document" ? "document" : "photo"}${p.caption ? ` (“${p.caption}”)` : ""}?`)) return;
+  async function removePhoto(p: VisitPhoto, alreadyConfirmed = false) {
+    if (!alreadyConfirmed && !confirm(`Delete this ${p.category === "Site plan" ? "site plan" : p.category === "Other document" ? "document" : "photo"}${p.caption ? ` (“${p.caption}”)` : ""}?`)) return;
     await supabase.storage.from("attachments").remove([p.storage_path]);
     const { error: delErr } = await supabase.from("attachments").delete().eq("id", p.id);
     if (delErr) {
@@ -363,27 +364,17 @@ export default function SiteVisitPhotos({
       </datalist>
 
       {viewing && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/90" onClick={() => setViewing(null)}>
-          <div className="flex items-center justify-between gap-3 px-4 py-3 text-white" style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}>
-            <span className="truncate text-sm">{viewing.caption || "Photo"}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removePhoto(viewing);
-                }}
-                className="rounded-lg border border-red-400/60 px-3 py-1.5 text-sm text-red-200"
-              >
-                Delete
-              </button>
-              <button className="rounded-lg border border-white/30 px-3 py-1.5 text-sm">Close</button>
-            </div>
-          </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={urls[viewing.storage_path]} alt={viewing.caption || "Photo"} className="max-h-full max-w-full object-contain" />
-          </div>
-        </div>
+        <PhotoViewer
+          photos={[...plans, ...sitePhotos]}
+          urls={urls}
+          currentId={viewing.id}
+          onChange={(id) => setViewing([...plans, ...sitePhotos].find((x) => x.id === id) ?? null)}
+          onClose={() => setViewing(null)}
+          onDelete={(id) => {
+            const ph = [...plans, ...sitePhotos].find((x) => x.id === id);
+            if (ph) removePhoto(ph, true);
+          }}
+        />
       )}
 
       {sketch && <SitePlanSketch background={sketch} onCancel={() => setSketch(null)} onSave={saveSketch} />}
