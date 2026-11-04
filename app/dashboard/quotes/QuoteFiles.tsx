@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PhotoViewer from "../PhotoViewer";
 
-type FileRow = { id: string; category: string; storage_path: string; file_name: string | null; caption: string | null; created_at: string };
+type FileRow = { id: string; category: string; storage_path: string; file_name: string | null; caption: string | null; created_at: string; share_with_contractor?: boolean | null };
 
 const isPdf = (f: { file_name?: string | null; storage_path: string }) => /\.pdf$/i.test(f.file_name || f.storage_path);
 
@@ -37,14 +37,25 @@ export default function QuoteFiles({ projectId }: { projectId: string | null }) 
 
   useEffect(() => {
     if (!projectId) return;
-    supabase
-      .from("attachments")
-      .select("id, category, storage_path, file_name, caption, created_at")
-      .eq("project_id", projectId)
-      .is("work_order_id", null)
-      .in("category", ["Photo", "Other document"])
-      .order("created_at")
-      .then(({ data }) => setFiles((data ?? []) as FileRow[]));
+    (async () => {
+      // "share_with_contractor" needs migration 0088: fall back to the plain columns without it.
+      const base = () => supabase.from("attachments");
+      let r: any = await base()
+        .select("id, category, storage_path, file_name, caption, created_at, share_with_contractor")
+        .eq("project_id", projectId)
+        .is("work_order_id", null)
+        .in("category", ["Photo", "Other document"])
+        .order("created_at");
+      if (r.error) {
+        r = await base()
+          .select("id, category, storage_path, file_name, caption, created_at")
+          .eq("project_id", projectId)
+          .is("work_order_id", null)
+          .in("category", ["Photo", "Other document"])
+          .order("created_at");
+      }
+      setFiles((r.data ?? []) as FileRow[]);
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
@@ -109,13 +120,20 @@ export default function QuoteFiles({ projectId }: { projectId: string | null }) 
     setViewing(null);
   }
 
+  async function toggleShare(f: FileRow, on: boolean) {
+    setError(null);
+    const { error: e } = await supabase.from("attachments").update({ share_with_contractor: on }).eq("id", f.id);
+    if (e) return setError(/share_with_contractor|schema cache|column/i.test(e.message) ? "Run migration 0088 in Supabase first." : e.message);
+    setFiles((cur) => cur.map((x) => (x.id === f.id ? { ...x, share_with_contractor: on } : x)));
+  }
+
   const images = files.filter((f) => !isPdf(f));
 
   return (
     <div className="sm:col-span-3">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm">Attachments</span>
-        <span className="text-xs text-[var(--muted)]">(plans, emails, photos or PDFs — for the office, not shown to the customer)</span>
+        <span className="text-xs text-[var(--muted)]">(plans, emails, photos or PDFs — for the office, never shown to the customer. Tick “Contractor” to show a file on the contractor\u2019s work order)</span>
         <button
           type="button"
           disabled={!projectId || !!busy}
@@ -130,23 +148,23 @@ export default function QuoteFiles({ projectId }: { projectId: string | null }) 
       {error && <p className="mt-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">{error}</p>}
 
       {files.length > 0 && (
-        <div className="mt-2 grid grid-cols-3 gap-3 sm:grid-cols-5 lg:grid-cols-6">
+        <div className="mt-2 flex flex-wrap gap-2">
           {files.map((f) => {
             const pdf = isPdf(f);
             return (
-              <div key={f.id} className="flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+              <div key={f.id} className="flex w-24 flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
                 {pdf ? (
                   <a
                     href={urls[f.storage_path] || undefined}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex aspect-[3/4] flex-col items-center justify-center gap-1 bg-[#f1f0ed] px-2 text-center text-black hover:bg-[#e8e6e1]"
+                    className="flex aspect-square flex-col items-center justify-center gap-0.5 bg-[#f1f0ed] px-1 text-center text-black hover:bg-[#e8e6e1]"
                   >
-                    <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">PDF</span>
-                    <span className="line-clamp-3 break-all text-[11px]">{f.file_name || "Document"}</span>
+                    <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white">PDF</span>
+                    <span className="line-clamp-2 break-all text-[9px] leading-tight">{f.file_name || "Document"}</span>
                   </a>
                 ) : (
-                  <button type="button" onClick={() => setViewing(f.id)} className="flex aspect-[3/4] items-center justify-center bg-[#f1f0ed]">
+                  <button type="button" onClick={() => setViewing(f.id)} className="flex aspect-square items-center justify-center bg-[#f1f0ed]">
                     {urls[f.storage_path] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={urls[f.storage_path]} alt={f.file_name || "Attachment"} className="h-full w-full object-cover" />
@@ -155,15 +173,18 @@ export default function QuoteFiles({ projectId }: { projectId: string | null }) 
                     )}
                   </button>
                 )}
-                <div className="flex items-center justify-between gap-1 border-t border-[var(--border)] px-2 py-1 text-[11px]">
-                  <span className="truncate text-[var(--muted)]" title={f.file_name || ""}>{f.file_name || (pdf ? "PDF" : "Photo")}</span>
+                <label className="flex items-center gap-1 border-t border-[var(--border)] px-1.5 py-1 text-[10px]" title="Show this file on the contractor's work order">
+                  <input type="checkbox" checked={!!f.share_with_contractor} onChange={(e) => toggleShare(f, e.target.checked)} />
+                  Contractor
+                </label>
+                <div className="flex items-center justify-between gap-1 border-t border-[var(--border)] px-1.5 py-1 text-[10px]">
                   {confirmId === f.id ? (
-                    <span className="flex shrink-0 gap-1.5">
+                    <span className="flex gap-1.5">
                       <button type="button" onClick={() => remove(f.id)} className="font-semibold text-red-700">Yes, delete</button>
                       <button type="button" onClick={() => setConfirmId(null)} className="text-[var(--muted)]">Cancel</button>
                     </span>
                   ) : (
-                    <button type="button" onClick={() => setConfirmId(f.id)} className="shrink-0 text-[var(--muted)] hover:text-red-700" aria-label="Delete file">Delete</button>
+                    <button type="button" onClick={() => setConfirmId(f.id)} className="text-[var(--muted)] hover:text-red-700" aria-label="Delete file">Delete</button>
                   )}
                 </div>
               </div>

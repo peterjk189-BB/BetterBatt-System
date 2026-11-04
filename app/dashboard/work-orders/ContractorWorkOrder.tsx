@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { lineRate } from "@/lib/woRate";
 import { woLinePacks } from "@/lib/picking";
 import JobProgressStrip from "./JobProgressStrip";
+import SharedFiles, { type SharedFile } from "./SharedFiles";
 import { jobProgress, type ProgressInspection, type ProgressSwms } from "@/lib/jobProgress";
 
 type WoLine = {
@@ -46,6 +47,7 @@ export default function ContractorWorkOrder({
   subcontractorId,
   progress,
   invoicing,
+  sharedFiles = [],
 }: {
   /** Tax invoicing for this contractor: switched on by the office; invoices already made for this job. */
   invoicing?: { enabled: boolean; invoices: { id: string; invoice_number: string; status: string }[] };
@@ -55,6 +57,8 @@ export default function ContractorWorkOrder({
   extras: Extra[];
   subcontractorId: string | null;
   progress: { swms: ProgressSwms[]; inspections: ProgressInspection[] };
+  /** Quote files the office ticked "Contractor" (migration 0088). */
+  sharedFiles?: SharedFile[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -145,6 +149,8 @@ export default function ContractorWorkOrder({
       {workOrder.notes && (
         <div className="mt-4 rounded-lg bg-[#f6f5f2] px-3.5 py-2.5 text-sm text-[#201f1c]">{workOrder.notes}</div>
       )}
+
+      <SharedFiles files={sharedFiles} />
 
       <h2 className="mt-6 text-lg font-bold">Job items</h2>
       <p className="text-xs text-[var(--muted)]">Set by the office — these can&apos;t be changed here. Amounts are ex GST.</p>

@@ -11,7 +11,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
   if ((await getEffectiveRole()) === "installer") {
     const subId = await getEffectiveSubcontractorId();
     const [{ data: wo }, { data: cLines }, { data: cExtras }, { data: cSwms }, { data: cIns }] = await Promise.all([
-      supabase.from("work_orders").select("id, wo_number, notes, projects(address, suburb)").eq("id", params.id).single(),
+      supabase.from("work_orders").select("id, wo_number, notes, projects(id, address, suburb)").eq("id", params.id).single(),
       (async () => {
         // "rate" only exists once migration 0045 is run: fall back to the product's rate without it.
         const sel = "id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item)";
@@ -37,6 +37,24 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       }
     }
     const proj = (wo as any).projects;
+    // Files the office ticked "Contractor" on the quote (needs migration 0088; just empty before it is run).
+    let shared: { id: string; name: string; path: string; pdf: boolean; url: string }[] = [];
+    if (proj?.id) {
+      const { data: att } = await supabase
+        .from("attachments")
+        .select("id, storage_path, file_name")
+        .eq("project_id", proj.id)
+        .eq("share_with_contractor", true)
+        .order("created_at");
+      const rows = (att ?? []) as any[];
+      if (rows.length) {
+        const { data: signed } = await supabase.storage.from("attachments").createSignedUrls(rows.map((r) => r.storage_path), 3600);
+        const urlBy = new Map((signed ?? []).map((s: any) => [s.path, s.signedUrl]));
+        shared = rows
+          .filter((r) => urlBy.get(r.storage_path))
+          .map((r) => ({ id: r.id, name: r.file_name || "File", path: r.storage_path, pdf: /\.pdf$/i.test(r.file_name || r.storage_path), url: urlBy.get(r.storage_path) as string }));
+      }
+    }
     return (
       <ContractorWorkOrder
         workOrder={{ id: (wo as any).id, wo_number: (wo as any).wo_number, notes: (wo as any).notes }}
@@ -46,6 +64,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
         subcontractorId={subId}
         progress={{ swms: (cSwms ?? []) as any, inspections: (cIns ?? []) as any }}
         invoicing={invoicing}
+        sharedFiles={shared}
       />
     );
   }
