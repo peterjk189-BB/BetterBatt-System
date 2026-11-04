@@ -35,6 +35,9 @@ type Line = {
   multi_returned: number;
   packs_returned: number;
   returned_at: string | null;
+  leftover_multi?: number;
+  leftover_packs?: number;
+  leftover_at?: string | null;
   parts: Part;
 };
 
@@ -64,6 +67,8 @@ export default function PickingSlip({
   const [orderMsg, setOrderMsg] = useState<{ poId: string; text: string } | null>(null);
   const [retMulti, setRetMulti] = useState<Record<string, string>>({});
   const [retPks, setRetPks] = useState<Record<string, string>>({});
+  const [loMulti, setLoMulti] = useState<Record<string, string>>({});
+  const [loPks, setLoPks] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [deliveryDate, setDeliveryDate] = useState(workOrder.deliveryDate || "");
   const [dateStatus, setDateStatus] = useState<"" | "saving" | "saved">("");
@@ -270,6 +275,26 @@ export default function PickingSlip({
       return r;
     });
   };
+  // Supplier-delivered jobs: packs left over on site that the office takes back onto the shelf.
+  const recordLeftover = (l: Line, clear = false) => {
+    const multi = clear ? 0 : Math.round(Number(loMulti[l.id] || 0)) || 0;
+    const pks = clear ? 0 : Math.round(Number(loPks[l.id] || 0)) || 0;
+    if (!clear && multi <= 0 && pks <= 0) {
+      setError("Enter how many multis and/or packs came back from site.");
+      return;
+    }
+    return run(l.id, clear ? "Cleared leftover" : `Leftover ${fmtSplit(multi, pks)} back in stock`, async () => {
+      const r = await supabase.rpc("leftover_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+      if (r.error && /leftover_wo_line|schema cache/i.test(r.error.message)) {
+        return { ...r, error: { ...r.error, message: "Run migration 0085 in Supabase first." } } as any;
+      }
+      if (!r.error) {
+        setLoMulti((prev) => ({ ...prev, [l.id]: "" }));
+        setLoPks((prev) => ({ ...prev, [l.id]: "" }));
+      }
+      return r;
+    });
+  };
   const unreturn = (l: Line) =>
     run(l.id, "Undid return", async () => await supabase.rpc("unreturn_wo_line", { p_line_id: l.id }));
   const pick = (l: Line) => {
@@ -400,6 +425,42 @@ export default function PickingSlip({
         </div>
       )}
 
+      {supplierMode && lines.length > 0 && (() => {
+        const rows = lines.map((l) => {
+          const ppm = Number(l.parts.pack_per_multi) || 0;
+          const cost = Number(l.parts.pack_cost_ex_gst) || 0;
+          return {
+            ordered: packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0) * cost,
+            left: ((Number(l.leftover_multi) || 0) * ppm + (Number(l.leftover_packs) || 0)) * cost,
+          };
+        });
+        const ordered = rows.reduce((t, r) => t + r.ordered, 0);
+        const left = rows.reduce((t, r) => t + r.left, 0);
+        return (
+          <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--muted)]">Real material cost (ex GST)</h2>
+            <div className="mt-2 grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-xs text-[var(--muted)]">Ordered from supplier</div>
+                <div className="text-lg font-semibold tabular-nums">{money(ordered)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-[var(--muted)]">Leftover back in stock</div>
+                <div className="text-lg font-semibold tabular-nums">− {money(left)}</div>
+              </div>
+              <div>
+                <div className="text-xs text-[var(--muted)]">Real cost of the job</div>
+                <div className="text-lg font-semibold tabular-nums text-accent">{money(ordered - left)}</div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-[var(--muted)]">
+              When the contractor reports packs left on site, enter what came back in the “Leftover back” boxes against each line. They go onto the shelf
+              and come off this job&apos;s cost in the Profit &amp; Loss report.
+            </p>
+          </div>
+        );
+      })()}
+
       <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full text-sm">
           <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
@@ -408,7 +469,10 @@ export default function PickingSlip({
               <th className="px-3 py-2 text-right">Needed (m²)</th>
               <th className="px-3 py-2 text-right">Packs needed</th>
               {supplierMode ? (
-                <th className="px-3 py-2">Supply</th>
+                <>
+                  <th className="px-3 py-2">Supply</th>
+                  <th className="px-3 py-2">Leftover back from site</th>
+                </>
               ) : (
                 <>
                   <th className="px-3 py-2 text-right">On hand</th>
@@ -442,6 +506,7 @@ export default function PickingSlip({
                   <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{needed || "—"}</td>
                   {supplierMode ? (
+                    <>
                     <td className="px-3 py-2">
                       <span className="rounded-full border border-[var(--border)] px-2.5 py-0.5 text-xs font-medium">Order from supplier</span>
                       {drafts[l.part_id] && firstAll[l.part_id] !== l.id ? (
@@ -473,6 +538,53 @@ export default function PickingSlip({
                         </button>
                       )}
                     </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-end gap-1.5">
+                        {unitsOf(l.parts).hasBulk && (
+                          <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                            {unitsOf(l.parts).bulk}
+                            <input
+                              type="number"
+                              step="1"
+                              min="0"
+                              placeholder="0"
+                              value={loMulti[l.id] ?? ""}
+                              onChange={(e) => setLoMulti((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                              className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                            />
+                          </label>
+                        )}
+                        <label className="flex flex-col items-end text-[10px] capitalize text-[var(--muted)]">
+                          {plural(unitsOf(l.parts).one, 2)}
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            placeholder="0"
+                            value={loPks[l.id] ?? ""}
+                            onChange={(e) => setLoPks((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                            className="w-14 rounded-lg border border-[var(--border)] px-2 py-1.5 text-right text-xs"
+                          />
+                        </label>
+                        <button
+                          onClick={() => recordLeftover(l)}
+                          disabled={busy}
+                          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:border-accent disabled:opacity-60"
+                        >
+                          Back in stock
+                        </button>
+                      </div>
+                      {(Number(l.leftover_multi) > 0 || Number(l.leftover_packs) > 0) && (
+                        <div className="mt-1 text-xs text-[#1f6b35]">
+                          Back: {fmtSplit(Number(l.leftover_multi) || 0, Number(l.leftover_packs) || 0)}
+                          {l.leftover_at ? ` · ${fmtDateTime(l.leftover_at)}` : ""}{" "}
+                          <button onClick={() => recordLeftover(l, true)} disabled={busy} className="text-[var(--muted)] hover:underline">
+                            Undo
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    </>
                   ) : (
                     <>
                   <td className="px-3 py-2 text-right tabular-nums">{stockOnHand}</td>

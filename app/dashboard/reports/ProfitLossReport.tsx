@@ -42,6 +42,8 @@ export type PlWoLine = {
   packs_picked: number | null;
   multi_returned: number | null;
   packs_returned: number | null;
+  leftover_multi?: number | null;
+  leftover_packs?: number | null;
   parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
 export type PlLabour = { id: string; contractor_rate: number };
@@ -162,7 +164,10 @@ export default function ProfitLossReport({
             const back = (Number(l.multi_returned) || 0) * ppm + (Number(l.packs_returned) || 0);
             materials += (picked - back) * cost;
           } else if (l.parts.coverage_m2 > 0 && l.part_id) {
-            materials += Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9) * cost;
+            // Supplier-delivered (nothing picked): ordered packs, less any leftover the office took back into stock.
+            const ppm = Number(l.parts.pack_per_multi) || 0;
+            const left = (Number(l.leftover_multi) || 0) * ppm + (Number(l.leftover_packs) || 0);
+            materials += Math.max(0, Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9) - left) * cost;
           }
         }
       } else {

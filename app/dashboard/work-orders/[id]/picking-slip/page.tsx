@@ -40,6 +40,13 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     .eq("work_order_id", params.id);
   const returnById: Record<string, any> = {};
   for (const r of (returns ?? []) as any[]) returnById[r.id] = r;
+  // Leftover-from-site columns come from migration 0085; same approach.
+  const { data: leftovers } = await supabase
+    .from("work_order_lines")
+    .select("id, leftover_multi, leftover_packs, leftover_at")
+    .eq("work_order_id", params.id);
+  const leftoverById: Record<string, any> = {};
+  for (const r of (leftovers ?? []) as any[]) leftoverById[r.id] = r;
   const materialLines = (lines ?? [])
     .filter((l: any) => l.part_id && l.parts?.is_stock_item !== false)
     .map((l: any) => ({
@@ -47,6 +54,9 @@ export default async function PickingSlipPage({ params }: { params: { id: string
       multi_returned: Number(returnById[l.id]?.multi_returned) || 0,
       packs_returned: Number(returnById[l.id]?.packs_returned) || 0,
       returned_at: returnById[l.id]?.returned_at ?? null,
+      leftover_multi: Number(leftoverById[l.id]?.leftover_multi) || 0,
+      leftover_packs: Number(leftoverById[l.id]?.leftover_packs) || 0,
+      leftover_at: leftoverById[l.id]?.leftover_at ?? null,
     }));
   const partIds = Array.from(new Set(materialLines.map((l: any) => l.part_id as string)));
 
