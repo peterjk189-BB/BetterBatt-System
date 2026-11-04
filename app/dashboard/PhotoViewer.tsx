@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type P = { id: string; storage_path: string; caption?: string | null };
 
@@ -23,7 +23,9 @@ export default function PhotoViewer({
   const idx = Math.max(0, photos.findIndex((p) => p.id === currentId));
   const photo = photos[idx];
   const touchX = useRef<number | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const go = (d: number) => {
+    setConfirming(false);
     if (photos.length < 2) return;
     onChange(photos[(idx + d + photos.length) % photos.length].id);
   };
@@ -32,12 +34,12 @@ export default function PhotoViewer({
     const k = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight") go(1);
       else if (e.key === "ArrowLeft") go(-1);
-      else if (e.key === "Escape") onClose();
+      else if (e.key === "Escape") (confirming ? setConfirming(false) : onClose());
     };
     window.addEventListener("keydown", k);
     return () => window.removeEventListener("keydown", k);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idx, photos.length]);
+  }, [idx, photos.length, confirming]);
 
   if (!photo) return null;
   const arrow = "absolute top-1/2 z-10 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-3xl leading-none text-white hover:bg-black/80";
@@ -53,7 +55,7 @@ export default function PhotoViewer({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete(photo.id);
+                setConfirming(true);
               }}
               className="rounded-lg border border-red-400/60 px-3 py-1.5 text-sm text-red-200"
             >
@@ -98,6 +100,29 @@ export default function PhotoViewer({
               &#8250;
             </button>
           </>
+        )}
+        {confirming && onDelete && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4" onClick={(e) => { e.stopPropagation(); setConfirming(false); }}>
+            <div className="w-full max-w-sm rounded-xl bg-white p-5 text-center text-black shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <p className="text-base font-semibold">Are you sure you want to delete this photo?</p>
+              <p className="mt-1 text-sm text-gray-600">This can&apos;t be undone.</p>
+              <div className="mt-4 flex gap-3">
+                <button type="button" onClick={() => setConfirming(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium">
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirming(false);
+                    onDelete(photo.id);
+                  }}
+                  className="flex-1 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Yes, delete
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={urls[photo.storage_path]} alt={photo.caption || "Photo"} className="max-h-full max-w-full object-contain" onClick={(e) => e.stopPropagation()} />

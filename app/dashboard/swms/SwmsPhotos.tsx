@@ -127,7 +127,6 @@ export default function SwmsPhotos({
   }
 
   async function removePhoto(p: SwmsPhoto) {
-    if (!confirm("Delete this photo?")) return;
     await supabase.storage.from("attachments").remove([p.storage_path]);
     const { error: delErr } = await supabase.from("attachments").delete().eq("id", p.id);
     if (delErr) {
