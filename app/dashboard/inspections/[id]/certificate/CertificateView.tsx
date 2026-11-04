@@ -124,6 +124,17 @@ export default function CertificateView({
         </button>
         <button
           type="button"
+          onClick={() => {
+            setRows(derivedRows);
+            setStatus("dirty");
+          }}
+          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
+          title="Rebuild the product rows from the work order (then press Save certificate)"
+        >
+          Refresh from work order
+        </button>
+        <button
+          type="button"
           onClick={() => window.print()}
           className="rounded-lg bg-[var(--brand-gold)] px-5 py-2 text-sm font-semibold text-[#201f1c]"
         >

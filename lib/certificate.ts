@@ -20,7 +20,7 @@ export function parseRValue(text: string | null | undefined): string {
 /** Best guess at where a product went, from its name/type and the labour task. */
 export function guessArea(...texts: (string | null | undefined)[]): string {
   const t = texts.filter(Boolean).join(" ").toLowerCase();
-  if (/acoustic|sound|soundscreen|internal wall/.test(t)) return "Internal walls (acoustic)";
+  if (/acoustic|sound|soundscreen|internal wall/.test(t)) return "Internal walls";
   if (/under ?floor|sub ?floor/.test(t)) return "Underfloor";
   if (/mid ?floor/.test(t)) return "Mid floor";
   if (/ceiling|roof/.test(t)) return "Ceiling";
@@ -33,22 +33,25 @@ export function guessArea(...texts: (string | null | undefined)[]): string {
 type Line = {
   part_id: string | null;
   note: string | null;
-  parts: { name: string | null; type: string | null; code: string | null } | null;
+  parts: { name: string | null; type: string | null; code: string | null; is_stock_item?: boolean | null } | null;
   labour_items: { code: string | null; description: string | null } | null;
 };
 
-/** One row per product on the work order (repeat lines of the same product merged). */
+/** One row per product and area on the work order (repeat lines in the same area merged; non-stock items left out). */
 export function rowsFromWorkOrderLines(lines: Line[]): CertRow[] {
   const seen = new Set<string>();
   const rows: CertRow[] = [];
   for (const l of lines) {
     const name = l.parts?.name?.trim();
     if (!name) continue;
-    const key = l.part_id || name;
+    if (l.parts?.is_stock_item === false) continue; // non-stock items (poly, fees etc.) aren't certified
+    const area = guessArea(name, l.parts?.type, l.labour_items?.description, l.note);
+    // Same product in two areas (e.g. external and internal walls) gets a row for each area.
+    const key = `${l.part_id || name}|${area}`;
     if (seen.has(key)) continue;
     seen.add(key);
     rows.push({
-      area: guessArea(name, l.parts?.type, l.labour_items?.description, l.note),
+      area,
       product: name,
       r_value: parseRValue(name),
     });

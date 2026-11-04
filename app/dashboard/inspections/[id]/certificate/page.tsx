@@ -20,7 +20,7 @@ export default async function CertificatePage({ params }: { params: { id: string
     ins.work_order_id
       ? admin
           .from("work_order_lines")
-          .select("part_id, note, task_date, completed, sort_order, parts(name, type, code), labour_items(code, description)")
+          .select("part_id, note, task_date, completed, sort_order, parts(name, type, code, is_stock_item), labour_items(code, description)")
           .eq("work_order_id", ins.work_order_id)
           .order("sort_order")
       : Promise.resolve({ data: [] }),
