@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getEmailSender } from "@/lib/emailSender";
 import { logAudit } from "@/lib/audit";
 import { siteAddress } from "@/lib/siteAddress";
 import { sendEmail, siteUrl, brandedEmailHtml, cleanEmailList } from "@/lib/email";
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
 
   const result = await sendEmail({
       kind: "quotes",
+    sender: await getEmailSender(supabase, user),
     to: toList,
     subject: `Your quote from Better Batt Insulation (Q${project.quote_number})`,
     html: brandedEmailHtml({

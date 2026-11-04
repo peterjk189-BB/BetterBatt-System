@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getEmailSender } from "@/lib/emailSender";
 import { requireStaff, loadInvoicePdf } from "@/lib/invoiceServer";
 import { sendEmail, brandedEmailHtml } from "@/lib/email";
 import { invNo, money, fmtDate } from "@/lib/invoices";
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
 
   const res = await sendEmail({
       kind: "invoices",
+    sender: await getEmailSender(ctx.supabase, ctx.user),
     to,
     subject: `Invoice ${invNo(inv.invoice_number)} from Better Batt Insulation`,
     html: brandedEmailHtml({

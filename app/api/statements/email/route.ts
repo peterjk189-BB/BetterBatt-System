@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { loadStatement } from "@/lib/statementServer";
+import { getEmailSender } from "@/lib/emailSender";
 import { sendEmail, brandedEmailHtml } from "@/lib/email";
 import { fmtDate, money } from "@/lib/invoices";
 
@@ -22,6 +23,7 @@ export async function POST(req: Request) {
   const overdue = a.d1_30 + a.d31_60 + a.d61;
   const res = await sendEmail({
     kind: "invoices",
+    sender: await getEmailSender(ctx.supabase, ctx.user),
     to,
     subject: `Statement from Better Batt Insulation – ${fmtDate(date)}`,
     html: brandedEmailHtml({

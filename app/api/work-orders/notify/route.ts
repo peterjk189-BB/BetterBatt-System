@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getEmailSender } from "@/lib/emailSender";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 
 function esc(s: string) {
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
     for (const [to, first] of Array.from(recipients.entries())) {
       const r = await sendEmail({
       kind: "jobs",
+        sender: await getEmailSender(supabase, user),
         tags: [{ name: "wo_id", value: String(woId).replace(/[^A-Za-z0-9_-]/g, "") }, { name: "type", value: "work_order_job" }],
         to,
         subject: `${resend ? "Reminder: job" : "Job"} scheduled for you — WO ${wo.wo_number}, ${dateText}`,

@@ -120,7 +120,10 @@ export async function sendEmail({
   attachments,
   kind,
   tags,
+  sender,
 }: {
+  /** The office user sending this: name shown on From, replies go to them, and they get a blind copy. */
+  sender?: { name: string; email: string } | null;
   /** Resend tags (letters, numbers, _ and - only). Come back on webhook events so a bounce can be traced to its work order. */
   tags?: { name: string; value: string }[];
   /** Which address to send from: invoices (accounts@), quotes (quotes@) or jobs (jobs@). */
@@ -135,9 +138,15 @@ export async function sendEmail({
   if (!apiKey) {
     return { ok: false, error: "Email sending isn't set up yet (RESEND_API_KEY is missing)." };
   }
-  const from = fromAddress(kind);
+  let from = fromAddress(kind);
+  if (sender?.email) {
+    const addr = from.match(/<([^<>]+)>/)?.[1] || from.trim();
+    from = `"${sender.name} (Better Batt Insulation)" <${addr}>`;
+  }
   // Mail goes out from the mail. subdomain, which has no mailbox, so replies go to a real address when set.
-  const replyTo = process.env.RESEND_REPLY_TO;
+  const replyTo = sender?.email || process.env.RESEND_REPLY_TO;
+  const toList = (Array.isArray(to) ? to : [to]).map((e) => e.toLowerCase());
+  const bcc = sender?.email && !toList.includes(sender.email.toLowerCase()) ? [sender.email] : null;
 
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -146,7 +155,7 @@ export async function sendEmail({
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to, subject, html, ...(tags?.length ? { tags } : {}), ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}) }),
+      body: JSON.stringify({ from, to, subject, html, ...(tags?.length ? { tags } : {}), ...(replyTo ? { reply_to: replyTo } : {}), ...(bcc ? { bcc } : {}), ...(attachments?.length ? { attachments } : {}) }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));

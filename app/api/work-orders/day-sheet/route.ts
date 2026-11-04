@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildDaySheetPdf, loadDaySheet, longDate } from "@/lib/daySheet";
+import { getEmailSender } from "@/lib/emailSender";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -76,8 +77,8 @@ export async function POST(req: Request) {
   if (to.length === 0 || !to.every((e) => EMAIL_RE.test(e))) {
     return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
   }
-  const copyMe = body.copyMe !== false && !!ctx.user.email;
-  const recipients = Array.from(new Set([...to, ...(copyMe ? [ctx.user.email as string] : [])].map((e) => e.toLowerCase())));
+  // The sender is blind-copied automatically (see sendEmail), so they are no longer added to the visible To line.
+  const recipients = Array.from(new Set(to.map((e) => e.toLowerCase())));
   const bytes = await buildDaySheetPdf(ds);
   const when = longDate(date);
   const note = typeof body.message === "string" ? body.message.trim() : "";
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
 
   const res = await sendEmail({
     kind: "jobs",
+    sender: await getEmailSender(ctx.supabase, ctx.user),
     to: recipients,
     subject: `Your jobs for ${when} — ${ds.jobs.length} job${ds.jobs.length === 1 ? "" : "s"}`,
     html: brandedEmailHtml({

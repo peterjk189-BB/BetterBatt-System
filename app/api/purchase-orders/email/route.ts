@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { loadPoPdf } from "@/lib/poServer";
 import { poTotals } from "@/lib/poPdf";
+import { getEmailSender } from "@/lib/emailSender";
 import { sendEmail, brandedEmailHtml } from "@/lib/email";
 
 export const runtime = "nodejs";
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
 
   const res = await sendEmail({
     kind: "jobs",
+    sender: await getEmailSender(ctx.supabase, ctx.user),
     to,
     subject: `Purchase Order ${no} from Better Batt Insulation`,
     html: brandedEmailHtml({
