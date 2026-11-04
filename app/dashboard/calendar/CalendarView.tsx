@@ -35,6 +35,7 @@ type Po = {
   delivery_date: string | null;
   delivery_address: string | null;
   archived: boolean;
+  delivered_at?: string | null;
   suppliers: { name: string } | null;
 };
 
@@ -63,6 +64,8 @@ type PoEvent = {
   poNumber: string;
   supplierName: string;
   status: Po["status"];
+  /** Stock receipted in, or delivered straight to site. */
+  delivered: boolean;
 };
 
 type Visit = {
@@ -148,6 +151,7 @@ type StockDelivery = {
   id: string;
   wo_number: string;
   stock_delivery_date: string | null;
+  materials_delivered_at?: string | null;
   projects: {
     lot_no: string | null;
     address: string | null;
@@ -166,6 +170,7 @@ type DeliveryEvent = {
   customerName: string;
   address: string;
   suppliers: string;
+  delivered: boolean;
 };
 
 type InvoiceDelivery = {
@@ -476,6 +481,7 @@ export default function CalendarView({
         poNumber: p.po_number || "—",
         supplierName: p.suppliers?.name || "—",
         status: p.status,
+        delivered: p.status === "Received" || !!p.delivered_at,
       });
     }
 
@@ -484,6 +490,7 @@ export default function CalendarView({
       const lot = d.projects?.lot_no?.trim();
       push(d.stock_delivery_date, {
         kind: "delivery",
+        delivered: !!d.materials_delivered_at,
         date: d.stock_delivery_date,
         id: d.id,
         workOrderId: d.id,
@@ -1015,10 +1022,10 @@ export default function CalendarView({
                               <Link
                                 key={`po-${ev.id}`}
                                 href={`/dashboard/purchase-orders/${ev.poId}`}
-                                title={`PO ${ev.poNumber} — ${ev.supplierName} (${ev.status})`}
-                                className="block truncate rounded bg-blue-100 px-1.5 py-0.5 text-[11px] text-blue-900 hover:bg-blue-200"
+                                title={`PO ${ev.poNumber} — ${ev.supplierName} (${ev.delivered ? "Delivered" : ev.status})`}
+                                className={`block truncate rounded px-1.5 py-0.5 text-[11px] ${ev.delivered ? "bg-green-100 text-green-900 hover:bg-green-200" : "bg-blue-100 text-blue-900 hover:bg-blue-200"}`}
                               >
-                                PO {ev.poNumber} · {ev.supplierName}
+                                {ev.delivered ? "✓ Delivered · " : ""}PO {ev.poNumber} · {ev.supplierName}
                               </Link>
                             );
                           }
@@ -1028,11 +1035,11 @@ export default function CalendarView({
                                 key={`delivery-${ev.id}`}
                                 href={`/dashboard/work-orders/${ev.workOrderId}/picking-slip`}
                                 title={`Stock delivery — ${ev.woNumber} — ${ev.customerName} (${ev.address})${ev.suppliers ? ` — ${ev.suppliers}` : ""}`}
-                                className="block rounded bg-red-600 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-red-700"
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight text-white ${ev.delivered ? "bg-green-700 hover:bg-green-800" : "bg-red-600 hover:bg-red-700"}`}
                               >
-                                <div className="truncate font-bold">Stock delivery · {ev.woNumber}</div>
+                                <div className="truncate font-bold">{ev.delivered ? "✓ Delivered · " : "Stock delivery · "}{ev.woNumber}</div>
                                 {ev.suppliers && <div className="truncate font-semibold">{ev.suppliers}</div>}
-                                <div className="truncate text-red-100">
+                                <div className={`truncate ${ev.delivered ? "text-green-100" : "text-red-100"}`}>
                                   {ev.customerName} — {ev.address}
                                 </div>
                               </Link>

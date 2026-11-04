@@ -133,6 +133,14 @@ export default async function CalendarPage() {
     ];
   }
 
+  // "Delivered" flags (columns from migration 0073) are fetched on their own so the calendar still loads before it's run.
+  const [poDel, woDel] = await Promise.all([
+    supabase.from("purchase_orders").select("id, delivered_at"),
+    supabase.from("work_orders").select("id, materials_delivered_at"),
+  ]);
+  const poDelivered = new Map(((poDel.data ?? []) as any[]).map((r) => [r.id as string, r.delivered_at as string | null]));
+  const woDelivered = new Map(((woDel.data ?? []) as any[]).map((r) => [r.id as string, r.materials_delivered_at as string | null]));
+
   const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }, invoiceDeliveries] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
@@ -169,11 +177,11 @@ export default async function CalendarPage() {
     <LiveRefresh />
     <CalendarView
       woLines={(await withTimes(supabase, woLines as any)) as any}
-      pos={(pos ?? []) as any}
+      pos={((pos ?? []) as any[]).map((p) => ({ ...p, delivered_at: poDelivered.get(p.id) ?? null })) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
       crmTasks={crmTasks as any}
-      stockDeliveries={(stockDeliveries ?? []) as any}
+      stockDeliveries={((stockDeliveries ?? []) as any[]).map((d) => ({ ...d, materials_delivered_at: woDelivered.get(d.id) ?? null })) as any}
       invoiceDeliveries={invoiceDeliveries as any}
       bookingErrors={bookingErrors}
       timeAway={timeAway as any}
