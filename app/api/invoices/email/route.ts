@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getEmailSender } from "@/lib/emailSender";
 import { requireStaff, loadInvoicePdf } from "@/lib/invoiceServer";
-import { sendEmail, brandedEmailHtml } from "@/lib/email";
+import { sendEmail, brandedEmailHtml, cleanEmailList } from "@/lib/email";
 import { invNo, money, fmtDate } from "@/lib/invoices";
 
 export const runtime = "nodejs";
@@ -12,8 +12,9 @@ export async function POST(req: Request) {
   const ctx = await requireStaff();
   if (!ctx) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
-  const to = typeof body.to === "string" ? body.to.trim() : "";
-  if (!/^\S+@\S+\.\S+$/.test(to)) return NextResponse.json({ error: "Please enter a valid email address" }, { status: 400 });
+  const { good: to, bad } = cleanEmailList(typeof body.to === "string" ? body.to : "");
+  if (!to.length || bad.length) return NextResponse.json({ error: bad.length ? `This doesn't look like an email address: ${bad.join(", ")}` : "Please enter a valid email address" }, { status: 400 });
+  if (to.length > 10) return NextResponse.json({ error: "Please send to 10 addresses or fewer at a time." }, { status: 400 });
 
   const out = await loadInvoicePdf(ctx.supabase, String(body.id || ""));
   if (!out) return NextResponse.json({ error: "Invoice not found" }, { status: 404 });

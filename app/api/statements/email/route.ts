@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { loadStatement } from "@/lib/statementServer";
 import { getEmailSender } from "@/lib/emailSender";
-import { sendEmail, brandedEmailHtml } from "@/lib/email";
+import { sendEmail, brandedEmailHtml, cleanEmailList } from "@/lib/email";
 import { fmtDate, money } from "@/lib/invoices";
 
 export const runtime = "nodejs";
@@ -16,8 +16,9 @@ export async function POST(req: Request) {
   const date = typeof body.date === "string" && body.date ? body.date : new Date().toISOString().slice(0, 10);
   const out = await loadStatement(ctx.supabase, String(body.customer_id || ""), date);
   if (!out) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
-  const to = (typeof body.to === "string" && body.to.trim()) || out.email;
-  if (!/^\S+@\S+\.\S+$/.test(to)) return NextResponse.json({ error: "No valid email address (add an accounts contact email on the customer)" }, { status: 400 });
+  const { good: toList, bad } = cleanEmailList((typeof body.to === "string" && body.to.trim()) || out.email || "");
+  if (!toList.length || bad.length) return NextResponse.json({ error: "No valid email address (add an accounts contact email on the customer)" }, { status: 400 });
+  const to = toList;
 
   const a = out.ageing;
   const overdue = a.d1_30 + a.d31_60 + a.d61;
@@ -35,6 +36,6 @@ export async function POST(req: Request) {
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
 
   // Log it; ignore if migration 0055 hasn't been run.
-  await ctx.supabase.from("customer_statements").insert({ customer_id: out.customer.id, statement_date: date, total_owing: a.total, sent_to: to, sent_by: ctx.user.id });
-  return NextResponse.json({ ok: true, to });
+  await ctx.supabase.from("customer_statements").insert({ customer_id: out.customer.id, statement_date: date, total_owing: a.total, sent_to: to.join(", "), sent_by: ctx.user.id });
+  return NextResponse.json({ ok: true, to: to.join(", ") });
 }
