@@ -1,5 +1,6 @@
 "use client";
 
+import { PhoneLink } from "../CallLink";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { lineRate } from "@/lib/woRate";
@@ -443,7 +444,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     )}
                   </div>
                   <div className="text-xs text-[var(--muted)]">
-                    {[sub.phone, sub.email].filter(Boolean).join(" · ") || "No mobile/email on file"}
+                    {sub.phone || sub.email ? <><PhoneLink phone={sub.phone} />{sub.phone && sub.email ? " · " : ""}{sub.email}</> : "No mobile/email on file"}
                   </div>
                 </div>
                 <div className="flex items-center gap-4 text-sm">

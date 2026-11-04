@@ -1,5 +1,6 @@
 "use client";
 
+import CallLink from "../../CallLink";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -497,7 +498,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                 <input className={input} value={inv.delivery_contact_name ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_name: e.target.value })} placeholder="Name" />
               </label>
               <label className="block text-sm">
-                Site contact phone
+                <span className="flex items-center justify-between gap-2">Site contact phone <CallLink phone={inv.delivery_contact_phone} /></span>
                 <input className={input} inputMode="tel" value={inv.delivery_contact_phone ?? ""} onChange={(e) => setInv({ ...inv, delivery_contact_phone: e.target.value })} placeholder="04.." />
               </label>
             </div>

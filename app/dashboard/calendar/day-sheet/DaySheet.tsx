@@ -1,5 +1,6 @@
 "use client";
 
+import { PhoneLink } from "../../CallLink";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -227,7 +228,7 @@ export default function DaySheet({
                           {p?.contact_name || p?.contact_phone ? (
                             <>
                               <div>{p?.contact_name}</div>
-                              <div className="font-semibold">{p?.contact_phone}</div>
+                              <div className="font-semibold"><PhoneLink phone={p?.contact_phone} className="print:text-black print:no-underline" /></div>
                             </>
                           ) : (
                             <span className="text-gray-400">—</span>
@@ -236,7 +237,7 @@ export default function DaySheet({
                         {showContractorCol && (
                           <td rowSpan={span} className="px-1.5 py-1">
                             <div>{r.contractor?.name || "—"}</div>
-                            {r.contractor?.phone && <div className="text-gray-600">{r.contractor.phone}</div>}
+                            {r.contractor?.phone && <div className="text-gray-600"><PhoneLink phone={r.contractor.phone} className="print:text-black print:no-underline" /></div>}
                           </td>
                         )}
                       </>

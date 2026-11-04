@@ -1,5 +1,6 @@
 "use client";
 
+import CallLink, { PhoneLink } from "../CallLink";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -303,7 +304,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                 <td className="px-4 py-2">{c.payment_terms}</td>
                 <td className="px-4 py-2">{c.discount_pct}%</td>
                 <td className="px-4 py-2 text-[var(--muted)]">
-                  {[c.contact_name, c.contact_phone].filter(Boolean).join(" · ") || "—"}
+                  {c.contact_name || c.contact_phone ? <>{c.contact_name}{c.contact_name && c.contact_phone ? " · " : ""}<PhoneLink phone={c.contact_phone} /></> : "—"}
                 </td>
                 <td className="px-4 py-2 text-[var(--muted)]">
                   {c.contact_email || "—"}
@@ -468,7 +469,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="flex flex-col gap-1 text-sm">
-                  Phone
+                  <span className="flex items-center justify-between gap-2">Phone <CallLink phone={form.contact_phone} /></span>
                   <input
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={form.contact_phone}
@@ -509,7 +510,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-sm">
-                    Accounts phone
+                    <span className="flex items-center justify-between gap-2">Accounts phone <CallLink phone={form.accounts_contact_phone} /></span>
                     <input
                       className="rounded-lg border border-[var(--border)] px-3 py-2"
                       value={form.accounts_contact_phone}

@@ -1,5 +1,6 @@
 "use client";
 
+import CallLink from "../CallLink";
 import PartPicker from "@/app/dashboard/PartPicker";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -1098,7 +1099,7 @@ export default function QuoteEditor({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Contact phone
+          <span className="flex items-center justify-between gap-2">Contact phone <CallLink phone={form.contact_phone} /></span>
           <input
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.contact_phone}

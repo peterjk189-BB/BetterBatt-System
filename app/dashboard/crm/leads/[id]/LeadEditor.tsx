@@ -1,5 +1,6 @@
 "use client";
 
+import CallLink from "../../../CallLink";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -236,7 +237,10 @@ export default function LeadEditor({
             </select>
           </Field>
           <Field label="Phone" className="col-span-2">
-            <input className={inputCls} inputMode="tel" value={lead.phone || ""} onChange={(e) => set("phone", e.target.value)} />
+            <div className="flex items-center gap-3">
+              <input className={inputCls} inputMode="tel" value={lead.phone || ""} onChange={(e) => set("phone", e.target.value)} />
+              <CallLink phone={lead.phone} />
+            </div>
           </Field>
           <Field label="Email" className="col-span-2">
             <input className={inputCls} inputMode="email" value={lead.email || ""} onChange={(e) => set("email", e.target.value)} />

@@ -1,5 +1,6 @@
 "use client";
 
+import CallLink from "../CallLink";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
@@ -377,7 +378,7 @@ export default function SubcontractorPanel({
           </label>
           <div />
           <label className="flex flex-col gap-1 text-sm">
-            Mobile
+            <span className="flex items-center justify-between gap-2">Mobile <CallLink phone={form.phone} /></span>
             <input
               className="rounded-lg border border-[var(--border)] px-3 py-2"
               value={form.phone}
@@ -385,7 +386,7 @@ export default function SubcontractorPanel({
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            Home phone
+            <span className="flex items-center justify-between gap-2">Home phone <CallLink phone={form.home_phone} /></span>
             <input
               className="rounded-lg border border-[var(--border)] px-3 py-2"
               value={form.home_phone}
