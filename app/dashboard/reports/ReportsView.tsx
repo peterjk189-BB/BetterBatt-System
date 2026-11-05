@@ -1,6 +1,6 @@
 "use client";
 
-import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment } from "./ProfitLossReport";
+import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment, type PlWoReturn } from "./ProfitLossReport";
 import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
@@ -797,6 +797,7 @@ export default function ReportsView({
     invoiceLines?: PlInvoiceLine[];
     payments: PlPayment[];
     invoicesAvailable: boolean;
+    woReturns?: PlWoReturn[];
   };
 }) {
   const [tab, setTab] = useState<Tab>("inventory");
