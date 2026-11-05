@@ -704,7 +704,7 @@ export default function QuoteEditor({
                 <tr key={idx} className="border-t border-[var(--border)]">
                   <td className="px-3 py-2">
                     <PartPicker
-                      className="w-72"
+                      className="w-[26rem]"
                       parts={parts.filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)}
                       value={l.part_id || null}
                       onChange={(id) => updateLine(idx, { part_id: id || "" })}
@@ -743,8 +743,9 @@ export default function QuoteEditor({
                     )}
                   </td>
                   <td className="px-3 py-2">
-                    <input
-                      className="w-[28rem] max-w-full rounded-lg border border-[var(--border)] px-2 py-1.5"
+                    <textarea
+                      rows={Math.max(1, Math.ceil((l.note || "").length / 52))}
+                      className="block w-[26rem] max-w-full resize-none whitespace-normal rounded-lg border border-[var(--border)] px-2 py-1.5 leading-snug"
                       value={l.note || ""}
                       onChange={(e) => updateLine(idx, { note: e.target.value })}
                     />

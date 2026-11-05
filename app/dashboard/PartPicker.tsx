@@ -108,7 +108,7 @@ export default function PartPicker({
           setOpen(true);
         }}
         onKeyDown={onKey}
-        className="w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs"
+        className="w-full min-w-0 rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm"
         title={selected?.name}
       />
       {open && pos && (
