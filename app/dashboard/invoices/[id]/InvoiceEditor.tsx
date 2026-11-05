@@ -245,10 +245,19 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     await syncTotals(next);
   }
 
+  // Same matching as the quote page: every word typed must appear somewhere in the name/code (any order),
+  // and spaces/dashes/dots are ignored as a fallback, so "r2.5 wall" and "enviroseal" both find their products.
+  const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const searchWords = partSearch.toLowerCase().split(/\s+/).filter(Boolean);
+  const searchSquashed = squash(partSearch);
   const matches = parts
-    .filter((p) => !partSearch.trim() || `${p.code ?? ""} ${p.name}`.toLowerCase().includes(partSearch.toLowerCase().trim()))
+    .filter((p) => {
+      if (!searchWords.length) return true;
+      const hay = `${p.code ?? ""} ${p.name}`.toLowerCase();
+      return searchWords.every((w) => hay.includes(w)) || (searchSquashed.length >= 3 && squash(hay).includes(searchSquashed));
+    })
     .slice()
-    .sort((x, y) => `${x.code ?? ""} ${x.name}`.localeCompare(`${y.code ?? ""} ${y.name}`));
+    .sort((x, y) => x.name.localeCompare(y.name, "en", { numeric: true, sensitivity: "base" }));
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
