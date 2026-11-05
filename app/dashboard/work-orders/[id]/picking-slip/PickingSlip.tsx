@@ -187,13 +187,19 @@ export default function PickingSlip({
       let poId = drafts[l.part_id]?.poId ?? null;
       let poNumber = drafts[l.part_id]?.poNumber ?? "";
       if (!poId) {
-        let q = supabase.from("purchase_orders").select("id, po_number, notes").eq("status", "Draft").eq("archived", false);
+        let q = supabase.from("purchase_orders").select("id, po_number, notes, delivery_address").eq("status", "Draft").eq("archived", false);
         q = supplierId ? q.eq("supplier_id", supplierId) : q.is("supplier_id", null);
-        const { data: found } = await q.order("created_at", { ascending: false }).limit(1);
-        const existing = (found ?? [])[0] as any;
+        const { data: found } = await q.order("created_at", { ascending: false }).limit(10);
+        // Only reuse a draft that has no address yet or is already going to this site; a draft for another
+        // address would send this job's materials to the wrong place, so start a new one instead.
+        const siteAddr = (workOrder.address || "").trim().toLowerCase();
+        const existing = ((found ?? []) as any[]).find((d) => !(d.delivery_address || "").trim() || (d.delivery_address || "").trim().toLowerCase() === siteAddr);
         if (existing) {
           poId = existing.id;
           poNumber = existing.po_number || "PO";
+          if (!(existing.delivery_address || "").trim() && workOrder.address) {
+            await supabase.from("purchase_orders").update({ delivery_address: workOrder.address }).eq("id", existing.id);
+          }
           if (!(existing.notes || "").includes(`WO${workOrder.wo_number}`)) {
             await supabase
               .from("purchase_orders")
