@@ -508,9 +508,6 @@ export default function InspectionEditor({
           <Field label="Sales order">
             <input className={inputCls} value={form.sales_order} onChange={(e) => set("sales_order", e.target.value)} />
           </Field>
-          <Field label="Audit region">
-            <input className={inputCls} value={form.audit_region} onChange={(e) => set("audit_region", e.target.value)} />
-          </Field>
         </div>
       </Section>
 

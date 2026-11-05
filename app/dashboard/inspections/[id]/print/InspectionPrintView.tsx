@@ -203,7 +203,6 @@ export default function InspectionPrintView({
             <Field label="Suburb" value={record.suburb} className="col-span-2" />
             <Field label="Contractor" value={record.contractor} className="col-span-2" />
             <Field label="Sales order" value={record.sales_order} />
-            <Field label="Audit region" value={record.audit_region} />
           </div>
         </Section>
 
