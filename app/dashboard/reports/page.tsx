@@ -73,6 +73,11 @@ export default async function ReportsPage() {
     .from("invoice_lines")
     .select("invoice_id, part_id, qty, line_ex, parts(pack_cost_ex_gst)");
 
+  // Manual returns to stock (migration 0089); none before it is run.
+  const { data: plWoReturns } = await supabase
+    .from("wo_stock_returns")
+    .select("work_order_id, multi, packs, parts(pack_cost_ex_gst, pack_per_multi)");
+
   const excluded = await unacceptedOptionLineIds(supabase);
   const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));
 
@@ -102,6 +107,7 @@ export default async function ReportsPage() {
         invoiceLines: (plInvLines ?? []) as any,
         payments: (plPayments ?? []) as any,
         invoicesAvailable: !invErr,
+        woReturns: (plWoReturns ?? []) as any,
       }}
     />
   );

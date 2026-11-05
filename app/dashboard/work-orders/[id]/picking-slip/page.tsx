@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { packsNeeded } from "@/lib/picking";
 import PickingSlip from "./PickingSlip";
+import ManualReturn from "./ManualReturn";
 
 export default async function PickingSlipPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -101,7 +102,13 @@ export default async function PickingSlipPage({ params }: { params: { id: string
   const { data: md } = await supabase.from("work_orders").select("materials_delivered_at").eq("id", params.id).single();
   const project = (workOrder as any).projects;
 
+  // Manual returns (migration 0089); empty before it is run.
+  const mrRes = await supabase.from("wo_stock_returns").select("id, part_id, multi, packs, estimated, note, created_at").eq("work_order_id", params.id).order("created_at");
+  const manualRows = ((mrRes.data ?? []) as any[]).map((r) => ({ ...r, multi: Number(r.multi) || 0, packs: Number(r.packs) || 0 }));
+  const returnParts = Array.from(new Map(materialLines.map((l: any) => [l.part_id, { id: l.part_id as string, name: l.parts?.name as string, pack_per_multi: Number(l.parts?.pack_per_multi) || 0 }])).values());
+
   return (
+    <>
     <PickingSlip
       workOrder={{
         id: workOrder.id,
@@ -117,5 +124,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
       reservedByPart={reservedByPart}
       onDraft={onDraft}
     />
+    <ManualReturn workOrderId={workOrder.id} parts={returnParts} rows={manualRows} available={!mrRes.error} />
+    </>
   );
 }

@@ -46,6 +46,7 @@ export type PlWoLine = {
   leftover_packs?: number | null;
   parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
+export type PlWoReturn = { work_order_id: string; multi: number | null; packs: number | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 export type PlLabour = { id: string; contractor_rate: number };
 export type PlInvoice = {
   id: string;
@@ -105,6 +106,7 @@ export default function ProfitLossReport({
   invoiceLines = [],
   payments,
   invoicesAvailable,
+  woReturns = [],
 }: {
   projects: PlProject[];
   projectLines: PlProjectLine[];
@@ -115,6 +117,8 @@ export default function ProfitLossReport({
   invoiceLines?: PlInvoiceLine[];
   payments: PlPayment[];
   invoicesAvailable: boolean;
+  /** Stock the office manually returned to the shelf from a job (reduces its material cost). */
+  woReturns?: PlWoReturn[];
 }) {
   const [preset, setPreset] = useState<Preset>("year");
   const [cs, setCs] = useState("");
@@ -179,6 +183,12 @@ export default function ProfitLossReport({
           if (!isSupplyOnly) contractors += q * l.parts.installer_rate_per_m2;
         }
       }
+      // Stock the office manually returned to the shelf from this job's work orders.
+      for (const r of woReturns) {
+        if (!woIds.includes(r.work_order_id) || !r.parts) continue;
+        const back = (Number(r.multi) || 0) * (Number(r.parts.pack_per_multi) || 0) + (Number(r.packs) || 0);
+        materials = Math.max(0, materials - back * (Number(r.parts.pack_cost_ex_gst) || 0));
+      }
 
       const inv = invByProject.get(p.id) ?? [];
       out.push({
@@ -213,7 +223,7 @@ export default function ProfitLossReport({
       count: counterInv.length,
     };
     return { jobs: out, counterSales: counter };
-  }, [projects, projectLines, workOrders, woLines, labourItems, invoices, invoiceLines, payments, start, end]);
+  }, [projects, projectLines, workOrders, woLines, woReturns, labourItems, invoices, invoiceLines, payments, start, end]);
 
   const rev = (j: JobRow) => (basis === "quoted" ? j.quoted : j.invoicedEx);
   const profit = (j: JobRow) => rev(j) - j.materials - j.contractors;
