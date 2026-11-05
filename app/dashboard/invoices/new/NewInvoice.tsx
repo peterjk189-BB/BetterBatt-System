@@ -36,7 +36,7 @@ const KIND_INFO: { kind: (typeof KINDS)[number]; sub: string }[] = [
 
 // Quick-pick percentages for each type that takes a % of the quote
 const QUICK_PCTS: Record<string, number[]> = {
-  Deposit: [50, 75],
+  Deposit: [30, 70],
   Progress: [10, 20, 30, 50, 100],
   Other: [10, 20, 30, 50, 100],
 };
@@ -68,7 +68,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     return iq && iq.invoiced_ex > 0.005 ? "Balance" : "Deposit";
   });
   const [mode, setMode] = useState<"pct" | "amount">("pct");
-  const [pct, setPct] = useState("50");
+  const [pct, setPct] = useState("30");
   const [showDelivery, setShowDelivery] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [amountEx, setAmountEx] = useState("");
