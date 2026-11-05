@@ -209,6 +209,7 @@ export default function WorkOrderEditor({
   const autoBusy = useRef(false);
   const autoAgain = useRef(false);
   const firstRun = useRef(true);
+  const [emailBox, setEmailBox] = useState<{ mode: "authorise" | "resend"; text: string } | null>(null);
   const [authorisedAt, setAuthorisedAt] = useState<string | null>(workOrder?.authorised_at ?? null);
   // Before migration 0046 the column does not exist: treat the work order as authorised so nothing changes.
   const authColumn = !!workOrder && "authorised_at" in workOrder;
@@ -332,9 +333,8 @@ export default function WorkOrderEditor({
   }, [form, lineItems]);
 
   /** Office sign-off: from now on the contractor is alerted about this work order's job dates. */
-  async function authorise() {
+  async function authorise(message = "") {
     if (!workOrder) return;
-    if (!confirm("Authorise this work order? The contractor(s) will be emailed the job dates and the job will appear on their schedule.")) return;
     setAuthorising(true);
     setError(null);
     while (autoBusy.current) await new Promise((r) => setTimeout(r, 100));
@@ -368,7 +368,7 @@ export default function WorkOrderEditor({
         const r = await fetch("/api/work-orders/notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems }),
+          body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems, message }),
         });
         const j = await r.json().catch(() => ({}));
         const problems: string[] = [];
@@ -393,7 +393,7 @@ export default function WorkOrderEditor({
   }
 
   /** Email the contractor(s) their upcoming job dates again (after authorising). */
-  async function resendToContractor() {
+  async function resendToContractor(message = "") {
     if (!workOrder) return;
     setResending(true);
     setResendNote(null);
@@ -415,7 +415,7 @@ export default function WorkOrderEditor({
       const r = await fetch("/api/work-orders/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems, resend: true }),
+        body: JSON.stringify({ work_order_id: workOrder.id, items: notifyItems, resend: true, message }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setResendNote({ ok: false, text: j.error || "Couldn't send the email." });
@@ -666,7 +666,7 @@ export default function WorkOrderEditor({
           </button>
           {!isNew && authColumn && !authorisedAt && (
             <button
-              onClick={authorise}
+              onClick={() => setEmailBox({ mode: "authorise", text: "" })}
               disabled={authorising}
               className="rounded-lg bg-[#1f6b35] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
               title="Until you authorise, the contractor is not emailed and the job is not on their schedule."
@@ -679,13 +679,53 @@ export default function WorkOrderEditor({
           )}
           {!isNew && authColumn && authorisedAt && (
             <button
-              onClick={resendToContractor}
+              onClick={() => setEmailBox({ mode: "resend", text: "" })}
               disabled={resending}
               className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
               title="Email the contractor their upcoming job dates again"
             >
               {resending ? "Sending..." : "Re-email contractor"}
             </button>
+          )}
+          {emailBox && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setEmailBox(null)}>
+              <div className="w-full max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-base font-bold">{emailBox.mode === "authorise" ? "Authorise & email contractor" : "Re-email contractor"}</h3>
+                <p className="mt-1 text-xs text-[var(--muted)]">
+                  {emailBox.mode === "authorise"
+                    ? "The contractor(s) are emailed their job dates and the job appears on their schedule."
+                    : "The contractor(s) are emailed their upcoming job dates again."}
+                </p>
+                <label className="mt-3 block text-sm font-medium">
+                  Message to the contractor <span className="font-normal text-[var(--muted)]">(optional)</span>
+                  <textarea
+                    autoFocus
+                    rows={5}
+                    maxLength={2000}
+                    placeholder="e.g. Access is via the side gate. Please call the builder on arrival."
+                    className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-normal"
+                    value={emailBox.text}
+                    onChange={(e) => setEmailBox({ ...emailBox, text: e.target.value })}
+                  />
+                </label>
+                <p className="mt-1 text-xs text-[var(--muted)]">Shown at the top of the email. Leave it empty to send as normal.</p>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" onClick={() => setEmailBox(null)} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm">Cancel</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const { mode, text } = emailBox;
+                      setEmailBox(null);
+                      if (mode === "authorise") authorise(text);
+                      else resendToContractor(text);
+                    }}
+                    className="rounded-lg bg-[#1f6b35] px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Send email
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
           {resendNote && <span className={`text-xs ${resendNote.ok ? "text-green-700" : "text-red-700"}`}>{resendNote.text}</span>}
           {!isNew && (

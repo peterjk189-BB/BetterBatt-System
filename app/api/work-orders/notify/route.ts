@@ -20,6 +20,11 @@ export async function POST(req: Request) {
   const woId = typeof body.work_order_id === "string" ? body.work_order_id : "";
   const items: { subcontractor_id: string; dates: string[] }[] = Array.isArray(body.items) ? body.items : [];
   const resend = body.resend === true;
+  // Optional note from the office, shown at the top of the email.
+  const officeMsg = typeof body.message === "string" ? body.message.trim().slice(0, 2000) : "";
+  const msgHtml = officeMsg
+    ? `<div style="margin:0 0 16px;padding:12px 14px;background:#fff7e0;border-left:4px solid #f5b400;border-radius:4px;color:#333;">${esc(officeMsg).replace(/\n/g, "<br />")}</div>`
+    : "";
   if (!woId || items.length === 0) return NextResponse.json({ error: "Missing work_order_id or items" }, { status: 400 });
 
   const supabase = await createClient();
@@ -90,7 +95,7 @@ export async function POST(req: Request) {
         html: brandedEmailHtml({
           previewText: `${dateText}${site ? " · " + site : ""}`,
           heading: `Hi ${esc(first)}, a job has been scheduled for you`,
-          bodyHtml: `<p style="margin:0 0 8px;">Work order ${esc(String(wo.wo_number))}</p><p style="margin:0 0 8px;">${esc(dateText)}</p><p style="margin:0;">${esc(site || "")}</p><p style="margin:12px 0 0;">It is now on your job schedule.</p>`,
+          bodyHtml: `${msgHtml}<p style="margin:0 0 8px;">Work order ${esc(String(wo.wo_number))}</p><p style="margin:0 0 8px;">${esc(dateText)}</p><p style="margin:0;">${esc(site || "")}</p><p style="margin:12px 0 0;">It is now on your job schedule.</p>`,
           buttonText: "Open job schedule",
           buttonUrl: link,
         }),
