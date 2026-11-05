@@ -42,7 +42,7 @@ export default async function ReportsPage() {
     supabase
       .from("project_lines")
       .select(
-        "id, project_id, qty_m2, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
+        "id, project_id, qty_m2, parts(name, coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
       ),
     supabase
       .from("work_orders")
@@ -59,7 +59,7 @@ export default async function ReportsPage() {
     supabase
       .from("work_order_lines")
       .select(
-        "*, parts(coverage_m2, pack_cost_ex_gst, pack_per_multi, installer_rate_per_m2)"
+        "*, parts(name, coverage_m2, pack_cost_ex_gst, pack_per_multi, installer_rate_per_m2)"
       ),
     supabase.from("labour_items").select("id, contractor_rate"),
     supabase
@@ -76,7 +76,7 @@ export default async function ReportsPage() {
   // Manual returns to stock (migration 0089); none before it is run.
   const { data: plWoReturns } = await supabase
     .from("wo_stock_returns")
-    .select("work_order_id, multi, packs, parts(pack_cost_ex_gst, pack_per_multi)");
+    .select("work_order_id, multi, packs, estimated, parts(name, pack_cost_ex_gst, pack_per_multi)");
 
   const excluded = await unacceptedOptionLineIds(supabase);
   const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));

@@ -2,10 +2,11 @@
 
 import { lineRate } from "@/lib/woRate";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { quoteTotals } from "@/lib/quoteTotals";
 
 type Part = {
+  name?: string | null;
   coverage_m2: number;
   pack_cost_ex_gst: number;
   installer_rate_per_m2: number;
@@ -44,9 +45,9 @@ export type PlWoLine = {
   packs_returned: number | null;
   leftover_multi?: number | null;
   leftover_packs?: number | null;
-  parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
+  parts: { name?: string | null; coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
-export type PlWoReturn = { work_order_id: string; multi: number | null; packs: number | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
+export type PlWoReturn = { work_order_id: string; multi: number | null; packs: number | null; estimated?: boolean | null; parts: { name?: string | null; pack_cost_ex_gst: number; pack_per_multi: number } | null };
 export type PlLabour = { id: string; contractor_rate: number };
 export type PlInvoice = {
   id: string;
@@ -94,7 +95,14 @@ type JobRow = {
   materials: number;
   contractors: number;
   actual: boolean;
+  /** Material cost before any stock came back (picking-slip returns, leftovers, manual returns). */
+  materialsBefore: number;
+  /** Cost of the stock that came back (materialsBefore - materials). */
+  returnsCredit: number;
+  /** Per-product breakdown for the drill-down. */
+  detail: JobDetail[];
 };
+type JobDetail = { name: string; how: string; before: number; credit: number; contractor: number };
 
 export default function ProfitLossReport({
   projects,
@@ -125,6 +133,7 @@ export default function ProfitLossReport({
   const [ce, setCe] = useState("");
   const [basis, setBasis] = useState<Basis>("quoted");
   const [search, setSearch] = useState("");
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const [start, end] = rangeFor(preset, cs, ce);
 
   const { jobs, counterSales } = useMemo(() => {
@@ -152,26 +161,39 @@ export default function ProfitLossReport({
       const wl = woIds.flatMap((id) => woLinesByWo.get(id) ?? []);
       const isSupplyOnly = p.job_type === "SUPPLY ONLY";
       let materials = 0;
+      let materialsBefore = 0;
       let contractors = 0;
       let actual = false;
+      const detail: JobDetail[] = [];
       if (wl.length) {
         actual = true;
         for (const l of wl) {
-          contractors +=
+          const lineContractor =
             (Number(l.qty) || 0) *
             lineRate(l.rate, l.labour_item_id ? rate.get(l.labour_item_id) : null, l.parts?.installer_rate_per_m2);
-          if (!l.parts) continue;
+          contractors += lineContractor;
+          if (!l.parts) {
+            if (lineContractor > 0) detail.push({ name: "Labour / other line", how: "No product", before: 0, credit: 0, contractor: lineContractor });
+            continue;
+          }
           const cost = Number(l.parts.pack_cost_ex_gst) || 0;
           if (l.picked) {
             const ppm = Number(l.parts.pack_per_multi) || 0;
             const picked = (Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0);
             const back = (Number(l.multi_returned) || 0) * ppm + (Number(l.packs_returned) || 0);
             materials += (picked - back) * cost;
+            materialsBefore += picked * cost;
+            detail.push({ name: l.parts.name || "Product", how: `Picked ${picked} pk${back > 0 ? `, ${back} back to stock` : ""}`, before: picked * cost, credit: back * cost, contractor: lineContractor });
           } else if (l.parts.coverage_m2 > 0 && l.part_id) {
             // Supplier-delivered (nothing picked): ordered packs, less any leftover the office took back into stock.
             const ppm = Number(l.parts.pack_per_multi) || 0;
             const left = (Number(l.leftover_multi) || 0) * ppm + (Number(l.leftover_packs) || 0);
-            materials += Math.max(0, Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9) - left) * cost;
+            const ordered = Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9);
+            materials += Math.max(0, ordered - left) * cost;
+            materialsBefore += ordered * cost;
+            detail.push({ name: l.parts.name || "Product", how: `Supplier delivered ${ordered} pk${left > 0 ? `, ${left} leftover back` : ""}`, before: ordered * cost, credit: Math.min(ordered, left) * cost, contractor: lineContractor });
+          } else if (lineContractor > 0) {
+            detail.push({ name: l.parts.name || "Product", how: "Not picked yet", before: 0, credit: 0, contractor: lineContractor });
           }
         }
       } else {
@@ -180,14 +202,19 @@ export default function ProfitLossReport({
           const q = Number(l.qty_m2) || 0;
           const packs = l.parts.coverage_m2 > 0 ? Math.ceil(q / l.parts.coverage_m2) : 0;
           materials += packs * l.parts.pack_cost_ex_gst;
-          if (!isSupplyOnly) contractors += q * l.parts.installer_rate_per_m2;
+          materialsBefore += packs * l.parts.pack_cost_ex_gst;
+          const lc = isSupplyOnly ? 0 : q * l.parts.installer_rate_per_m2;
+          if (!isSupplyOnly) contractors += lc;
+          detail.push({ name: l.parts.name || "Product", how: `Quote estimate ${packs} pk`, before: packs * l.parts.pack_cost_ex_gst, credit: 0, contractor: lc });
         }
       }
       // Stock the office manually returned to the shelf from this job's work orders.
       for (const r of woReturns) {
         if (!woIds.includes(r.work_order_id) || !r.parts) continue;
         const back = (Number(r.multi) || 0) * (Number(r.parts.pack_per_multi) || 0) + (Number(r.packs) || 0);
-        materials = Math.max(0, materials - back * (Number(r.parts.pack_cost_ex_gst) || 0));
+        const credit = Math.min(materials, back * (Number(r.parts.pack_cost_ex_gst) || 0));
+        materials = Math.max(0, materials - credit);
+        detail.push({ name: r.parts.name || "Product", how: `Manual return ${[Number(r.multi) ? `${r.multi} multi` : "", Number(r.packs) ? `${r.packs} pk` : ""].filter(Boolean).join(" + ")}${r.estimated ? " (estimated)" : ""}`, before: 0, credit, contractor: 0 });
       }
 
       const inv = invByProject.get(p.id) ?? [];
@@ -202,6 +229,9 @@ export default function ProfitLossReport({
         materials,
         contractors,
         actual,
+        materialsBefore,
+        returnsCredit: Math.max(0, materialsBefore - materials),
+        detail,
       });
     }
     out.sort((a, b) => b.p.quote_number - a.p.quote_number);
@@ -227,6 +257,7 @@ export default function ProfitLossReport({
 
   const rev = (j: JobRow) => (basis === "quoted" ? j.quoted : j.invoicedEx);
   const profit = (j: JobRow) => rev(j) - j.materials - j.contractors;
+  const profitBefore = (j: JobRow) => profit(j) - j.returnsCredit;
 
   const visible = jobs.filter((j) => {
     const q = search.trim().toLowerCase();
@@ -238,6 +269,9 @@ export default function ProfitLossReport({
   const tMat = sum((j) => j.materials);
   const tCon = sum((j) => j.contractors);
   const tProfit = tRev - tMat - tCon;
+  const tRet = sum((j) => j.returnsCredit);
+  const tProfitBefore = tProfit - tRet;
+  const marginBefore = tRev > 0 ? (tProfitBefore / tRev) * 100 : null;
   const tInv = sum((j) => j.invoicedInc);
   const tPaid = sum((j) => j.paid);
   const margin = tRev > 0 ? (tProfit / tRev) * 100 : null;
@@ -258,11 +292,11 @@ export default function ProfitLossReport({
   }, [visible, basis]);
 
   function exportCsv() {
-    const head = ["Quote", "Customer", "Site", "Quoted ex GST", "Invoiced ex GST", "Paid inc GST", "Materials", "Contractors", "Profit", "Margin %", "Cost basis"];
+    const head = ["Quote", "Customer", "Site", "Quoted ex GST", "Invoiced ex GST", "Paid inc GST", "Materials (after returns)", "Returns credit", "Contractors", "Profit (after returns)", "Margin % (after)", "Margin % (before returns)", "Cost basis"];
     const body = visible.map((j) => [
       `Q${j.p.quote_number}`, j.customer, j.site, j.quoted.toFixed(2), j.invoicedEx.toFixed(2), j.paid.toFixed(2),
-      j.materials.toFixed(2), j.contractors.toFixed(2), profit(j).toFixed(2),
-      rev(j) > 0 ? ((profit(j) / rev(j)) * 100).toFixed(1) : "", j.actual ? "Actual" : "Estimate",
+      j.materials.toFixed(2), j.returnsCredit.toFixed(2), j.contractors.toFixed(2), profit(j).toFixed(2),
+      rev(j) > 0 ? ((profit(j) / rev(j)) * 100).toFixed(1) : "", rev(j) > 0 ? ((profitBefore(j) / rev(j)) * 100).toFixed(1) : "", j.actual ? "Actual" : "Estimate",
     ]);
     const csv = [head, ...body].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
@@ -308,12 +342,14 @@ export default function ProfitLossReport({
         <button onClick={exportCsv} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">Export CSV</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-7">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         <Tile label={basis === "quoted" ? "Sales (quoted)" : "Sales (invoiced)"} value={money(tRev)} />
         <Tile label="Materials" value={money(tMat)} />
         <Tile label="Contractors" value={money(tCon)} />
         <Tile label="Profit" value={money(tProfit)} cls={tone(tProfit)} />
-        <Tile label="Margin" value={pct(margin)} cls={margin !== null ? tone(margin) : ""} />
+        <Tile label="Margin (after returns)" value={pct(margin)} cls={margin !== null ? tone(margin) : ""} />
+        <Tile label="Returns credit" value={money(tRet)} />
+        <Tile label="Margin before returns" value={pct(marginBefore)} cls={marginBefore !== null ? tone(marginBefore) : ""} />
         <Tile label="Invoiced inc GST" value={money(tInv)} />
         <Tile label="Paid / outstanding" value={`${money(tPaid)} / ${money(tInv - tPaid)}`} small />
       </div>
@@ -350,32 +386,98 @@ export default function ProfitLossReport({
               <th className="px-3 py-2 text-right">Invoiced</th>
               <th className="px-3 py-2 text-right">Paid (inc)</th>
               <th className="px-3 py-2 text-right">Materials</th>
+              <th className="px-3 py-2 text-right">Returns</th>
               <th className="px-3 py-2 text-right">Contractors</th>
               <th className="px-3 py-2 text-right">Profit</th>
-              <th className="px-3 py-2 text-right">Margin</th>
+              <th className="px-3 py-2 text-right">Margin before returns</th>
+              <th className="px-3 py-2 text-right">Margin after returns</th>
               <th className="px-3 py-2">Cost basis</th>
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 && (
-              <tr><td colSpan={11} className="px-3 py-8 text-center text-[var(--muted)]">No accepted jobs in this period.</td></tr>
+              <tr><td colSpan={13} className="px-3 py-8 text-center text-[var(--muted)]">No accepted jobs in this period.</td></tr>
             )}
             {visible.map((j) => {
               const pr = profit(j);
+              const prB = profitBefore(j);
+              const isOpen = open.has(j.p.id);
+              const toggle = () => setOpen((cur) => { const n = new Set(cur); if (n.has(j.p.id)) n.delete(j.p.id); else n.add(j.p.id); return n; });
               return (
-                <tr key={j.p.id} className="border-t border-[var(--border)]">
-                  <td className="px-3 py-2 font-medium"><Link href={`/dashboard/quotes/${j.p.id}`} className="text-accent hover:underline">Q{j.p.quote_number}</Link></td>
+                <Fragment key={j.p.id}>
+                <tr className="cursor-pointer border-t border-[var(--border)] hover:bg-black/5" onClick={toggle}>
+                  <td className="px-3 py-2 font-medium">
+                    <span className="mr-1.5 inline-block w-3 text-[var(--muted)]">{isOpen ? "▾" : "▸"}</span>
+                    <Link href={`/dashboard/quotes/${j.p.id}`} onClick={(e) => e.stopPropagation()} className="text-accent hover:underline">Q{j.p.quote_number}</Link>
+                  </td>
                   <td className="px-3 py-2">{j.customer}</td>
                   <td className="px-3 py-2">{j.site || "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(j.quoted)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(j.invoicedEx)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(j.paid)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(j.materials)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-[var(--muted)]">{j.returnsCredit > 0.005 ? `−${money(j.returnsCredit)}` : "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{money(j.contractors)}</td>
                   <td className={`px-3 py-2 text-right font-semibold tabular-nums ${tone(pr)}`}>{money(pr)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{pct(rev(j) > 0 ? (prB / rev(j)) * 100 : null)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{pct(rev(j) > 0 ? (pr / rev(j)) * 100 : null)}</td>
                   <td className="px-3 py-2 text-xs text-[var(--muted)]">{j.actual ? "Work order / picking" : "Quote estimate"}</td>
                 </tr>
+                {isOpen && (
+                  <tr className="border-t border-[var(--border)] bg-black/[0.03]">
+                    <td colSpan={13} className="px-3 py-3">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                          <div className="text-xs uppercase text-[var(--muted)]">Before returns</div>
+                          <div className="mt-1">Sales {money(rev(j))}</div>
+                          <div>Materials {money(j.materialsBefore)}</div>
+                          <div>Contractors {money(j.contractors)}</div>
+                          <div className={`font-semibold ${tone(prB)}`}>Profit {money(prB)} · {pct(rev(j) > 0 ? (prB / rev(j)) * 100 : null)}</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                          <div className="text-xs uppercase text-[var(--muted)]">Returns to stock</div>
+                          <div className="mt-1 text-lg font-semibold tabular-nums">{money(j.returnsCredit)}</div>
+                          <div className="text-xs text-[var(--muted)]">Cost of packs that came back (picking-slip returns, leftovers and manual returns)</div>
+                        </div>
+                        <div className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                          <div className="text-xs uppercase text-[var(--muted)]">After returns</div>
+                          <div className="mt-1">Sales {money(rev(j))}</div>
+                          <div>Materials {money(j.materials)}</div>
+                          <div>Contractors {money(j.contractors)}</div>
+                          <div className={`font-semibold ${tone(pr)}`}>Profit {money(pr)} · {pct(rev(j) > 0 ? (pr / rev(j)) * 100 : null)}</div>
+                        </div>
+                      </div>
+                      {j.detail.length > 0 && (
+                        <table className="mt-3 w-full text-xs">
+                          <thead className="text-left uppercase text-[var(--muted)]">
+                            <tr>
+                              <th className="py-1 pr-3">Product</th>
+                              <th className="py-1 pr-3">What happened</th>
+                              <th className="py-1 pr-3 text-right">Cost before</th>
+                              <th className="py-1 pr-3 text-right">Returned</th>
+                              <th className="py-1 pr-3 text-right">Cost after</th>
+                              <th className="py-1 text-right">Contractor</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {j.detail.map((d, i) => (
+                              <tr key={i} className="border-t border-[var(--border)]">
+                                <td className="py-1 pr-3">{d.name}</td>
+                                <td className="py-1 pr-3 text-[var(--muted)]">{d.how}</td>
+                                <td className="py-1 pr-3 text-right tabular-nums">{money(d.before)}</td>
+                                <td className="py-1 pr-3 text-right tabular-nums">{d.credit > 0.005 ? `−${money(d.credit)}` : "—"}</td>
+                                <td className="py-1 pr-3 text-right tabular-nums">{money(d.before - d.credit)}</td>
+                                <td className="py-1 text-right tabular-nums">{d.contractor > 0 ? money(d.contractor) : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                      <div className="mt-2 text-xs"><Link href={`/dashboard/quotes/${j.p.id}`} className="text-accent hover:underline">Open quote Q{j.p.quote_number}</Link></div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
