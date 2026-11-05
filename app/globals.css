@@ -503,3 +503,19 @@ html[data-theme="dark"] .paper-sheet .border-gray-200{border-color:#e5e7eb}
 html[data-theme="dark"] .paper-sheet .border-gray-300{border-color:#d1d5db}
 html[data-theme="dark"] .paper-sheet input,html[data-theme="dark"] .paper-sheet select,html[data-theme="dark"] .paper-sheet textarea{background-color:#ffffff;color:#000000;border-color:#d1d5db}
 }
+
+/* Tick boxes only toggle when the pointer is on the box itself, not anywhere on the label/row around it
+   (a stretched label made accidental ticks). */
+label:has(input[type="checkbox"]) {
+  pointer-events: none;
+}
+label:has(input[type="checkbox"]) input[type="checkbox"] {
+  pointer-events: auto;
+}
+label:has(input[type="checkbox"]) a,
+label:has(input[type="checkbox"]) button,
+label:has(input[type="checkbox"]) select,
+label:has(input[type="checkbox"]) textarea,
+label:has(input[type="checkbox"]) input:not([type="checkbox"]) {
+  pointer-events: auto;
+}
