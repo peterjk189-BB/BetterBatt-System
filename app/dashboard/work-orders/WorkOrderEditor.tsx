@@ -91,7 +91,7 @@ export default function WorkOrderEditor({
   /** Admin/office only: contractors don't carry out inspections. */
   canInspect?: boolean;
   /** This work order's SWMS and inspections, for the job progress strip (saved work orders only). */
-  progress?: { swms: ProgressSwms[]; inspections: ProgressInspection[] };
+  progress?: { swms: ProgressSwms[]; inspections: ProgressInspection[]; siteVisits?: { id: string; visit_number: number; visit_date: string; status: string }[] };
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -739,7 +739,7 @@ export default function WorkOrderEditor({
         </div>
       </div>
 
-      {!isNew && progress && <JobProgressStrip workOrderId={workOrder!.id} swms={progress.swms} inspections={progress.inspections} canInspect={canInspect} />}
+      {!isNew && progress && <JobProgressStrip workOrderId={workOrder!.id} swms={progress.swms} inspections={progress.inspections} siteVisits={progress.siteVisits} canInspect={canInspect} />}
 
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">

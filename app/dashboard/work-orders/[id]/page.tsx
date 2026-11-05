@@ -100,6 +100,18 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
 
   if (!workOrder) notFound();
 
+  // Site visits recorded against this job's quote (shown in the job progress strip).
+  let siteVisits: any[] = [];
+  if ((workOrder as any).project_id) {
+    const { data: sv } = await supabase
+      .from("site_visits")
+      .select("id, visit_number, visit_date, status")
+      .eq("project_id", (workOrder as any).project_id)
+      .neq("status", "Cancelled")
+      .order("visit_date");
+    siteVisits = sv ?? [];
+  }
+
   return (
     <WorkOrderEditor
       workOrder={workOrder}
@@ -111,7 +123,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       parts={parts ?? []}
       isAdmin={role === "admin"}
       canInspect={role === "admin" || role === "office"}
-      progress={{ swms: (swms ?? []) as any, inspections: (inspections ?? []) as any }}
+      progress={{ swms: (swms ?? []) as any, inspections: (inspections ?? []) as any, siteVisits }}
     />
   );
 }

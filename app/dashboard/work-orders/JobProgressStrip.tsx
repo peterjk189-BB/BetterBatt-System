@@ -6,11 +6,14 @@ export default function JobProgressStrip({
   workOrderId,
   swms,
   inspections,
+  siteVisits = [],
   canInspect = true,
 }: {
   workOrderId: string;
   swms: ProgressSwms[];
   inspections: ProgressInspection[];
+  /** Site visits on this job's quote, shown before SWMS (office only). */
+  siteVisits?: { id: string; visit_number: number; visit_date: string; status: string }[];
   /** Staff only. Contractors can read inspection reports but never start or edit them. */
   canInspect?: boolean;
 }) {
@@ -23,6 +26,20 @@ export default function JobProgressStrip({
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
       <span className="mr-1 text-xs font-bold uppercase tracking-wider text-[var(--brand-grey)]">Job progress</span>
+
+      {siteVisits.map((v) => (
+        <span key={v.id} className="inline-flex items-center gap-2">
+          <Link
+            href={`/dashboard/site-visits/${v.id}`}
+            className={`${chip} ${v.status === "Booked" ? STAGE_STYLE["inspection-scheduled"] : STAGE_STYLE.passed}`}
+            title="Site visit for this job's quote"
+          >
+            Site visit {v.status === "Booked" ? "booked" : "✓"}{" "}
+            {new Date(v.visit_date + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}
+          </Link>
+          {arrow}
+        </span>
+      ))}
 
       {completedSwms ? (
         <Link
