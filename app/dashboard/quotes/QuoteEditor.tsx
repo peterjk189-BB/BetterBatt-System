@@ -720,7 +720,14 @@ export default function QuoteEditor({
                       onChange={(e) => updateLine(idx, { qty_m2: Number(e.target.value) })}
                     />
                   </td>
-                  <td className="px-3 py-2 font-mono text-[var(--muted)]">{l.packs}</td>
+                  <td className="px-3 py-2 font-mono text-[var(--muted)]">
+                    {l.packs}
+                    {Number(partById[l.part_id || ""]?.coverage_m2) > 0 && (
+                      <div className="whitespace-nowrap font-sans text-[10px]">
+                        {Number(partById[l.part_id || ""].coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 2 })} m² / pack
+                      </div>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
                     {l.part_id && partById[l.part_id] ? (
                       <>
