@@ -47,6 +47,12 @@ export async function POST(req: Request) {
   }
 
   const link = `${siteUrl()}/quote/${project.share_token}`;
+  // Optional personal note from the office, shown at the top of the email.
+  const officeMsg = typeof body.message === "string" ? body.message.trim().slice(0, 2000) : "";
+  const escHtml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const msgHtml = officeMsg
+    ? `<div style="margin:0 0 16px;padding:12px 14px;background:#fff7e0;border-left:4px solid #f5b400;border-radius:4px;color:#333;">${escHtml(officeMsg).replace(/\n/g, "<br />")}</div>`
+    : ""; 
   const customerName = (project.customers as any)?.name || "";
 
   const result = await sendEmail({
@@ -57,7 +63,7 @@ export async function POST(req: Request) {
     html: brandedEmailHtml({
       previewText: `Your quote Q${project.quote_number} from Better Batt Insulation is ready to view and accept online.`,
       heading: `Your quote is ready`,
-      bodyHtml: `<p style="margin:0 0 14px;">Hi ${customerName || "there"},</p>
+      bodyHtml: `${msgHtml}<p style="margin:0 0 14px;">Hi ${customerName || "there"},</p>
         <p style="margin:0;">Thank you for the opportunity to quote. Your quote from Better Batt Insulation is ready. Use the button below to review the details and accept it online. If you have any questions, just reply to this email.</p>`,
       rows: [
         { label: "Quote number", value: `Q${project.quote_number}` },

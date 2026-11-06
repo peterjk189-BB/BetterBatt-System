@@ -224,6 +224,7 @@ export default function QuoteEditor({
 
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailAddress, setEmailAddress] = useState(project?.contact_email || "");
+  const [emailMessage, setEmailMessage] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [emailSent, setEmailSent] = useState(false);
@@ -253,7 +254,7 @@ export default function QuoteEditor({
       const res = await fetch("/api/quote-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: project.id, to_email: emailAddress.trim() }),
+        body: JSON.stringify({ project_id: project.id, to_email: emailAddress.trim(), message: emailMessage }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1671,6 +1672,19 @@ export default function QuoteEditor({
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
                     value={emailAddress}
                     onChange={(e) => setEmailAddress(e.target.value)}
+                  />
+                </label>
+                <label className="mt-3 flex flex-col gap-1 text-sm">
+                  <span>
+                    Message to the customer <span className="text-[var(--muted)]">(optional — shown at the top of the email)</span>
+                  </span>
+                  <textarea
+                    rows={4}
+                    maxLength={2000}
+                    placeholder="e.g. Hi Mark, as discussed on site, here is the quote for the ceiling and walls."
+                    className="rounded-lg border border-[var(--border)] px-3 py-2"
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value)}
                   />
                 </label>
                 {emailError && <p className="mt-2 text-sm text-red-700">{emailError}</p>}
