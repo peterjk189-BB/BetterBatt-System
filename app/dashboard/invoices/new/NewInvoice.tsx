@@ -1,5 +1,6 @@
 "use client";
 
+import SearchSelect from "../../SearchSelect";
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -246,23 +247,26 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
 
             <label className="block text-sm">
               Accepted quote {isItems && <span className="text-xs text-[var(--muted)]">(optional for item sales)</span>}
-              <select className={field} value={projectId} onChange={(e) => { const nq = quotes.find((x) => x.id === e.target.value); setProjectId(e.target.value); setDueTouched(false); setDescEdited(null); setSiteEdited(null); if (nq && nq.invoiced_ex > 0.005) chooseKind("Balance"); }}>
-                <option value="">{isItems ? "No quote (counter / item sale)" : "Choose..."}</option>
-                {quotes.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    Q{x.quote_number} · {x.customer_name || "No customer"} · {siteAddress(x) || "no address"}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                className={field}
+                emptyLabel={isItems ? "No quote (counter / item sale)" : "Choose..."}
+                placeholder="Type a quote number, customer or address..."
+                value={projectId}
+                options={quotes.map((x) => ({ id: x.id, label: `Q${x.quote_number} · ${x.customer_name || "No customer"} · ${siteAddress(x) || "no address"}` }))}
+                onChange={(id) => { const nq = quotes.find((x) => x.id === id); setProjectId(id); setDueTouched(false); setDescEdited(null); setSiteEdited(null); if (nq && nq.invoiced_ex > 0.005) chooseKind("Balance"); }}
+              />
             </label>
 
             {!q && isItems && (
               <label className="block text-sm">
                 Customer
-                <select className={field} value={customerId} onChange={(e) => { setCustomerId(e.target.value); setDueTouched(false); }}>
-                  <option value="">Choose...</option>
-                  {customers.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                </select>
+                <SearchSelect
+                  className={field}
+                  placeholder="Type the customer name..."
+                  value={customerId}
+                  options={customers.map((c) => ({ id: c.id, label: c.name }))}
+                  onChange={(id) => { setCustomerId(id); setDueTouched(false); }}
+                />
                 {!newCust && (
                   <button type="button" onClick={() => setNewCust({ name: "", category: "Private", payment_terms: "7 Days", contact_name: "", contact_phone: "", contact_email: "" })} className="mt-1.5 text-sm font-medium text-accent hover:underline">
                     + New customer
