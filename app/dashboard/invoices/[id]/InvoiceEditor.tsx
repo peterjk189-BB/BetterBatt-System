@@ -97,17 +97,20 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [pickEntry, setPickEntry] = useState<Record<string, { multi: string; pks: string }>>({});
   const [pickBusy, setPickBusy] = useState("");
 
+  // A negative quantity is a return from the customer: the packs go back into inventory (and Undo takes them out again).
   async function pickLine(l: InvoiceLine) {
-    const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
+    const ret = Number(l.qty) < 0;
+    const e = pickEntry[l.id] ?? { multi: "", pks: String(Math.abs(Number(l.qty))) };
     const multi = Number(e.multi) || 0;
     const pks = Number(e.pks) || 0;
-    if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: "Enter how many you picked." });
+    if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: ret ? "Enter how many came back." : "Enter how many you picked." });
+    const sign = ret ? -1 : 1;
     setPickBusy(l.id);
-    const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+    const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: sign * multi, p_pks: sign * pks });
     setPickBusy("");
     if (error) return setFulfilMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
-    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: multi, packs_picked: pks } : x)));
-    setFulfilMsg({ ok: true, text: "Picked. Stock taken off inventory." });
+    setLines((prev) => prev.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: sign * multi, packs_picked: sign * pks } : x)));
+    setFulfilMsg({ ok: true, text: ret ? "Returned. Stock put back on inventory." : "Picked. Stock taken off inventory." });
   }
 
   // Whole multis out, spare packs straight back: e.g. 14 packs sold, 5 per multi -> pick 3 multis, put 1 pack back.
@@ -803,14 +806,15 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                     const part = parts.find((p) => p.id === l.part_id);
                     const u = unitsOf(part);
                     const ppm = u.perBulk;
-                    const e = pickEntry[l.id] ?? { multi: "", pks: String(l.qty) };
+                    const isRet = Number(l.qty) < 0;
+                    const e = pickEntry[l.id] ?? { multi: "", pks: String(Math.abs(Number(l.qty))) };
                     const box = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
                     return (
                       <li key={l.id} className="py-2.5">
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                           <span className="font-medium">{part?.name || l.description}</span>
                           <span className="text-xs text-[var(--muted)]">
-                            need {Number(l.qty)} {plural(u.one, Number(l.qty))}
+                            {isRet ? "returning" : "need"} {Math.abs(Number(l.qty))} {plural(u.one, Math.abs(Number(l.qty)))}
                             {u.hasBulk ? ` · ${ppm} ${plural(u.one, ppm)}/${u.bulk}` : ""}
                             {part?.stock_on_hand != null ? ` · stock ${Number(part.stock_on_hand)}` : ""}
                           </span>
@@ -818,7 +822,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                         <div className="mt-1.5 flex flex-wrap items-center gap-2">
                           {l.picked ? (
                             <>
-                              <span className="font-semibold text-green-700">✓ {fmtPicked(part, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
+                              <span className="font-semibold text-green-700">✓ {Number(l.multi_picked) < 0 || Number(l.packs_picked) < 0 ? "Returned " : ""}{fmtPicked(part, Math.abs(Number(l.multi_picked) || 0), Math.abs(Number(l.packs_picked) || 0))}{Number(l.multi_picked) < 0 || Number(l.packs_picked) < 0 ? " back to stock" : ""}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
                               <button onClick={() => undoPick(l)} disabled={pickBusy === l.id} className="text-xs text-red-700 underline">Undo</button>
                             </>
                           ) : (
@@ -833,14 +837,14 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                                     onChange={(ev) => {
                                       const m = Number(ev.target.value) || 0;
                                       // the loose packs follow what is left after the multis; still editable
-                                      setPickEntry({ ...pickEntry, [l.id]: { multi: ev.target.value, pks: String(Math.max(0, Number(l.qty) - m * ppm)) } });
+                                      setPickEntry({ ...pickEntry, [l.id]: { multi: ev.target.value, pks: String(Math.max(0, Math.abs(Number(l.qty)) - m * ppm)) } });
                                     }}
                                   />
                                 </>
                               )}
-                              <span className="text-xs text-[var(--muted)]">{u.hasBulk ? `Loose ${plural(u.one, 2)}` : `${plural(u.one, 2)} picked`}</span>
+                              <span className="text-xs text-[var(--muted)]">{u.hasBulk ? `Loose ${plural(u.one, 2)}` : `${plural(u.one, 2)} ${isRet ? "returned" : "picked"}`}</span>
                               <input className={box} inputMode="decimal" value={e.pks} onChange={(ev) => setPickEntry({ ...pickEntry, [l.id]: { multi: e.multi, pks: ev.target.value } })} />
-                              <button onClick={() => pickLine(l)} disabled={pickBusy === l.id} className="rounded-lg bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
+                              <button onClick={() => pickLine(l)} disabled={pickBusy === l.id} className="rounded-lg bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">{isRet ? "Mark returned to stock" : "Mark picked"}</button>
                               {u.hasBulk && ppm > 1 && Number(l.qty) > 0 && Number(l.qty) % ppm !== 0 && (() => {
                                 const multis = Math.ceil(Number(l.qty) / ppm);
                                 const spare = multis * ppm - Number(l.qty);

@@ -35,15 +35,17 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
   const field = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
 
   async function pick(l: Line) {
-    const e = entry[l.id] ?? { multi: "", pks: String(l.qty) };
+    const ret = Number(l.qty) < 0; // negative quantity = customer return, packs go back into inventory
+    const sign = ret ? -1 : 1;
+    const e = entry[l.id] ?? { multi: "", pks: String(Math.abs(Number(l.qty))) };
     const multi = Number(e.multi) || 0;
     const pks = Number(e.pks) || 0;
-    if (multi <= 0 && pks <= 0) return setMsg({ ok: false, text: "Enter how many multis and/or loose packs you picked." });
+    if (multi <= 0 && pks <= 0) return setMsg({ ok: false, text: ret ? "Enter how many multis and/or loose packs came back." : "Enter how many multis and/or loose packs you picked." });
     setBusy(l.id);
-    const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+    const { error } = await supabase.rpc("pick_invoice_line", { p_line_id: l.id, p_multi: sign * multi, p_pks: sign * pks });
     setBusy("");
     if (error) return setMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
-    setLines(lines.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: multi, packs_picked: pks } : x)));
+    setLines(lines.map((x) => (x.id === l.id ? { ...x, picked: true, multi_picked: sign * multi, packs_picked: sign * pks } : x)));
     setMsg({ ok: true, text: "Picked. Stock taken off inventory." });
   }
 
@@ -165,13 +167,13 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
                   {unitsOf(l.parts).hasBulk && <span className="ml-1 font-normal text-gray-400">({l.parts!.pack_per_multi}/{unitsOf(l.parts).bulk})</span>}
                 </td>
                 <td className="px-2 py-2 text-right font-semibold">
-                  {Number(l.qty)} {plural(unitsOf(l.parts).one, Number(l.qty))}
+                  {Number(l.qty) < 0 ? "Return " : ""}{Math.abs(Number(l.qty))} {plural(unitsOf(l.parts).one, Math.abs(Number(l.qty)))}
                 </td>
                 <td className="px-2 py-2 text-right text-gray-600">{Number(l.parts?.stock_on_hand ?? 0)}</td>
                 <td className="px-2 py-2">
                   {l.picked ? (
                     <span className="inline-flex items-center gap-2">
-                      <span className="font-semibold text-green-700">✓ {fmtPicked(l.parts, Number(l.multi_picked) || 0, Number(l.packs_picked) || 0)}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
+                      <span className="font-semibold text-green-700">✓ {Number(l.multi_picked) < 0 || Number(l.packs_picked) < 0 ? "Returned " : ""}{fmtPicked(l.parts, Math.abs(Number(l.multi_picked) || 0), Math.abs(Number(l.packs_picked) || 0))}{Number(l.multi_picked) < 0 || Number(l.packs_picked) < 0 ? " back to stock" : ""}{Number(l.packs_returned) > 0 ? ` · ${Number(l.packs_returned)} back to stock` : ""}</span>
                       <button onClick={() => undo(l)} disabled={busy === l.id} className="text-xs text-red-700 underline print:hidden">Undo</button>
                     </span>
                   ) : (
@@ -179,12 +181,12 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
                       {unitsOf(l.parts).hasBulk && (
                         <>
                           <span className="text-xs capitalize text-gray-500">{plural(unitsOf(l.parts).bulk, 2)}</span>
-                          <input className={field} inputMode="decimal" value={entry[l.id]?.multi ?? ""} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: e.target.value, pks: entry[l.id]?.pks ?? String(l.qty) } })} />
+                          <input className={field} inputMode="decimal" value={entry[l.id]?.multi ?? ""} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: e.target.value, pks: entry[l.id]?.pks ?? String(Math.abs(Number(l.qty))) } })} />
                         </>
                       )}
                       <span className="text-xs capitalize text-gray-500">{unitsOf(l.parts).hasBulk ? "Loose" : plural(unitsOf(l.parts).one, 2)}</span>
-                      <input className={field} inputMode="decimal" value={entry[l.id]?.pks ?? String(l.qty)} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: entry[l.id]?.multi ?? "", pks: e.target.value } })} />
-                      <button onClick={() => pick(l)} disabled={busy === l.id} className="rounded bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">Mark picked</button>
+                      <input className={field} inputMode="decimal" value={entry[l.id]?.pks ?? String(Math.abs(Number(l.qty)))} onChange={(e) => setEntry({ ...entry, [l.id]: { multi: entry[l.id]?.multi ?? "", pks: e.target.value } })} />
+                      <button onClick={() => pick(l)} disabled={busy === l.id} className="rounded bg-accent px-3 py-1 text-xs font-medium text-white disabled:opacity-60">{Number(l.qty) < 0 ? "Mark returned to stock" : "Mark picked"}</button>
                       {(() => {
                         const ppm = Number(l.parts?.pack_per_multi) || 0;
                         const need = Number(l.qty) || 0;
