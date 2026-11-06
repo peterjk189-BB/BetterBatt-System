@@ -288,6 +288,8 @@ const INVENTORY_COLS = [
   { key: "pks", label: "Pks", align: "center" as Align, width: 70 },
   { key: "multi", label: "Multi", align: "center" as Align, width: 70 },
   { key: "stock", label: "Stock on hand", align: "center" as Align, width: 110 },
+  { key: "reserved", label: "Reserved", align: "center" as Align, width: 110 },
+  { key: "available", label: "Available", align: "center" as Align, width: 100 },
   { key: "totalM2", label: "Total m²", align: "center" as Align, width: 100 },
   { key: "value", label: "Inventory value", align: "center" as Align, width: 130 },
   { key: "actions", label: "", align: "center" as Align, width: 90 },
@@ -443,13 +445,17 @@ export default function PartsTable({
   initial,
   suppliers,
   isAdmin,
+  reservations = {},
 }: {
   initial: Part[];
   suppliers: Supplier[];
   isAdmin: boolean;
+  /** Stock allocated on picking slips for work orders not yet picked, per part. */
+  reservations?: Record<string, { total: number; jobs: { woId: string; woNumber: string; site: string; packs: number }[] }>;
 }) {
   const supabase = createClient();
   const [parts, setParts] = useState(initial);
+  const [reservedOpen, setReservedOpen] = useState<string | null>(null);
   const [supplierList, setSupplierList] = useState(suppliers);
   const [showArchived, setShowArchived] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string | null>(null);
@@ -920,6 +926,30 @@ export default function PartsTable({
         return <InlineCell value={p.type || ""} onCommit={(v) => patch(p, "type", v)} align="center" />;
       case "stock":
         return p.stock_on_hand;
+      case "reserved": {
+        const r = reservations[p.id];
+        if (!r || r.total <= 0) return <span className="text-[var(--muted)]">—</span>;
+        return (
+          <div className="text-left">
+            <button type="button" onClick={() => setReservedOpen(reservedOpen === p.id ? null : p.id)} className="rounded bg-[#fff3d1] px-2 py-0.5 text-xs font-semibold text-black hover:bg-[#ffe9a8]">
+              {r.total} {reservedOpen === p.id ? "▴" : "▾"}
+            </button>
+            {reservedOpen === p.id && (
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {r.jobs.map((j) => (
+                  <li key={j.woId}>
+                    <a href={`/dashboard/work-orders/${j.woId}/picking-slip`} className="text-accent hover:underline">{j.woNumber}</a> · {j.packs} pk{j.site ? ` · ${j.site}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      }
+      case "available": {
+        const avail = p.stock_on_hand - (reservations[p.id]?.total || 0);
+        return <span className={avail < 0 ? "font-semibold text-red-700" : ""}>{Math.round(avail * 100) / 100}</span>;
+      }
       case "totalM2":
         return (p.stock_on_hand * p.coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 1 });
       case "supplier":
@@ -1612,6 +1642,10 @@ export default function PartsTable({
                     return gi?.bulk ? `${cap(plural(unit, 2))} per ${gi.bulk}` : "—";
                   case "stock":
                     return `Stock (${plural(unit, 2)})`;
+                  case "reserved":
+                    return `Reserved (${plural(unit, 2)})`;
+                  case "available":
+                    return `Available (${plural(unit, 2)})`;
                   default:
                     return "";
                 }
