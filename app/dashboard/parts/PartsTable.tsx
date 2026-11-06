@@ -336,6 +336,8 @@ const TOGGLEABLE_COLS = INVENTORY_COLS.filter((c) => c.key !== "name" && c.key !
 
 const TD_CLASS: Record<string, string> = {
   stock: "px-3 py-1 text-center font-mono",
+  reserved: "px-3 py-1 text-center",
+  available: "px-3 py-1 text-center font-mono",
   totalM2: "px-3 py-1 text-center font-mono text-[var(--muted)]",
   value: "px-3 py-1 text-center font-medium",
   actions: "px-3 py-1 text-center",
