@@ -930,7 +930,7 @@ export default function PartsTable({
         const r = reservations[p.id];
         if (!r || r.total <= 0) return <span className="text-[var(--muted)]">—</span>;
         return (
-          <div className="text-left">
+          <div className="text-center">
             <button type="button" onClick={() => setReservedOpen(reservedOpen === p.id ? null : p.id)} className="rounded bg-[#fff3d1] px-2 py-0.5 text-xs font-semibold text-black hover:bg-[#ffe9a8]">
               {r.total} {reservedOpen === p.id ? "▴" : "▾"}
             </button>
@@ -948,7 +948,7 @@ export default function PartsTable({
       }
       case "available": {
         const avail = p.stock_on_hand - (reservations[p.id]?.total || 0);
-        return <span className={avail < 0 ? "font-semibold text-red-700" : ""}>{Math.round(avail * 100) / 100}</span>;
+        return <span className={`font-semibold ${avail > 0 ? "text-green-500" : "text-red-500"}`}>{Math.round(avail * 100) / 100}</span>;
       }
       case "totalM2":
         return (p.stock_on_hand * p.coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 1 });
