@@ -75,8 +75,8 @@ export default function ContractPricing({
   const [importNote, setImportNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Product list for the picker: narrowed to one supplier (Fletchers by default).
-  const [supplierPick, setSupplierPick] = useState<string>(() => suppliers.find((s) => s.name.toLowerCase().includes("fletcher"))?.id ?? "");
+  // Product list for the picker: every Inventory item by default; can be narrowed to one supplier.
+  const [supplierPick, setSupplierPick] = useState<string>("");
   const pickerParts = parts.filter((p) => !supplierPick || p.supplier_id === supplierPick);
 
   const [minMargin, setMinMargin] = useState(15);
