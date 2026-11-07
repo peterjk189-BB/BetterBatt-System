@@ -206,12 +206,11 @@ export function computeStats(data: BData, period: Period, now: Date) {
         c += Math.max(0, ordered - left) * (Number(l.parts.pack_cost_ex_gst) || 0);
       }
     }
-    // Inventory sold on invoices and picked from the warehouse (a negative pick is a customer return).
+    // Inventory sold on an issued invoice counts as supplied, whether or not it was ticked picked: qty x pack cost on the invoice date
+    // (a negative quantity is a customer return and brings the cost back down).
     for (const l of data.invoiceLines ?? []) {
-      if (!l.picked || !l.picked_at || !l.parts || l.invoices?.status === "Void" || !inR(l.picked_at.slice(0, 10), s, e)) continue;
-      const ppm = Number(l.parts.pack_per_multi) || 0;
-      const picked = (Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0);
-      c += (picked - (Number(l.packs_returned) || 0)) * (Number(l.parts.pack_cost_ex_gst) || 0);
+      if (!l.parts || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, s, e)) continue;
+      c += (Number(l.qty) || 0) * (Number(l.parts.pack_cost_ex_gst) || 0);
     }
     // Stock the office manually returned to the shelf from a job comes off the cost.
     for (const r of data.woReturns ?? []) {
@@ -314,16 +313,10 @@ export function computeStats(data: BData, period: Period, now: Date) {
     for (const l of data.invoiceLines ?? []) {
       if (!l.parts || l.invoices?.project_id || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, start, end)) continue;
       const d = perInv.get(l.invoice_id ?? "") ?? { cost: 0, unpicked: 0, unpickedCost: 0 };
-      const unit = Number(l.parts.pack_cost_ex_gst) || 0;
-      if (l.picked) {
-        const ppm = Number(l.parts.pack_per_multi) || 0;
-        const c = ((Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0) - (Number(l.packs_returned) || 0)) * unit;
-        cost += c;
-        d.cost += c;
-      } else {
-        d.unpicked += 1;
-        d.unpickedCost += (Number(l.qty) || 0) * unit;
-      }
+      // Issued invoice = stock supplied, so the cost is the quantity invoiced x pack cost, picked or not.
+      const c = (Number(l.qty) || 0) * (Number(l.parts.pack_cost_ex_gst) || 0);
+      cost += c;
+      d.cost += c;
       perInv.set(l.invoice_id ?? "", d);
     }
     inventoryDetail = counterInv
