@@ -284,6 +284,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
               {crmEnabled && <th className="px-4 py-2">Rating</th>}
               <th className="px-4 py-2">Terms</th>
               <th className="px-4 py-2">Discount</th>
+              <th className="px-4 py-2">Price level</th>
               <th className="px-4 py-2">Contact</th>
               <th className="px-4 py-2">Email</th>
               <th className="px-4 py-2"></th>
@@ -294,7 +295,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
               <Fragment key={c.id}>
               {(i === 0 || visible[i - 1].category !== c.category) && (
                 <tr className="border-t border-[var(--border)] bg-[#f7f5f1]">
-                  <td colSpan={9} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
+                  <td colSpan={10} className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--muted)]">
                     {c.category === "Builder" ? "Builders" : c.category} ({visible.filter((x) => x.category === c.category).length})
                   </td>
                 </tr>
@@ -310,6 +311,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                 {crmEnabled && <td className="px-4 py-2"><button type="button" onClick={() => { openEdit(c); setModalTab("rating"); }}><GradeBadge grade={(c.rating_override as Grade) || gradeMap[c.id] || null} /></button></td>}
                 <td className="px-4 py-2">{c.payment_terms}</td>
                 <td className="px-4 py-2">{c.discount_pct}%</td>
+                <td className="px-4 py-2">
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${c.price_tier === "trade" ? "bg-blue-100 text-blue-800" : c.price_tier === "regency" ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-700"}`}>
+                    {c.price_tier === "trade" ? "Trade" : c.price_tier === "regency" ? "Regency" : "Retail"}
+                  </span>
+                </td>
                 <td className="px-4 py-2 text-[var(--muted)]">
                   {c.contact_name || c.contact_phone ? <>{c.contact_name}{c.contact_name && c.contact_phone ? " · " : ""}<PhoneLink phone={c.contact_phone} /></> : "—"}
                 </td>
