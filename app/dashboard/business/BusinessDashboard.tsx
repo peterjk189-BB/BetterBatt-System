@@ -116,8 +116,8 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
         </Card>
         <Card
           className="lg:col-span-7"
-          title="Margin by job type"
-          hint={`Accepted quotes, ${s.label}`}
+          title="Margin by customer type"
+          hint={`Builders, retro fit and private jobs (accepted quotes) and inventory sales, ${s.label}`}
           right={
             <label className="flex items-center gap-1 text-xs text-[var(--muted)]">
               Target
@@ -143,7 +143,7 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
                 <tr><th className="py-1">Customer</th><th className="text-right">Jobs</th><th className="text-right">Sales</th><th className="text-right">Profit</th><th className="text-right">Margin</th></tr>
               </thead>
               <tbody>
-                {s.topCustomers.length === 0 && <tr><td colSpan={5} className="py-3 text-[var(--muted)]">No accepted quotes in this period.</td></tr>}
+                {s.topCustomers.length === 0 && <tr><td colSpan={5} className="py-3 text-[var(--muted)]">No accepted quotes or inventory sales in this period.</td></tr>}
                 {s.topCustomers.map((c) => {
                   const m = c.revenue > 0 ? (c.profit / c.revenue) * 100 : null;
                   return (
@@ -347,7 +347,7 @@ function Margins({ rows, target }: { rows: Stats["marginByType"]; target: number
   const max = Math.max(45, target + 10, ...rows.map((r) => r.margin));
   const x = (v: number) => L + ((W - L - R) * Math.max(0, v)) / max;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Margin by job type">
+    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Margin by customer type">
       {rows.map((r, i) => {
         const y = i * rowH + 4;
         const c = r.margin >= target ? GOOD : r.margin >= target - 7 ? WARN : BAD;
@@ -355,7 +355,7 @@ function Margins({ rows, target }: { rows: Stats["marginByType"]; target: number
         return (
           <g key={r.type}>
             <text x={L - 8} y={y + 17} textAnchor="end" fontSize="12" fill={INK}>{name}</text>
-            <rect x={L} y={y + 4} width={Math.max(2, x(r.margin) - L)} height="18" rx="3" fill={c}><title>{`${r.type}: ${r.margin.toFixed(1)}% on ${money(r.revenue)} sales, ${r.jobs} job(s)`}</title></rect>
+            <rect x={L} y={y + 4} width={Math.max(2, x(r.margin) - L)} height="18" rx="3" fill={c}><title>{`${r.type}: ${r.margin.toFixed(1)}% on ${money(r.revenue)} sales, ${r.jobs} ${r.type === "Inventory sales" ? "invoice(s)" : "job(s)"}`}</title></rect>
             <text x={x(r.margin) + 6} y={y + 18} fontSize="12" fontWeight="600" fill={INK}>{r.margin.toFixed(0)}%</text>
           </g>
         );

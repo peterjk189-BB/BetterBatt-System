@@ -24,12 +24,12 @@ export type BProject = {
   quote_markup: number;
   price_tier?: string | null;
   archived: boolean;
-  customers: { name: string; discount_pct: number } | null;
+  customers: { name: string; discount_pct: number; category?: string | null } | null;
 };
 export type BProjectLine = { project_id: string; qty_m2: number; parts: Part };
 export type BWorkOrder = { id: string; project_id: string | null; archived: boolean; completed_date: string | null; supplier_delivery?: boolean | null };
 /** Inventory sold on an invoice and picked from the warehouse. Negative figures are customer returns. */
-export type BInvoiceLine = { part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
+export type BInvoiceLine = { part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string; project_id?: string | null; invoice_date?: string | null } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 /** Stock the office put back on the shelf from a job (reduces cost). */
 export type BWoReturn = { work_order_id: string; multi: number | null; packs: number | null; created_at: string; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 export type BWoLine = {
@@ -290,16 +290,31 @@ export function computeStats(data: BData, period: Period, now: Date) {
       return { p, revenue, cost: c.materials + c.contractors, profit: revenue - c.materials - c.contractors };
     });
 
+  // Margin by customer type: Builders, Retro Fit and Private jobs (accepted quotes), plus counter sales of inventory.
+  const CAT_LABEL: Record<string, string> = { Builder: "Builders", "Retro Fit": "Retro fit", Private: "Private" };
   const byType = new Map<string, { type: string; revenue: number; profit: number; jobs: number }>();
   const byCust = new Map<string, { name: string; jobs: number; revenue: number; profit: number }>();
   for (const j of jobs) {
-    const t = byType.get(j.p.job_type) ?? { type: j.p.job_type, revenue: 0, profit: 0, jobs: 0 };
+    const catLabel = CAT_LABEL[j.p.customers?.category ?? ""] ?? "Other customers";
+    const t = byType.get(catLabel) ?? { type: catLabel, revenue: 0, profit: 0, jobs: 0 };
     t.revenue += j.revenue; t.profit += j.profit; t.jobs += 1;
-    byType.set(j.p.job_type, t);
+    byType.set(catLabel, t);
     const name = j.p.customers?.name ?? "No customer";
     const c = byCust.get(name) ?? { name, jobs: 0, revenue: 0, profit: 0 };
     c.revenue += j.revenue; c.profit += j.profit; c.jobs += 1;
     byCust.set(name, c);
+  }
+  // Inventory sales: invoices raised without a quote (counter / item sales) and the stock picked for them.
+  const counterInv = issued.filter((i) => !i.project_id && inR(i.invoice_date, start, end));
+  if (counterInv.length > 0) {
+    const revenue = counterInv.reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
+    let cost = 0;
+    for (const l of data.invoiceLines ?? []) {
+      if (!l.picked || !l.parts || l.invoices?.project_id || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, start, end)) continue;
+      const ppm = Number(l.parts.pack_per_multi) || 0;
+      cost += ((Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0) - (Number(l.packs_returned) || 0)) * (Number(l.parts.pack_cost_ex_gst) || 0);
+    }
+    byType.set("Inventory sales", { type: "Inventory sales", revenue, profit: revenue - cost, jobs: counterInv.length });
   }
   const marginByType = Array.from(byType.values())
     .filter((t) => t.revenue > 0)
