@@ -134,6 +134,17 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
           }
         >
           <Margins rows={s.marginByType} target={target} />
+          <details className="mt-3 text-xs">
+            <summary className="cursor-pointer font-medium">How job margins are worked out, and why they can differ from the quote page</summary>
+            <div className="mt-1 space-y-1 text-[var(--muted)]">
+              <p><b>Sales</b> = quoted value ex GST of the accepted quote (line items, customer discount and markup).</p>
+              <p><b>Cost</b> = contractors + materials. Once a job has a work order, the real figures are used: contractor rates on the work order lines, and packs actually picked less anything returned to stock (picking-slip returns and manual returns). Lines not yet picked use the quote estimate (m² ÷ coverage, rounded up to whole packs).</p>
+              <p>Quote lines that are not on the work order (delivery, for example) are costed at the quote estimate, so they are not missed.</p>
+              <p><b>Quote page margin</b> is an estimate: Inventory installer rates and pack costs, plus travel and non-compliance fees counted as cost and as price, and any accepted options. The dashboard does not include travel, non-compliance fees or options, and uses actual work order rates and picks, so the two can differ. A job that came in cheaper than quoted shows a higher margin here.</p>
+              <p><b>Inventory sales</b> = invoices raised without a quote. Cost = quantity invoiced × pack cost, whether or not the items were ticked picked.</p>
+              <p>Example: Q1078 showed 37.2% on the quote page and 42% here because the delivery cost was not on the work order. It is now counted.</p>
+            </div>
+          </details>
           {s.inventoryDetail.length > 0 && (
             <details className="mt-3 text-xs">
               <summary className="cursor-pointer font-medium">How the Inventory sales margin is worked out ({s.inventoryDetail.length} invoice{s.inventoryDetail.length === 1 ? "" : "s"})</summary>
