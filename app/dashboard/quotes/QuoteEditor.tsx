@@ -399,7 +399,7 @@ export default function QuoteEditor({
       return;
     }
     const c = customerList.find((x) => x.id === customerId);
-    setForm((f) => ({ ...f, customer_id: customerId, category: c?.category || f.category }));
+    setForm((f) => ({ ...f, customer_id: customerId, category: c?.category || f.category, ...(!project && (c as any)?.price_tier ? { price_tier: (c as any).price_tier } : {}) }));
   }
 
   async function saveNewCustomer() {

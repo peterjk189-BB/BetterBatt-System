@@ -24,6 +24,8 @@ type Customer = {
   accounts_contact_phone?: string | null;
   statement_account?: boolean;
   rating_override?: string | null;
+  /** Default price level for inventory sales: "retail" | "trade" | "regency" (migration 0091). */
+  price_tier?: string | null;
   archived: boolean;
 };
 
@@ -46,6 +48,7 @@ const emptyForm = {
   accounts_contact_email: "",
   accounts_contact_phone: "",
   statement_account: false,
+  price_tier: "",
 };
 
 // A forgiving key for spotting the same customer typed two ways ("Smith Constructions Pty Ltd" = "smith constructions").
@@ -109,6 +112,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
       accounts_contact_email: c.accounts_contact_email || "",
       accounts_contact_phone: c.accounts_contact_phone || "",
       statement_account: !!c.statement_account,
+      price_tier: c.price_tier || "",
     });
     setModalOpen(true);
   }
@@ -117,11 +121,13 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
     if (!editing && dupes.length > 0 && !confirm(`This looks like a customer you already have (${dupes.slice(0, 3).map((d) => d.name).join(", ")}). Save it as a new customer anyway?`)) return;
     setSaving(true);
     // Only send the statement flag once migration 0055 exists (or when it's being switched on).
-    const { statement_account, address, ...rest } = form;
+    const { statement_account, address, price_tier, ...rest } = form;
     const payload: any = {
       ...rest,
       // Statement flag (migration 0055) and address (0063) are only sent once those columns exist or are used.
       ...(statement_account || customers.some((c) => c.statement_account !== undefined) ? { statement_account } : {}),
+      // Price level (migration 0091) is only sent once the column exists or is being used.
+      ...(price_tier || customers.some((c) => c.price_tier !== undefined) ? { price_tier: price_tier || null } : {}),
       ...(address.trim() || customers.some((c) => c.address !== undefined) ? { address: address.trim() || null } : {}),
     };
     if (editing) {
@@ -460,6 +466,19 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                   value={form.discount_pct}
                   onChange={(e) => setForm({ ...form, discount_pct: Number(e.target.value) })}
                 />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                Price level for inventory sales
+                <select
+                  className="rounded-lg border border-[var(--border)] px-3 py-2"
+                  value={form.price_tier}
+                  onChange={(e) => setForm({ ...form, price_tier: e.target.value })}
+                >
+                  <option value="">Retail (default)</option>
+                  <option value="trade">Trade</option>
+                  <option value="regency">Regency</option>
+                </select>
+                <span className="text-xs text-[var(--muted)]">New invoices and supply-only quotes for this customer start on this price level. You can still change it on each one.</span>
               </label>
               <p className="text-xs text-[var(--muted)]">
                 Contact details are usually captured per quote instead of here — only fill these in if

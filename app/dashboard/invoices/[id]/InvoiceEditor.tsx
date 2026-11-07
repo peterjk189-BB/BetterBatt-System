@@ -29,7 +29,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [busy, setBusy] = useState("");
   const [emailTo, setEmailTo] = useState(invoice.customers?.accounts_contact_email || invoice.customers?.contact_email || invoice.projects?.contact_email || "");
   const [lines, setLines] = useState<InvoiceLine[]>(initialLines);
-  const [tier, setTier] = useState<string>("retail");
+  const [tier, setTier] = useState<string>((invoice.customers as any)?.price_tier || "retail");
   const [partSearch, setPartSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [editCust, setEditCust] = useState(false);
