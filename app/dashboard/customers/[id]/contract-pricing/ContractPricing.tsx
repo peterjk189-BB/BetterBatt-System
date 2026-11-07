@@ -439,12 +439,12 @@ export default function ContractPricing({
                       value={r.builder_description}
                       onChange={(e) => edit(r.key, { builder_description: e.target.value })}
                       placeholder="e.g. Wall insulation R2.5 – 90mm stud"
-                      className="w-72 rounded-lg border border-[var(--border)] px-2 py-1.5 font-medium"
+                      className="w-[28rem] min-w-[16rem] rounded-lg border border-[var(--border)] px-2 py-1.5 font-medium"
                     />
                   </td>
                   <td className="px-3 py-2">
                     <PartPicker
-                      className="w-80"
+                      className="w-[30rem] min-w-[18rem]"
                       parts={pickerParts.some((p) => p.id === r.part_id) || !r.part_id ? pickerParts : [...pickerParts, partById[r.part_id]].filter(Boolean)}
                       value={r.part_id}
                       onChange={(id) => edit(r.key, { part_id: id })}
@@ -470,7 +470,7 @@ export default function ContractPricing({
                         min={0}
                         value={r.rate}
                         onChange={(e) => edit(r.key, { rate: e.target.value })}
-                        className="w-24 rounded-lg border border-orange-300 bg-orange-50 px-2 py-1.5 text-right font-semibold text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200"
+                        className="w-28 rounded-lg border border-orange-300 bg-orange-50 px-2 py-1.5 text-right font-semibold text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200"
                       />
                     </span>
                   </td>
