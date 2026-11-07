@@ -16,6 +16,7 @@ export default async function BusinessPage() {
 
   const [
     projects, projectLines, workOrders, woLines, labourItems, invoices, payments,
+    invoiceLines, woReturns,
     swms, inspections, pos, poLines, stockParts, suppliers, subs,
   ] = await Promise.all([
     supabase
@@ -26,17 +27,21 @@ export default async function BusinessPage() {
       .select(
         "*, parts(coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
       ),
-    supabase.from("work_orders").select("id, project_id, archived, completed_date"),
+    supabase.from("work_orders").select("*"),
     supabase
       .from("work_order_lines")
       .select(
         "*, parts(coverage_m2, pack_cost_ex_gst, pack_per_multi, installer_rate_per_m2)"
       ),
+
     supabase.from("labour_items").select("id, contractor_rate"),
     supabase
       .from("invoices")
       .select("id, project_id, invoice_number, kind, amount_ex_gst, total, status, invoice_date, due_date, customers(name)"),
     supabase.from("invoice_payments").select("invoice_id, paid_on, amount"),
+    // Materials sold on invoices (picked from the warehouse), and manual returns to stock. Empty if a migration is missing.
+    supabase.from("invoice_lines").select("part_id, picked, picked_at, multi_picked, packs_picked, packs_returned, invoices(status), parts(pack_cost_ex_gst, pack_per_multi)").eq("picked", true),
+    supabase.from("wo_stock_returns").select("work_order_id, multi, packs, created_at, parts(pack_cost_ex_gst, pack_per_multi)"),
     supabase.from("swms").select("id, status, archived, swms_number, work_order_id").not("work_order_id", "is", null),
     supabase
       .from("inspections")
@@ -55,6 +60,8 @@ export default async function BusinessPage() {
     projectLines: (projectLines.data ?? []).filter((l: any) => !excluded.has(l.id)),
     workOrders: workOrders.data ?? [],
     woLines: woLines.data ?? [],
+    invoiceLines: invoiceLines.error ? [] : invoiceLines.data ?? [],
+    woReturns: woReturns.error ? [] : woReturns.data ?? [],
     labourItems: labourItems.data ?? [],
     invoices: invoices.data ?? [],
     payments: payments.data ?? [],

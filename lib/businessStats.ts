@@ -27,7 +27,11 @@ export type BProject = {
   customers: { name: string; discount_pct: number } | null;
 };
 export type BProjectLine = { project_id: string; qty_m2: number; parts: Part };
-export type BWorkOrder = { id: string; project_id: string | null; archived: boolean; completed_date: string | null };
+export type BWorkOrder = { id: string; project_id: string | null; archived: boolean; completed_date: string | null; supplier_delivery?: boolean | null };
+/** Inventory sold on an invoice and picked from the warehouse. Negative figures are customer returns. */
+export type BInvoiceLine = { part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
+/** Stock the office put back on the shelf from a job (reduces cost). */
+export type BWoReturn = { work_order_id: string; multi: number | null; packs: number | null; created_at: string; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 export type BWoLine = {
   work_order_id: string;
   qty: number | null;
@@ -43,6 +47,8 @@ export type BWoLine = {
   packs_picked: number | null;
   multi_returned: number | null;
   packs_returned: number | null;
+  leftover_multi?: number | null;
+  leftover_packs?: number | null;
   parts: { coverage_m2: number; pack_cost_ex_gst: number; pack_per_multi: number; installer_rate_per_m2?: number } | null;
 };
 export type BInvoice = {
@@ -80,6 +86,8 @@ export type BData = {
   projectLines: BProjectLine[];
   workOrders: BWorkOrder[];
   woLines: BWoLine[];
+  invoiceLines?: BInvoiceLine[];
+  woReturns?: BWoReturn[];
   labourItems: BLabour[];
   invoices: BInvoice[];
   payments: BPayment[];
@@ -179,6 +187,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
   const cashIn = data.payments.filter((p) => inR(p.paid_on, start, end)).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
   // ---- costs in the period: materials when picked, contractors by task date ---
+  const supplierJobs = new Set(data.workOrders.filter((w) => w.supplier_delivery && !w.archived).map((w) => w.id));
   const costInPeriod = (s: string, e: string) => {
     let c = 0;
     for (const l of data.woLines) {
@@ -189,6 +198,26 @@ export function computeStats(data: BData, period: Period, now: Date) {
         const back = (Number(l.multi_returned) || 0) * ppm + (Number(l.packs_returned) || 0);
         c += (picked - back) * (Number(l.parts.pack_cost_ex_gst) || 0);
       }
+      // Jobs where the supplier delivers to site: nothing is picked, so the cost is the packs ordered (less leftovers taken back), by the task date.
+      if (!l.picked && l.parts && l.part_id && l.task_date && inR(l.task_date, s, e) && supplierJobs.has(l.work_order_id)) {
+        const ppm = Number(l.parts.pack_per_multi) || 0;
+        const ordered = l.parts.coverage_m2 > 0 ? Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9) : 0;
+        const left = (Number(l.leftover_multi) || 0) * ppm + (Number(l.leftover_packs) || 0);
+        c += Math.max(0, ordered - left) * (Number(l.parts.pack_cost_ex_gst) || 0);
+      }
+    }
+    // Inventory sold on invoices and picked from the warehouse (a negative pick is a customer return).
+    for (const l of data.invoiceLines ?? []) {
+      if (!l.picked || !l.picked_at || !l.parts || l.invoices?.status === "Void" || !inR(l.picked_at.slice(0, 10), s, e)) continue;
+      const ppm = Number(l.parts.pack_per_multi) || 0;
+      const picked = (Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0);
+      c += (picked - (Number(l.packs_returned) || 0)) * (Number(l.parts.pack_cost_ex_gst) || 0);
+    }
+    // Stock the office manually returned to the shelf from a job comes off the cost.
+    for (const r of data.woReturns ?? []) {
+      if (!r.parts || !inR(r.created_at.slice(0, 10), s, e)) continue;
+      const ppm = Number(r.parts.pack_per_multi) || 0;
+      c -= ((Number(r.multi) || 0) * ppm + (Number(r.packs) || 0)) * (Number(r.parts.pack_cost_ex_gst) || 0);
     }
     return c;
   };
