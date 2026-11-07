@@ -9,7 +9,7 @@ export default async function QuotesPage() {
   const [projRes, { data: lines }, { data: parts }] = await Promise.all([
     // emailed_at / emailed_to exist after migration 0078; fall back without them until it is run.
     supabase.from("projects").select(projCols + ", emailed_at, emailed_to, last_viewed_at, view_count").order("quote_number", { ascending: false }),
-    supabase.from("project_lines").select("id, project_id, part_id, qty_m2"),
+    supabase.from("project_lines").select("*"),
     supabase.from("parts").select("id, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2"),
   ]);
 

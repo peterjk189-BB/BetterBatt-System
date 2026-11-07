@@ -1,5 +1,6 @@
 "use client";
 
+import { supplyInstallCharge } from "@/lib/contractPricing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { siteAddress } from "@/lib/siteAddress";
@@ -24,7 +25,7 @@ type Project = {
   customers: { name: string; discount_pct: number | null } | null;
 };
 
-type Line = { project_id: string; part_id: string | null; qty_m2: number };
+type Line = { project_id: string; part_id: string | null; qty_m2: number; contract_rate?: number | null };
 type Part = {
   id: string;
   name: string;
@@ -69,9 +70,7 @@ export default function QuotesList({
     for (const l of lines) {
       const part = partById[l.part_id || ""];
       if (!part) continue;
-      const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
-      const usedForCal = packs * part.coverage_m2;
-      const charge = usedForCal * part.supply_install_rate_per_m2;
+      const charge = supplyInstallCharge(l.qty_m2, part, l.contract_rate);
       map[l.project_id] = (map[l.project_id] || 0) + charge;
     }
     return map;

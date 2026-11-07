@@ -1,4 +1,5 @@
 import { supplyPackPrice } from "@/lib/priceTiers";
+import { supplyInstallCharge } from "@/lib/contractPricing";
 
 type PartForTotal = {
   coverage_m2: number;
@@ -12,7 +13,7 @@ type PartForTotal = {
 /** Quote total ex GST / GST / inc GST, the same sums the quote print view uses. */
 export function quoteTotals(
   project: { job_type: string; quote_markup: number | null; price_tier?: string | null; customers?: { discount_pct: number | null } | null },
-  lines: { qty_m2: number; parts: PartForTotal }[]
+  lines: { qty_m2: number; contract_rate?: number | null; parts: PartForTotal }[]
 ) {
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
   const before = lines.reduce((s, l) => {
@@ -20,8 +21,7 @@ export function quoteTotals(
     if (!part) return s;
     const q = Number(l.qty_m2) || 0;
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;
-    const used = packs * part.coverage_m2;
-    return s + (isSupplyOnly ? packs * supplyPackPrice(part as any, project.price_tier) : used * part.supply_install_rate_per_m2);
+    return s + (isSupplyOnly ? packs * supplyPackPrice(part as any, project.price_tier) : supplyInstallCharge(q, part, l.contract_rate));
   }, 0);
   const disc = before * ((project.customers?.discount_pct || 0) / 100);
   const ex = before - disc + (Number(project.quote_markup) || 0);

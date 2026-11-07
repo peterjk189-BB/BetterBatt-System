@@ -13,6 +13,7 @@ import RatingWarning from "@/app/dashboard/customers/RatingWarning";
 import { ensureLead } from "@/lib/crmActions";
 import { OPTION_KEYS, optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
+import { activeRateDate, activeRates, hasContractRate, supplyInstallCharge, type ContractRate } from "@/lib/contractPricing";
 
 type Customer = {
   id: string;
@@ -79,6 +80,12 @@ type Line = {
   note: string | null;
   sort_order: number;
   option_key?: string | null;
+  /** Picked from the builder's contract price list: the rate + wording used (copied, so later rate changes don't alter this quote). */
+  contract_rate_id?: string | null;
+  contract_rate?: number | null;
+  contract_description?: string | null;
+  /** Editor only: this line uses a normal Inventory product even though the builder has contract rates. */
+  _std?: boolean;
 };
 
 /** Values carried over from a site visit when a quote is started from it. */
@@ -108,7 +115,7 @@ function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
 
-function computeLine(part: Part | undefined, qty: number, tier: string | null) {
+function computeLine(part: Part | undefined, qty: number, tier: string | null, contractRate?: number | null) {
   if (!part) {
     return { packs: 0, usedForCal: 0, materialCost: 0, labourCost: 0, supplyOnlyCharge: 0, supplyInstallCharge: 0 };
   }
@@ -121,7 +128,7 @@ function computeLine(part: Part | undefined, qty: number, tier: string | null) {
     materialCost: packs * part.pack_cost_ex_gst,
     labourCost: q * part.installer_rate_per_m2,
     supplyOnlyCharge: packs * supplyPackPrice(part, tier),
-    supplyInstallCharge: usedForCal * part.supply_install_rate_per_m2,
+    supplyInstallCharge: supplyInstallCharge(q, part, contractRate),
   };
 }
 
@@ -441,9 +448,53 @@ export default function QuoteEditor({
   const selectedCustomer = customerList.find((c) => c.id === form.customer_id);
   const customerDiscountPct = selectedCustomer?.discount_pct || 0;
 
+  // Builder contract pricing: the selected customer's own $/m² list (Customers › Contract pricing).
+  const [contractAll, setContractAll] = useState<ContractRate[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!form.customer_id) {
+      setContractAll([]);
+      return;
+    }
+    supabase
+      .from("customer_contract_rates")
+      .select("*")
+      .eq("customer_id", form.customer_id)
+      .eq("archived", false)
+      .then(({ data, error }) => {
+        // Table missing (migration 0090 not run yet) = no contract pricing.
+        if (!cancelled) setContractAll(error ? [] : ((data ?? []) as ContractRate[]));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.customer_id]);
+  const contractLines = useMemo(() => activeRates(contractAll, form.entry_date), [contractAll, form.entry_date]);
+  const contractSetDate = activeRateDate(contractAll, form.entry_date);
+  const contractOn = !isSupplyOnly && contractLines.length > 0;
+  function pickContract(idx: number, value: string) {
+    if (value === "__std") {
+      updateLine(idx, { _std: true, part_id: "", contract_rate_id: null, contract_rate: null, contract_description: null });
+      return;
+    }
+    const r = contractAll.find((x) => x.id === value);
+    if (!r) {
+      updateLine(idx, { part_id: "", contract_rate_id: null, contract_rate: null, contract_description: null });
+      return;
+    }
+    updateLine(idx, {
+      _std: false,
+      part_id: r.part_id || "",
+      contract_rate_id: r.id,
+      contract_rate: Number(r.rate_per_m2) || 0,
+      contract_description: r.builder_description,
+    });
+  }
+
   const computedLines = lineItems.map((l) => {
     const part = partById[l.part_id || ""];
-    const c = computeLine(part, l.qty_m2, form.price_tier || null);
+    const c = computeLine(part, l.qty_m2, form.price_tier || null, isSupplyOnly ? null : l.contract_rate);
     const tierMissing = isSupplyOnly && !!part && tierPriceMissing(part, form.price_tier || null);
     const grossCharge = isSupplyOnly ? c.supplyOnlyCharge : c.supplyInstallCharge;
     const discountAmount = grossCharge * (customerDiscountPct / 100);
@@ -615,6 +666,10 @@ export default function QuoteEditor({
         note: l.note || null,
         sort_order: idx,
         ...(l.option_key ? { option_key: l.option_key } : {}),
+        // Only sent for contract lines, so normal quotes still save before migration 0090 is run.
+        ...(l.contract_rate_id || hasContractRate(l.contract_rate)
+          ? { contract_rate_id: l.contract_rate_id || null, contract_rate: Number(l.contract_rate) || 0, contract_description: l.contract_description || null }
+          : {}),
       }));
 
     if (rowsToInsert.length > 0) {
@@ -704,13 +759,48 @@ export default function QuoteEditor({
                 (l.option_key ?? null) !== optKey ? null : (
                 <tr key={idx} className="border-t border-[var(--border)]">
                   <td className="px-3 py-2">
-                    <PartPicker
-                      className="w-[26rem]"
-                      parts={parts.filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)}
-                      value={l.part_id || null}
-                      onChange={(id) => updateLine(idx, { part_id: id || "" })}
-                      placeholder="Select product — type to search…"
-                    />
+                    {(contractOn && !l._std) || l.contract_rate_id ? (
+                      <div className="w-[26rem]">
+                        <select
+                          className="w-full rounded-lg border border-orange-300 bg-orange-50 px-2 py-1.5 font-medium text-orange-900 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-200"
+                          value={l.contract_rate_id || ""}
+                          onChange={(e) => pickContract(idx, e.target.value)}
+                        >
+                          <option value="">Select contract line…</option>
+                          {l.contract_rate_id && !contractLines.some((r) => r.id === l.contract_rate_id) && (
+                            <option value={l.contract_rate_id}>{l.contract_description || "Contract line"} (earlier rate)</option>
+                          )}
+                          {contractLines.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.builder_description} — {fmtCurrency(Number(r.rate_per_m2) || 0)}/m²
+                            </option>
+                          ))}
+                          <option value="__std">Other product (normal price)…</option>
+                        </select>
+                        <div className="mt-0.5 whitespace-normal text-[11px] text-[var(--muted)]">
+                          {l.part_id && partById[l.part_id]
+                            ? `→ ${partById[l.part_id].name} (stock, packs & installer rate)`
+                            : l.contract_rate_id
+                            ? "⚠ No Inventory item linked — set one in Contract pricing"
+                            : "Builder's wording shows on the quote; the linked Inventory item drives stock and the work order"}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <PartPicker
+                          className="w-[26rem]"
+                          parts={parts.filter((p) => !supplierPick || p.supplier_id === supplierPick || p.id === l.part_id)}
+                          value={l.part_id || null}
+                          onChange={(id) => updateLine(idx, { part_id: id || "" })}
+                          placeholder="Select product — type to search…"
+                        />
+                        {contractOn && l._std && (
+                          <button type="button" onClick={() => updateLine(idx, { _std: false, part_id: "" })} className="mt-0.5 text-[11px] text-accent hover:underline">
+                            ← Use a contract line
+                          </button>
+                        )}
+                      </>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <input
@@ -730,7 +820,13 @@ export default function QuoteEditor({
                     )}
                   </td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
-                    {l.part_id && partById[l.part_id] ? (
+                    {!isSupplyOnly && hasContractRate(l.contract_rate) ? (
+                      <>
+                        {fmtCurrency(Number(l.contract_rate) || 0)}
+                        <span className="text-xs text-[var(--muted)]"> /m²</span>
+                        <div className="text-[10px] font-semibold uppercase text-orange-700 dark:text-orange-300">Contract</div>
+                      </>
+                    ) : l.part_id && partById[l.part_id] ? (
                       <>
                         {fmtCurrency(
                           isSupplyOnly
@@ -758,7 +854,7 @@ export default function QuoteEditor({
                         {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
                       </div>
                     )}
-                    {!isSupplyOnly && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (
+                    {!isSupplyOnly && !hasContractRate(l.contract_rate) && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (
                       <div className="text-xs font-normal text-amber-700">
                         $0 — set Coverage/pack and Supply+install/m² for this item in Inventory
                       </div>
@@ -1193,6 +1289,22 @@ export default function QuoteEditor({
             + Add line
           </button>
         </div>
+        {contractOn && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-orange-200 bg-orange-50 px-4 py-2.5 text-sm text-orange-900 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-200">
+            <span>
+              <strong>{selectedCustomer?.name} contract pricing</strong> — rates from{" "}
+              {contractSetDate ? shortDate(contractSetDate) : "—"}. Contract lines charge the builder&apos;s $/m² on the m² entered; packs and stock come from the linked Inventory item.
+            </span>
+            <Link href={`/dashboard/customers/${form.customer_id}/contract-pricing`} className="font-medium underline">
+              Contract pricing →
+            </Link>
+          </div>
+        )}
+        {isSupplyOnly && contractLines.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+            This builder has contract supply &amp; install rates — they don&apos;t apply to a Supply only quote.
+          </div>
+        )}
         {lineTable(null)}
       </div>
 

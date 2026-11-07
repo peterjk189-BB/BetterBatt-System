@@ -1,5 +1,6 @@
 "use client";
 
+import { supplyInstallCharge, lineLabel } from "@/lib/contractPricing";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useRef, useState, useEffect } from "react";
 import Link from "next/link";
@@ -11,6 +12,8 @@ type Line = {
   qty_m2: number;
   note: string | null;
   option_key?: string | null;
+  contract_rate?: number | null;
+  contract_description?: string | null;
   parts: {
     name: string;
     coverage_m2: number;
@@ -93,8 +96,7 @@ export default function QuotePrintView({
     const part = l.parts;
     if (!part) return { ...l, packs: 0, charge: 0, isDelivery: false };
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
-    const usedForCal = packs * part.coverage_m2;
-    const charge = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : usedForCal * part.supply_install_rate_per_m2;
+    const charge = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(l.qty_m2, part, l.contract_rate);
     return { ...l, packs, charge, isDelivery: isDeliveryItem(part.name) };
   });
 
@@ -119,7 +121,7 @@ export default function QuotePrintView({
     list.map((l, i) => (
       <Fragment key={i}>
         <tr data-pdf-keep={l.note ? "next" : "yes"} className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
-          <td className="px-2.5 py-1.5">{l.parts?.name || "—"}</td>
+          <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
           {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
           {showPrices && (
             <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>

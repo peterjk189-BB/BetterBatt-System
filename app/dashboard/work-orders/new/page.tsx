@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { supplyInstallCharge } from "@/lib/contractPricing";
 import { redirect } from "next/navigation";
 import { getEffectiveRole } from "@/lib/currentUser";
 import WorkOrderEditor from "../WorkOrderEditor";
@@ -9,7 +10,7 @@ const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || ""
 
 function computeQuoteTotal(
   project: { job_type: string; quote_markup: number; price_tier?: string | null },
-  lines: { part_id: string | null; qty_m2: number }[],
+  lines: { part_id: string | null; qty_m2: number; contract_rate?: number | null }[],
   partById: Record<string, { coverage_m2: number; supply_charge_per_pack: number; price_retail?: number | null; price_trade?: number | null; price_regency?: number | null; supply_install_rate_per_m2: number }>
 ) {
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
@@ -18,8 +19,7 @@ function computeQuoteTotal(
     const part = l.part_id ? partById[l.part_id] : undefined;
     if (!part) continue;
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
-    const usedForCal = packs * part.coverage_m2;
-    chargeBeforeMarkup += isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : usedForCal * part.supply_install_rate_per_m2;
+    chargeBeforeMarkup += isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(l.qty_m2, part, l.contract_rate);
   }
   const subtotal = chargeBeforeMarkup + Number(project.quote_markup || 0);
   return subtotal + subtotal * 0.1;
@@ -53,7 +53,7 @@ export default async function NewWorkOrderPage({
         .select("*")
         .eq("id", searchParams.project_id)
         .single(),
-      supabase.from("project_lines").select("id, part_id, qty_m2, note").eq("project_id", searchParams.project_id),
+      supabase.from("project_lines").select("*").eq("project_id", searchParams.project_id),
       unacceptedOptionLineIds(supabase),
     ]);
     const lines = (allLines ?? []).filter((l: any) => !excluded.has(l.id));

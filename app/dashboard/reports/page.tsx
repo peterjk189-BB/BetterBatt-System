@@ -42,7 +42,7 @@ export default async function ReportsPage() {
     supabase
       .from("project_lines")
       .select(
-        "id, project_id, qty_m2, parts(name, coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
+        "*, parts(name, coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, supply_charge_per_pack, price_retail, price_trade, price_regency, supply_install_rate_per_m2)"
       ),
     supabase
       .from("work_orders")

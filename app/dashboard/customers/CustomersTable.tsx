@@ -1,6 +1,7 @@
 "use client";
 
 import CallLink, { PhoneLink } from "../CallLink";
+import Link from "next/link";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import { Fragment, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -314,6 +315,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                   <button onClick={() => openEdit(c)} className="text-accent hover:underline">
                     Edit
                   </button>
+                  {crmEnabled && c.category === "Builder" && (
+                    <Link href={`/dashboard/customers/${c.id}/contract-pricing`} className="ml-3 text-accent hover:underline">
+                      Contract pricing
+                    </Link>
+                  )}
                   {isAdmin && !c.archived && (
                     <button onClick={() => { setMergeFrom(c); setMergeInto(""); }} className="ml-3 text-[var(--muted)] hover:underline">
                       Merge

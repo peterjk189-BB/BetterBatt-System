@@ -1,5 +1,6 @@
 "use client";
 
+import { supplyInstallCharge } from "@/lib/contractPricing";
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment, type PlWoReturn } from "./ProfitLossReport";
 import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
@@ -68,6 +69,7 @@ type ProjectLine = {
   id: string;
   project_id: string;
   qty_m2: number;
+  contract_rate?: number | null;
   parts: {
     coverage_m2: number;
     pack_cost_ex_gst: number;
@@ -307,8 +309,7 @@ function computeProjectValue(project: Project, lines: ProjectLine[]) {
     if (!part) return s;
     const q = Number(l.qty_m2) || 0;
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;
-    const usedForCal = packs * part.coverage_m2;
-    const gross = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : usedForCal * part.supply_install_rate_per_m2;
+    const gross = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(q, part, l.contract_rate);
     return s + gross;
   }, 0);
   const discountTotal = chargeBeforeMarkup * (discountPct / 100);
