@@ -26,7 +26,7 @@ export type BProject = {
   archived: boolean;
   customers: { name: string; discount_pct: number; category?: string | null } | null;
 };
-export type BProjectLine = { project_id: string; qty_m2: number; parts: Part };
+export type BProjectLine = { project_id: string; part_id?: string | null; qty_m2: number; parts: Part };
 export type BWorkOrder = { id: string; project_id: string | null; archived: boolean; completed_date: string | null; supplier_delivery?: boolean | null };
 /** Inventory sold on an invoice and picked from the warehouse. Negative figures are customer returns. */
 export type BInvoiceLine = { invoice_id?: string; qty?: number | null; part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string; project_id?: string | null; invoice_date?: string | null } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
@@ -152,6 +152,13 @@ export function jobCost(project: BProject, projectLines: BProjectLine[], woLines
       } else if (l.parts.coverage_m2 > 0 && l.part_id) {
         materials += Math.ceil((Number(l.qty) || 0) / l.parts.coverage_m2 - 1e-9) * cost;
       }
+    }
+    // Quote lines that are not on the work order (delivery, for example) still cost money: count them at the quote's pack cost.
+    const onWo = new Set(woLines.map((l) => l.part_id).filter(Boolean));
+    for (const l of projectLines) {
+      if (!l.parts || !l.part_id || onWo.has(l.part_id)) continue;
+      const packs = l.parts.coverage_m2 > 0 ? Math.ceil((Number(l.qty_m2) || 0) / l.parts.coverage_m2 - 1e-9) : 0;
+      materials += packs * (Number(l.parts.pack_cost_ex_gst) || 0);
     }
   } else {
     const supplyOnly = project.job_type === "SUPPLY ONLY";

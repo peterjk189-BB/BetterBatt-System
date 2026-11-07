@@ -196,6 +196,17 @@ export default function ProfitLossReport({
             detail.push({ name: l.parts.name || "Product", how: "Not picked yet", before: 0, credit: 0, contractor: lineContractor });
           }
         }
+        // Quote lines that are not on the work order (delivery, for example) still cost money: count them at the quote's pack cost.
+        const onWo = new Set(wl.map((l) => l.part_id).filter(Boolean));
+        for (const l of pl as any[]) {
+          if (!l.parts || !l.part_id || onWo.has(l.part_id)) continue;
+          const packs = l.parts.coverage_m2 > 0 ? Math.ceil((Number(l.qty_m2) || 0) / l.parts.coverage_m2 - 1e-9) : 0;
+          const c = packs * (Number(l.parts.pack_cost_ex_gst) || 0);
+          if (c <= 0) continue;
+          materials += c;
+          materialsBefore += c;
+          detail.push({ name: l.parts.name || "Product", how: `Not on work order, quote estimate ${packs} pk`, before: c, credit: 0, contractor: 0 });
+        }
       } else {
         for (const l of pl) {
           if (!l.parts) continue;
