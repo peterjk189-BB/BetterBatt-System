@@ -312,7 +312,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                 <td className="px-4 py-2">{c.payment_terms}</td>
                 <td className="px-4 py-2">{c.discount_pct}%</td>
                 <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${c.price_tier === "trade" ? "bg-blue-100 text-blue-800" : c.price_tier === "regency" ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-700"}`}>
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold text-white ${c.price_tier === "trade" ? "bg-green-800" : c.price_tier === "regency" ? "bg-black ring-1 ring-white/30" : "bg-blue-600"}`}>
                     {c.price_tier === "trade" ? "Trade" : c.price_tier === "regency" ? "Regency" : "Retail"}
                   </span>
                 </td>
