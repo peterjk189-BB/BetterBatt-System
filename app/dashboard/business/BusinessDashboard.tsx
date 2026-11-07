@@ -134,6 +134,31 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
           }
         >
           <Margins rows={s.marginByType} target={target} />
+          {s.inventoryDetail.length > 0 && (
+            <details className="mt-3 text-xs">
+              <summary className="cursor-pointer font-medium">How the Inventory sales margin is worked out ({s.inventoryDetail.length} invoice{s.inventoryDetail.length === 1 ? "" : "s"})</summary>
+              <p className="mt-1 text-[var(--muted)]">Sales = invoice amount ex GST. Cost = pack cost of the items picked from the warehouse for that invoice. Items not marked picked have no cost yet, so they make the margin look better than it is.</p>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full min-w-[460px]">
+                  <thead className="text-left uppercase text-[var(--muted)]">
+                    <tr><th className="py-1 pr-2">Invoice</th><th className="py-1 pr-2">Customer</th><th className="py-1 pr-2 text-right">Sales</th><th className="py-1 pr-2 text-right">Cost</th><th className="py-1 pr-2 text-right">Margin</th><th className="py-1">Not picked</th></tr>
+                  </thead>
+                  <tbody>
+                    {s.inventoryDetail.map((r) => (
+                      <tr key={r.id} className="border-t border-[var(--border)]">
+                        <td className="py-1 pr-2"><a className="text-accent hover:underline" href={`/dashboard/invoices/${r.id}`}>INV-{r.number}</a></td>
+                        <td className="py-1 pr-2">{r.customer}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums">{money(r.sales)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums">{money(r.cost)}</td>
+                        <td className="py-1 pr-2 text-right tabular-nums">{r.margin === null ? "—" : `${r.margin.toFixed(0)}%`}</td>
+                        <td className="py-1">{r.unpicked > 0 ? <span className="text-red-600">{r.unpicked} item{r.unpicked === 1 ? "" : "s"} (≈{money(r.unpickedCost)} cost)</span> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
         </Card>
 
         <Card className="lg:col-span-7" title="Top customers" hint={`Accepted quotes, ${s.label}. Sales are quoted value ex GST.`}>

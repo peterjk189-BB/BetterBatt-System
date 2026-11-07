@@ -29,7 +29,7 @@ export type BProject = {
 export type BProjectLine = { project_id: string; qty_m2: number; parts: Part };
 export type BWorkOrder = { id: string; project_id: string | null; archived: boolean; completed_date: string | null; supplier_delivery?: boolean | null };
 /** Inventory sold on an invoice and picked from the warehouse. Negative figures are customer returns. */
-export type BInvoiceLine = { part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string; project_id?: string | null; invoice_date?: string | null } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
+export type BInvoiceLine = { invoice_id?: string; qty?: number | null; part_id: string | null; picked: boolean | null; picked_at: string | null; multi_picked: number | null; packs_picked: number | null; packs_returned?: number | null; invoices: { status: string; project_id?: string | null; invoice_date?: string | null } | null; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 /** Stock the office put back on the shelf from a job (reduces cost). */
 export type BWoReturn = { work_order_id: string; multi: number | null; packs: number | null; created_at: string; parts: { pack_cost_ex_gst: number; pack_per_multi: number } | null };
 export type BWoLine = {
@@ -305,15 +305,34 @@ export function computeStats(data: BData, period: Period, now: Date) {
     byCust.set(name, c);
   }
   // Inventory sales: invoices raised without a quote (counter / item sales) and the stock picked for them.
+  let inventoryDetail: { id: string; number: number; customer: string; sales: number; cost: number; unpicked: number; unpickedCost: number; margin: number | null }[] = [];
   const counterInv = issued.filter((i) => !i.project_id && inR(i.invoice_date, start, end));
   if (counterInv.length > 0) {
     const revenue = counterInv.reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
     let cost = 0;
+    const perInv = new Map<string, { cost: number; unpicked: number; unpickedCost: number }>();
     for (const l of data.invoiceLines ?? []) {
-      if (!l.picked || !l.parts || l.invoices?.project_id || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, start, end)) continue;
-      const ppm = Number(l.parts.pack_per_multi) || 0;
-      cost += ((Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0) - (Number(l.packs_returned) || 0)) * (Number(l.parts.pack_cost_ex_gst) || 0);
+      if (!l.parts || l.invoices?.project_id || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, start, end)) continue;
+      const d = perInv.get(l.invoice_id ?? "") ?? { cost: 0, unpicked: 0, unpickedCost: 0 };
+      const unit = Number(l.parts.pack_cost_ex_gst) || 0;
+      if (l.picked) {
+        const ppm = Number(l.parts.pack_per_multi) || 0;
+        const c = ((Number(l.multi_picked) || 0) * ppm + (Number(l.packs_picked) || 0) - (Number(l.packs_returned) || 0)) * unit;
+        cost += c;
+        d.cost += c;
+      } else {
+        d.unpicked += 1;
+        d.unpickedCost += (Number(l.qty) || 0) * unit;
+      }
+      perInv.set(l.invoice_id ?? "", d);
     }
+    inventoryDetail = counterInv
+      .map((i) => {
+        const d = perInv.get(i.id) ?? { cost: 0, unpicked: 0, unpickedCost: 0 };
+        const sales = Number(i.amount_ex_gst) || 0;
+        return { id: i.id, number: i.invoice_number, customer: i.customers?.name ?? "No customer", sales, cost: d.cost, unpicked: d.unpicked, unpickedCost: d.unpickedCost, margin: sales > 0 ? ((sales - d.cost) / sales) * 100 : null };
+      })
+      .sort((a, b) => b.sales - a.sales);
     byType.set("Inventory sales", { type: "Inventory sales", revenue, profit: revenue - cost, jobs: counterInv.length });
   }
   const marginByType = Array.from(byType.values())
@@ -378,7 +397,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
     label, start, end,
     sales, costs, profit, margin, cashIn, owedTotal, overdueTotal, overdueCount,
     winRate, wonCount: accepted.length, decidedCount: accepted.length + lost,
-    trend, buckets, topOwing, marginByType, topCustomers,
+    trend, buckets, topOwing, marginByType, inventoryDetail, topCustomers,
     funnel: { quotes: inPeriodQuotes.length, accepted: accepted.length, invoiced: invoicedJobs.length, paid: paidJobs.length },
     avgPayDays,
     attention: { waitingSwms, reinspect, overdue: overdueCount, acceptedNoInvoice, draftPos, insuranceSoon, contractorsOwed },

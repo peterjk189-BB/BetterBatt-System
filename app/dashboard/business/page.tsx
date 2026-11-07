@@ -40,7 +40,7 @@ export default async function BusinessPage() {
       .select("id, project_id, invoice_number, kind, amount_ex_gst, total, status, invoice_date, due_date, customers(name)"),
     supabase.from("invoice_payments").select("invoice_id, paid_on, amount"),
     // Materials sold on invoices (picked from the warehouse), and manual returns to stock. Empty if a migration is missing.
-    supabase.from("invoice_lines").select("part_id, picked, picked_at, multi_picked, packs_picked, packs_returned, invoices(status, project_id, invoice_date), parts(pack_cost_ex_gst, pack_per_multi)").eq("picked", true),
+    supabase.from("invoice_lines").select("invoice_id, qty, part_id, picked, picked_at, multi_picked, packs_picked, packs_returned, invoices(status, project_id, invoice_date), parts(pack_cost_ex_gst, pack_per_multi)").not("part_id", "is", null),
     supabase.from("wo_stock_returns").select("work_order_id, multi, packs, created_at, parts(pack_cost_ex_gst, pack_per_multi)"),
     supabase.from("swms").select("id, status, archived, swms_number, work_order_id").not("work_order_id", "is", null),
     supabase
