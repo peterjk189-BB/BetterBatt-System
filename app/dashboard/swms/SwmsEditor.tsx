@@ -104,9 +104,12 @@ export default function SwmsEditor({
   const [error, setError] = useState<string | null>(null);
 
   const creating = useRef<Promise<string | null> | null>(null);
-  const [startInfo, setStartInfo] = useState<{ at: string | null; located: boolean; locating: boolean }>({
+  const [startInfo, setStartInfo] = useState<{ at: string | null; located: boolean; locating: boolean; lat?: number; lng?: number; acc?: number | null }>({
     at: (record as any)?.started_at ?? null,
     located: typeof (record as any)?.start_lat === "number",
+    lat: typeof (record as any)?.start_lat === "number" ? (record as any).start_lat : undefined,
+    lng: typeof (record as any)?.start_lng === "number" ? (record as any).start_lng : undefined,
+    acc: (record as any)?.start_accuracy_m ?? null,
     locating: false,
   });
   const firstRender = useRef(true);
@@ -141,6 +144,7 @@ export default function SwmsEditor({
   // when the row is created; location is best-effort (the phone may refuse or have no signal).
   async function recordStart(swmsId: string, wantLocation: boolean) {
     let located = false;
+    let found: { lat: number; lng: number; acc: number } | null = null;
     if (wantLocation && typeof navigator !== "undefined" && navigator.geolocation) {
       setStartInfo((i) => ({ ...i, locating: true }));
       const pos = await new Promise<GeolocationPosition | null>((resolve) =>
@@ -156,9 +160,10 @@ export default function SwmsEditor({
           .update({ start_lat: pos.coords.latitude, start_lng: pos.coords.longitude, start_accuracy_m: Math.round(pos.coords.accuracy) })
           .eq("id", swmsId);
         located = !locErr;
+        if (located) found = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy) };
       }
     }
-    setStartInfo({ at: new Date().toISOString(), located, locating: false });
+    setStartInfo({ at: new Date().toISOString(), located, locating: false, lat: found?.lat, lng: found?.lng, acc: found?.acc ?? null });
     fetch("/api/swms/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -375,6 +380,20 @@ export default function SwmsEditor({
                 : `Started ${new Date(startInfo.at as string).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} · ${
                     startInfo.located ? "location recorded" : "no location recorded"
                   }`}
+              {startInfo.located && typeof startInfo.lat === "number" && typeof startInfo.lng === "number" && (
+                <>
+                  {" · "}
+                  <a
+                    href={`https://www.google.com/maps?q=${startInfo.lat},${startInfo.lng}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-accent hover:underline"
+                  >
+                    View on map
+                  </a>
+                  {startInfo.acc ? ` (accurate to about ${startInfo.acc} m)` : ""}
+                </>
+              )}
             </p>
           )}
         </div>
