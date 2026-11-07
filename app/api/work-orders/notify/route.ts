@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEmailSender } from "@/lib/emailSender";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
+import { buildDaySheetPdf, loadDaySheet } from "@/lib/daySheet";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -84,6 +85,21 @@ export async function POST(req: Request) {
       if (!to || recipients.has(to.toLowerCase())) continue;
       recipients.set(to.toLowerCase(), (person.full_name || "").split(" ")[0] || "there");
     }
+    // A PDF day sheet per date (the contractor's jobs for that day, with products, quantities and notes), easier to read than the app.
+    const attachments: { filename: string; content: string }[] = [];
+    for (const d of dates.slice(0, 7)) {
+      try {
+        const ds = await loadDaySheet(admin, it.subcontractor_id, d);
+        if (!ds) continue;
+        const bytes = await buildDaySheetPdf(ds);
+        attachments.push({
+          filename: `${d.split("-").reverse().join("-")} Work sheet - ${(ds.contractorName || "Contractor").replace(/[^A-Za-z0-9 _.-]/g, "")}.pdf`,
+          content: Buffer.from(bytes).toString("base64"),
+        });
+      } catch {
+        // the email still goes out without the PDF
+      }
+    }
     if (recipients.size === 0) noEmail.push(((sub as any)?.name as string) || "a contractor");
     for (const [to, first] of Array.from(recipients.entries())) {
       const r = await sendEmail({
@@ -95,10 +111,11 @@ export async function POST(req: Request) {
         html: brandedEmailHtml({
           previewText: `${dateText}${site ? " · " + site : ""}`,
           heading: `Hi ${esc(first)}, a job has been scheduled for you`,
-          bodyHtml: `${msgHtml}<p style="margin:0 0 8px;">Work order ${esc(String(wo.wo_number))}</p><p style="margin:0 0 8px;">${esc(dateText)}</p><p style="margin:0;">${esc(site || "")}</p><p style="margin:12px 0 0;">It is now on your job schedule.</p>`,
+          bodyHtml: `${msgHtml}<p style="margin:0 0 8px;">Work order ${esc(String(wo.wo_number))}</p><p style="margin:0 0 8px;">${esc(dateText)}</p><p style="margin:0;">${esc(site || "")}</p><p style="margin:12px 0 0;">It is now on your job schedule.${attachments.length ? " The work sheet is attached as a PDF." : ""}</p>`,
           buttonText: "Open job schedule",
           buttonUrl: link,
         }),
+        ...(attachments.length ? { attachments } : {}),
       });
       if (r.ok) {
         emailed += 1;
