@@ -48,11 +48,22 @@ export default function SearchSelect({
     const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     const squash = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
     const q = squash(query);
+    // Names that START with what you've typed come first, then names with a word starting with it, then the rest.
+    const rank = (label: string) => {
+      const n = label.toLowerCase();
+      if (n.startsWith(words.join(" "))) return 0;
+      if (words.every((w) => n.startsWith(w) || n.includes(" " + w))) return 1;
+      return 2;
+    };
     const list = words.length
-      ? options.filter((o) => {
-          const n = o.label.toLowerCase();
-          return words.every((w) => n.includes(w)) || (q.length >= 2 && squash(o.label).includes(q));
-        })
+      ? options
+          .filter((o) => {
+            const n = o.label.toLowerCase();
+            return words.every((w) => n.includes(w)) || (q.length >= 2 && squash(o.label).includes(q));
+          })
+          .map((o, i) => ({ o, i, r: rank(o.label) }))
+          .sort((a, b) => a.r - b.r || a.i - b.i)
+          .map((x) => x.o)
       : options;
     return emptyLabel && !words.length ? [{ id: "", label: emptyLabel }, ...list] : list;
   }, [options, query, emptyLabel]);

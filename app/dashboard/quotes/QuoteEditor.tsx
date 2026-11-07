@@ -11,6 +11,7 @@ import { logAudit } from "@/lib/audit";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import RatingWarning from "@/app/dashboard/customers/RatingWarning";
 import { ensureLead } from "@/lib/crmActions";
+import SearchSelect from "../SearchSelect";
 import { OPTION_KEYS, optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
 import { activeRateDate, activeRates, hasContractRate, supplyInstallCharge, type ContractRate } from "@/lib/contractPricing";
@@ -1072,19 +1073,14 @@ export default function QuoteEditor({
       <div className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           Customer
-          <select
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
+          <SearchSelect
+            className="w-full rounded-lg border border-[var(--border)] px-3 py-2"
+            emptyLabel="Select customer..."
+            placeholder="Type the customer name..."
             value={form.customer_id}
-            onChange={(e) => setCustomer(e.target.value)}
-          >
-            <option value="">Select customer...</option>
-            {customerList.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value="__new__">+ Add new customer...</option>
-          </select>
+            options={[...customerList.map((c) => ({ id: c.id, label: c.name })), { id: "__new__", label: "+ Add new customer..." }]}
+            onChange={(id) => setCustomer(id)}
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           Category
