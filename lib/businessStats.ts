@@ -201,11 +201,49 @@ export function computeStats(data: BData, period: Period, now: Date) {
   const sales = issued.filter((i) => inR(i.invoice_date, start, end)).reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
   const cashIn = data.payments.filter((p) => inR(p.paid_on, start, end)).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
-  // ---- costs in the period: materials when picked, contractors by task date ---
+  // ---- job lookups -------------------------------------------------------------------
+  const linesBy = new Map<string, BProjectLine[]>();
+  data.projectLines.forEach((l) => linesBy.set(l.project_id, [...(linesBy.get(l.project_id) ?? []), l]));
+  const wosBy = new Map<string, string[]>();
+  data.workOrders.filter((w) => !w.archived && w.project_id).forEach((w) => wosBy.set(w.project_id!, [...(wosBy.get(w.project_id!) ?? []), w.id]));
+  const woLinesBy = new Map<string, BWoLine[]>();
+  data.woLines.forEach((l) => woLinesBy.set(l.work_order_id, [...(woLinesBy.get(l.work_order_id) ?? []), l]));
+  const invBy = new Map<string, BInvoice[]>();
+  issued.forEach((i) => i.project_id && invBy.set(i.project_id, [...(invBy.get(i.project_id) ?? []), i]));
+
+  // Job costs are recognised when the job is INVOICED, because by then the stock has been picked and any returns are in.
+  // The full job cost (contractors + stock picked less returns, or the quote estimate) is spread over the job's issued invoices
+  // in proportion to the amount invoiced, so a deposit invoice carries its share and the margin of each invoice matches the job.
+  const projectWoIds = new Set(data.workOrders.filter((w) => w.project_id).map((w) => w.id));
+  const invCost = new Map<string, number>();
+  for (const p of data.projects) {
+    const invs = invBy.get(p.id);
+    if (!invs?.length) continue;
+    const pl = linesBy.get(p.id) ?? [];
+    const woIds = wosBy.get(p.id) ?? [];
+    const c = jobCost(p, pl, woIds.flatMap((id) => woLinesBy.get(id) ?? []), rate);
+    let materials = c.materials;
+    for (const r of data.woReturns ?? []) {
+      if (!r.parts || !woIds.includes(r.work_order_id)) continue;
+      const back = ((Number(r.multi) || 0) * (Number(r.parts.pack_per_multi) || 0) + (Number(r.packs) || 0)) * (Number(r.parts.pack_cost_ex_gst) || 0);
+      materials = Math.max(0, materials - back);
+    }
+    const jobTotal = materials + c.contractors;
+    const invoiced = invs.reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
+    const denom = Math.max(quoteTotals(p as any, pl as any).ex, invoiced);
+    if (denom <= 0) continue;
+    for (const i of invs) invCost.set(i.id, jobTotal * ((Number(i.amount_ex_gst) || 0) / denom));
+  }
+
+  // ---- costs in the period: job costs when invoiced; other work orders by task date / pick date ---
   const supplierJobs = new Set(data.workOrders.filter((w) => w.supplier_delivery && !w.archived).map((w) => w.id));
   const costInPeriod = (s: string, e: string) => {
     let c = 0;
+    for (const i of issued) {
+      if (i.project_id && inR(i.invoice_date, s, e)) c += invCost.get(i.id) ?? 0;
+    }
     for (const l of data.woLines) {
+      if (projectWoIds.has(l.work_order_id)) continue; // costed when the job is invoiced (above)
       if (l.task_date && inR(l.task_date, s, e)) c += (Number(l.qty) || 0) * woRate(l, rate);
       if (l.picked && l.picked_at && l.parts && inR(l.picked_at.slice(0, 10), s, e)) {
         const ppm = Number(l.parts.pack_per_multi) || 0;
@@ -224,12 +262,12 @@ export function computeStats(data: BData, period: Period, now: Date) {
     // Inventory sold on an issued invoice counts as supplied, whether or not it was ticked picked: qty x pack cost on the invoice date
     // (a negative quantity is a customer return and brings the cost back down).
     for (const l of data.invoiceLines ?? []) {
-      if (!l.parts || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, s, e)) continue;
+      if (!l.parts || l.invoices?.project_id || l.invoices?.status !== "Sent" || !l.invoices?.invoice_date || !inR(l.invoices.invoice_date, s, e)) continue; // job invoices are costed from the job
       c += (Number(l.qty) || 0) * (Number(l.parts.pack_cost_ex_gst) || 0);
     }
     // Stock the office manually returned to the shelf from a job comes off the cost.
     for (const r of data.woReturns ?? []) {
-      if (!r.parts || !inR(r.created_at.slice(0, 10), s, e)) continue;
+      if (!r.parts || projectWoIds.has(r.work_order_id) || !inR(r.created_at.slice(0, 10), s, e)) continue;
       const ppm = Number(r.parts.pack_per_multi) || 0;
       c -= ((Number(r.multi) || 0) * ppm + (Number(r.packs) || 0)) * (Number(r.parts.pack_cost_ex_gst) || 0);
     }
@@ -284,25 +322,16 @@ export function computeStats(data: BData, period: Period, now: Date) {
     .sort((a, b) => b.daysLate - a.daysLate || b.owing - a.owing)
     .slice(0, 6);
 
-  // ---- jobs (accepted quotes) in the period --------------------------------------
-  const linesBy = new Map<string, BProjectLine[]>();
-  data.projectLines.forEach((l) => linesBy.set(l.project_id, [...(linesBy.get(l.project_id) ?? []), l]));
-  const wosBy = new Map<string, string[]>();
-  data.workOrders.filter((w) => !w.archived && w.project_id).forEach((w) => wosBy.set(w.project_id!, [...(wosBy.get(w.project_id!) ?? []), w.id]));
-  const woLinesBy = new Map<string, BWoLine[]>();
-  data.woLines.forEach((l) => woLinesBy.set(l.work_order_id, [...(woLinesBy.get(l.work_order_id) ?? []), l]));
-  const invBy = new Map<string, BInvoice[]>();
-  issued.forEach((i) => i.project_id && invBy.set(i.project_id, [...(invBy.get(i.project_id) ?? []), i]));
-
+  // ---- jobs invoiced in the period: sales = what was invoiced, cost = the job's cost share on those invoices ----
   const jobs = data.projects
-    .filter((p) => !p.archived && (p.outcome === "Accepted" || p.outcome === "Complete") && inR(p.entry_date, start, end))
     .map((p) => {
-      const pl = linesBy.get(p.id) ?? [];
-      const wl = (wosBy.get(p.id) ?? []).flatMap((id) => woLinesBy.get(id) ?? []);
-      const c = jobCost(p, pl, wl, rate);
-      const revenue = quoteTotals(p as any, pl as any).ex;
-      return { p, revenue, cost: c.materials + c.contractors, profit: revenue - c.materials - c.contractors };
-    });
+      const invs = (invBy.get(p.id) ?? []).filter((i) => inR(i.invoice_date, start, end));
+      if (!invs.length) return null;
+      const revenue = invs.reduce((s, i) => s + (Number(i.amount_ex_gst) || 0), 0);
+      const cost = invs.reduce((s, i) => s + (invCost.get(i.id) ?? 0), 0);
+      return { p, revenue, cost, profit: revenue - cost };
+    })
+    .filter((j): j is NonNullable<typeof j> => j !== null);
 
   // Margin by customer type: Builders, Retro Fit and Private jobs (accepted quotes), plus counter sales of inventory.
   const CAT_LABEL: Record<string, string> = { Builder: "Builders", "Retro Fit": "Retro fit", Private: "Private" };
