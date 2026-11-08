@@ -59,6 +59,7 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
           <p className="text-sm text-[var(--muted)]">{s.label}. Sales are ex GST. Costs are materials picked and contractor task pay.</p>
         </div>
         <div className="flex gap-1 rounded-lg border border-[var(--border)] p-1">
+          {seg("week", "This week")}
           {seg("month", "This month")}
           {seg("quarter", "Quarter")}
           {seg("year", "Financial year")}

@@ -100,7 +100,7 @@ export type BData = {
   subs: BSub[];
 };
 
-export type Period = "month" | "quarter" | "year";
+export type Period = "week" | "month" | "quarter" | "year";
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -110,6 +110,14 @@ const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export function periodRange(period: Period, now: Date): { start: string; end: string; label: string } {
   const y = now.getFullYear();
   const m = now.getMonth();
+  if (period === "week") {
+    // Monday to Sunday containing today.
+    const back = (now.getDay() + 6) % 7;
+    const ws = new Date(y, m, now.getDate() - back);
+    const we = new Date(y, m, now.getDate() - back + 6);
+    const f = (d: Date, withYear: boolean) => d.toLocaleDateString("en-AU", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
+    return { start: ymd(ws), end: ymd(we), label: `Week ${f(ws, false)} to ${f(we, true)}` };
+  }
   if (period === "month") {
     return { start: ymd(new Date(y, m, 1)), end: ymd(new Date(y, m + 1, 0)), label: now.toLocaleDateString("en-AU", { month: "long", year: "numeric" }) };
   }
