@@ -285,6 +285,34 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     setInv({ ...next, ...invoiceTotals(subtotalEx, next.discount_type, next.discount_value) });
   }
 
+  /** Round the total inc GST to a target. The difference goes into the discount/adjustment (ex GST) and GST is taken as 1/11 of the
+   *  total, so the invoice can land on a round figure like $940.00 (ex GST amounts in whole cents cannot always do that). */
+  function setTotalTo(target: number) {
+    if (!(target > 0) || !hasDiscountCols) return;
+    const total = round2(target);
+    const ex = round2(total / 1.1);
+    const gst = round2(total - ex);
+    const disc = round2(subtotalEx - ex);
+    setDiscText(null);
+    setInv({
+      ...inv,
+      discount_type: "amount",
+      discount_value: disc,
+      discount_label: inv.discount_label?.trim() || (disc < 0 ? "Adjustment" : "Rounding"),
+      discount_ex_gst: disc,
+      amount_ex_gst: ex,
+      gst,
+      total,
+    });
+  }
+  const roundTotal = (mode: "near1" | "down" | "up" | "near5" | "near10") => {
+    const t = Number(inv.total) || 0;
+    const step = mode === "near5" ? 5 : mode === "near10" ? 10 : 1;
+    const v = mode === "down" ? Math.floor(t + 1e-9) : mode === "up" ? Math.ceil(t - 1e-9) : Math.round(t / step) * step;
+    setTotalTo(v);
+  };
+  const [targetText, setTargetText] = useState("");
+
   async function saveDetails() {
     await save(
       {
@@ -711,6 +739,20 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
             {draft && <p className="mt-2 text-xs text-[var(--muted)]">Use &minus; for a discount and + for an extra charge (freight, call-out). It applies to the items total (or the amount) and GST is worked out on the result. Press Save below to keep it.</p>}
           </div>
         ) : null}
+        {draft && hasDiscountCols && (
+          <div className="rounded-lg border border-[var(--border)] bg-black/[0.03] p-3 text-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Round the total (inc GST)</p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {([["near1", "Nearest $1"], ["down", "Round down"], ["up", "Round up"], ["near5", "Nearest $5"], ["near10", "Nearest $10"]] as const).map(([m, label]) => (
+                <button key={m} type="button" onClick={() => roundTotal(m)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-sm font-medium text-black">{label}</button>
+              ))}
+              <span className="text-[var(--muted)]">or set it to $</span>
+              <input className="w-28 rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-sm text-black" inputMode="decimal" placeholder="e.g. 940" value={targetText} onChange={(e) => setTargetText(e.target.value.replace(/[^0-9.]/g, ""))} />
+              <button type="button" onClick={() => { setTotalTo(Number(targetText)); setTargetText(""); }} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white">Set</button>
+            </div>
+            <p className="mt-2 text-xs text-[var(--muted)]">The few cents are put into the discount/adjustment above and GST is worked out from the total, so the total inc GST comes out exactly on the figure. Press Save below to keep it. If you change the items afterwards, round again.</p>
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-sm">
             {discountEx !== 0 ? "Amount before adjustment, ex GST" : "Amount ex GST"} {!draft ? <span className="text-xs text-[var(--muted)]">(locked once sent)</span> : hasLines ? <span className="text-xs text-[var(--muted)]">(from items above)</span> : null}
