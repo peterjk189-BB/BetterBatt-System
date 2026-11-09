@@ -1615,48 +1615,73 @@ export default function QuoteEditor({
       </div>
 
       {/* Totals */}
-      <div className="mt-6 grid grid-cols-2 gap-6 rounded-xl border border-[var(--border)] p-5 sm:grid-cols-3 lg:grid-cols-6">
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Line items</div>
-          <div className="text-lg font-semibold">{fmtCurrency(chargeBeforeMarkup)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">
-            Customer discount{customerDiscountPct > 0 ? ` (${customerDiscountPct}%)` : ""}
+      <div className="mt-6 grid gap-6 rounded-xl border border-[var(--border)] p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,380px)]">
+        <div className="grid grid-cols-2 content-start gap-6 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-5">
+          <div>
+            <div className="text-xs uppercase text-[var(--muted)]">Line items</div>
+            <div className="text-lg font-semibold">{fmtCurrency(chargeBeforeMarkup)}</div>
           </div>
-          <div className={`text-lg font-semibold ${customerDiscountTotal > 0 ? "text-red-700" : ""}`}>
-            {customerDiscountTotal > 0 ? `-${fmtCurrency(customerDiscountTotal)}` : fmtCurrency(0)}
+          <div>
+            <div className="text-xs uppercase text-[var(--muted)]">
+              Customer discount{customerDiscountPct > 0 ? ` (${customerDiscountPct}%)` : ""}
+            </div>
+            <div className={`text-lg font-semibold ${customerDiscountTotal > 0 ? "text-red-700" : ""}`}>
+              {customerDiscountTotal > 0 ? `-${fmtCurrency(customerDiscountTotal)}` : fmtCurrency(0)}
+            </div>
           </div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
-          <div className={`text-lg font-semibold ${adjustmentAmount + travelTotal + ncTotal < 0 ? "text-red-700" : ""}`}>
-            {adjustmentAmount + travelTotal + ncTotal >= 0 ? "+" : ""}
-            {fmtCurrency(adjustmentAmount + travelTotal + ncTotal)}
+          <div>
+            <div className="text-xs uppercase text-[var(--muted)]">Discount / markup</div>
+            <div className={`text-lg font-semibold ${adjustmentAmount + travelTotal + ncTotal < 0 ? "text-red-700" : ""}`}>
+              {adjustmentAmount + travelTotal + ncTotal >= 0 ? "+" : ""}
+              {fmtCurrency(adjustmentAmount + travelTotal + ncTotal)}
+            </div>
+            {travelTotal + ncTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal + ncTotal)} travel/fees</div>}
           </div>
-          {travelTotal + ncTotal > 0 && <div className="text-xs text-[var(--muted)]">incl. {fmtCurrency(travelTotal + ncTotal)} travel/fees</div>}
-        </div>
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Subtotal (ex GST)</div>
-          <div className="text-lg font-semibold">{fmtCurrency(subtotal)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">GST — 10% on top</div>
-          <div className="text-lg font-semibold">{fmtCurrency(gst)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-[var(--muted)]">Total payable (inc GST)</div>
-          <div className="text-lg font-bold text-accent">{fmtCurrency(total)}</div>
+          <div>
+            <div className="text-xs uppercase text-[var(--muted)]">Subtotal (ex GST)</div>
+            <div className="text-lg font-semibold">{fmtCurrency(subtotal)}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase text-[var(--muted)]">GST — 10% on top</div>
+            <div className="text-lg font-semibold">{fmtCurrency(gst)}</div>
+          </div>
         </div>
 
-        {acceptedOptKeys.length > 0 && (
-          <div className="col-span-2 rounded-lg bg-[#f2f0ec] px-4 py-3 text-sm sm:col-span-3 lg:col-span-6">
-            Main quote plus accepted option{acceptedOptKeys.length > 1 ? "s" : ""} {acceptedOptKeys.join(", ")}:{" "}
-            <span className="font-bold text-accent">{fmtCurrency(grandTotal)} inc GST</span>
+        {optionKeys.length === 0 ? (
+          <div className="lg:text-right">
+            <div className="text-xs uppercase text-[var(--muted)]">Total payable (inc GST)</div>
+            <div className="text-2xl font-bold text-accent">{fmtCurrency(total)}</div>
+          </div>
+        ) : (
+          <div className="flex w-full flex-col lg:ml-auto">
+            <div className="text-xs uppercase text-[var(--muted)]">Total payable (inc GST)</div>
+            <div className="mt-1 flex justify-between gap-3 border-b border-dashed border-[var(--border)] py-1.5 text-sm tabular-nums">
+              <span>Main quote</span>
+              <span>{fmtCurrency(total)}</span>
+            </div>
+            {optionKeys.map((k) => {
+              const on = optAccepted.includes(k);
+              return (
+                <div key={k} className={`flex justify-between gap-3 border-b border-dashed border-[var(--border)] py-1.5 text-sm tabular-nums ${on ? "" : "text-[var(--muted)]"}`}>
+                  <span>
+                    {optionTitle(optTitles, k)}{" "}
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${on ? "bg-green-100 text-green-800" : "bg-[#efece5] text-[#6b6862]"}`}>
+                      {on ? "Accepted" : "Not accepted"}
+                    </span>
+                  </span>
+                  <span className={on ? "" : "line-through"}>{on ? "+ " : ""}{fmtCurrency(optionTotals[k].total)}</span>
+                </div>
+              );
+            })}
+            <div className="mt-1 flex justify-between gap-3 border-t-2 border-accent pt-2 text-lg font-extrabold tabular-nums text-accent">
+              <span>Total payable</span>
+              <span>{fmtCurrency(grandTotal)}</span>
+            </div>
+            {acceptedOptKeys.length === 0 && <div className="mt-1 text-xs text-[var(--muted)]">No option accepted yet, so this is the main quote only.</div>}
           </div>
         )}
 
-        <div className="col-span-2 border-t border-[var(--border)] pt-4 sm:col-span-3 lg:col-span-6">
+        <div className="border-t border-[var(--border)] pt-4 lg:col-span-2">
           <p className="mb-2 text-xs font-medium uppercase text-[var(--muted)]">
             Internal only — not shown to the customer
           </p>
