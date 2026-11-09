@@ -1,7 +1,7 @@
 "use client";
 
 import { PhoneLink } from "../CallLink";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { lineRate } from "@/lib/woRate";
 import { createClient } from "@/lib/supabase/client";
@@ -431,7 +431,21 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       <div className="mt-6 flex flex-col gap-5">
         {contractorRows.map((cRow) => {
           const { sub, lines: subLines, owed, paidTotal, gst, owedWithGst } = cRow;
-          const visibleLines = [...subLines].sort((a, b) => (b.task_date || "").localeCompare(a.task_date || ""));
+          // Group the lines by work order (most recent job first) so each job gets a total.
+          const woGroups = (() => {
+            const m = new Map<string, typeof subLines>();
+            for (const l of subLines) m.set(l.work_order_id, [...(m.get(l.work_order_id) ?? []), l]);
+            const latest = (ls: typeof subLines) => ls.reduce((d, l) => ((l.task_date || "") > d ? l.task_date || "" : d), "");
+            return Array.from(m.entries())
+              .map(([woId, ls]) => ({
+                woId,
+                lines: [...ls].sort((x, y) => (x.task_date || "").localeCompare(y.task_date || "")),
+                total: ls.reduce((t, l) => t + l.cost, 0),
+                unpaid: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
+                last: latest(ls),
+              }))
+              .sort((x, y) => y.last.localeCompare(x.last));
+          })();
           return (
             <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
@@ -493,42 +507,62 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     </tr>
                   </thead>
                   <tbody>
-                    {visibleLines.map((l) => (
-                      <tr key={l.id} className="border-t border-[var(--border)]">
-                        <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
-                        <td className="px-4 py-2">
-                          {l.work_orders ? (
-                            <Link
-                              href={`/dashboard/work-orders/${l.work_order_id}`}
-                              className="text-accent hover:underline"
-                            >
-                              {l.work_orders.wo_number}
-                            </Link>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-[var(--muted)]">
-                          {l.work_orders?.projects
-                            ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-2">
-                          {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
-                        </td>
-                        <td className="px-4 py-2 text-right">{l.qty}</td>
-                        <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
-                        <td className="px-4 py-2 text-[var(--muted)]">{l.note || "—"}</td>
-                        <td className="px-4 py-2">
-                          <input
-                            type="checkbox"
-                            checked={l.paid}
-                            disabled={savingId === l.id}
-                            onChange={() => togglePaid(l)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {woGroups.map((g) => {
+                      const first = g.lines[0];
+                      const p = first.work_orders?.projects;
+                      return (
+                        <Fragment key={g.woId}>
+                          {g.lines.map((l) => (
+                          <tr key={l.id} className="border-t border-[var(--border)]">
+                            <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
+                            <td className="px-4 py-2">
+                              {l.work_orders ? (
+                                <Link
+                                  href={`/dashboard/work-orders/${l.work_order_id}`}
+                                  className="text-accent hover:underline"
+                                >
+                                  {l.work_orders.wo_number}
+                                </Link>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-[var(--muted)]">
+                              {l.work_orders?.projects
+                                ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
+                                : "—"}
+                            </td>
+                            <td className="px-4 py-2">
+                              {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
+                            </td>
+                            <td className="px-4 py-2 text-right">{l.qty}</td>
+                            <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
+                            <td className="px-4 py-2 text-[var(--muted)]">{l.note || "—"}</td>
+                            <td className="px-4 py-2">
+                              <input
+                                type="checkbox"
+                                checked={l.paid}
+                                disabled={savingId === l.id}
+                                onChange={() => togglePaid(l)}
+                              />
+                            </td>
+                          </tr>
+                          ))}
+                          <tr className="border-t border-[var(--border)] bg-[#f2f0ec] font-semibold">
+                            <td className="px-4 py-2" colSpan={5}>
+                              {first.work_orders?.wo_number || "Work order"} total
+                              <span className="ml-2 font-normal text-[var(--muted)]">
+                                {p ? [p.address, p.suburb].filter(Boolean).join(", ") : ""} · {g.lines.length} line{g.lines.length === 1 ? "" : "s"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-right">{fmtCurrency(g.total)}</td>
+                            <td className="px-4 py-2 font-normal text-[var(--muted)]" colSpan={2}>
+                              {g.unpaid > 0.005 ? `${fmtCurrency(g.unpaid)} unpaid` : "All paid"}
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
