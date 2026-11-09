@@ -3,11 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --bg: #faf9f7;
+  --bg: #e8e5de;
   --surface: #ffffff;
   --text: #201f1c;
   --muted: #6b6862;
-  --border: #e4e1da;
+  --border: #d3cfc4;
   --accent: #2563eb;
 
   /* Better Batt Insulation brand palette, sampled from public/logo.png */
