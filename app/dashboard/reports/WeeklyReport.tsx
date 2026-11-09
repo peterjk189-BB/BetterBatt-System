@@ -47,6 +47,8 @@ export default function WeeklyReport({
   const supabase = createClient();
   const printRef = useRef<HTMLDivElement>(null);
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
+  const [mode, setMode] = useState<"week" | "day">("week");
+  const [day, setDay] = useState(() => new Date());
   const [invLines, setInvLines] = useState<any[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -62,12 +64,19 @@ export default function WeeklyReport({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const start = iso(monday);
+  const isDay = mode === "day";
+  const unit = isDay ? "day" : "week";
   const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-  const end = iso(sunday);
+  const start = isDay ? iso(day) : iso(monday);
+  const end = isDay ? iso(day) : iso(sunday);
+  const dayLong = day.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
+  const rangeText = isDay ? dayLong : `Mon ${long(monday)} to Sun ${long(sunday)}`;
   const inWeek = (d: string | null | undefined) => !!d && d >= start && d <= end;
   const thisMonday = iso(mondayOf(new Date()));
-  const shift = (days: number) => setMonday(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + days));
+  const shift = (days: number) =>
+    isDay
+      ? setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + (days > 0 ? 1 : -1)))
+      : setMonday(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + days));
 
   // 1. Jobs completed
   const jobs = useMemo(() => {
@@ -96,7 +105,7 @@ export default function WeeklyReport({
         };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workOrders, inspections, projects, projectLines, start]);
+  }, [workOrders, inspections, projects, projectLines, start, end]);
 
   // 2. Cash sales: inventory items on an invoice, to anyone, minus deliveries to a job that has a work order.
   const cash = useMemo(() => {
@@ -116,7 +125,7 @@ export default function WeeklyReport({
     const left = all.filter((r) => r.project && woProjects.has(r.project));
     return { kept, left, leftEx: left.reduce((s, r) => s + r.ex, 0) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invLines, workOrders, start]);
+  }, [invLines, workOrders, start, end]);
 
   // 3. Quotes created in the week (value ex GST).
   const quotes = useMemo(() => {
@@ -133,7 +142,7 @@ export default function WeeklyReport({
         ex: val.get(p.id) ?? 0,
       }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, projectLines, start]);
+  }, [projects, projectLines, start, end]);
 
   const jobsTotal = jobs.reduce((s, j) => s + j.value, 0);
   const cashEx = cash.kept.reduce((s, r) => s + r.ex, 0);
@@ -145,7 +154,7 @@ export default function WeeklyReport({
     if (!printRef.current) return;
     setBusy(true);
     try {
-      await elementToPdf(printRef.current, `weekly-report-${start}.pdf`, "landscape");
+      await elementToPdf(printRef.current, `${isDay ? "daily" : "weekly"}-report-${start}.pdf`, "landscape");
     } finally {
       setBusy(false);
     }
@@ -168,11 +177,24 @@ export default function WeeklyReport({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => shift(-7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label="Previous week">‹</button>
-        <span className="min-w-[210px] text-center text-sm font-semibold">Mon {long(monday)} – Sun {long(sunday)}</span>
-        <button onClick={() => shift(7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label="Next week">›</button>
-        <button onClick={() => setMonday(mondayOf(new Date()))} disabled={start === thisMonday} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">This week</button>
-        <button onClick={() => setMonday(new Date(mondayOf(new Date()).getTime() - 7 * 86400000))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Last week</button>
+        <div className="flex overflow-hidden rounded-lg border border-[var(--border)] text-sm">
+          <button onClick={() => setMode("day")} className={`px-3 py-1.5 ${isDay ? "bg-accent text-white" : ""}`}>Daily</button>
+          <button onClick={() => setMode("week")} className={`px-3 py-1.5 ${!isDay ? "bg-accent text-white" : ""}`}>Weekly</button>
+        </div>
+        <button onClick={() => shift(-7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label={`Previous ${unit}`}>‹</button>
+        <span className="min-w-[210px] text-center text-sm font-semibold">{isDay ? dayLong : `Mon ${long(monday)} – Sun ${long(sunday)}`}</span>
+        <button onClick={() => shift(7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label={`Next ${unit}`}>›</button>
+        {isDay ? (
+          <>
+            <button onClick={() => setDay(new Date())} disabled={start === iso(new Date())} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">Today</button>
+            <button onClick={() => { const t = new Date(); setDay(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1)); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Yesterday</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setMonday(mondayOf(new Date()))} disabled={start === thisMonday} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">This week</button>
+            <button onClick={() => setMonday(new Date(mondayOf(new Date()).getTime() - 7 * 86400000))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Last week</button>
+          </>
+        )}
         <button onClick={exportPdf} disabled={busy || !invLines} className="ml-auto rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">{busy ? "Making PDF…" : "Export PDF"}</button>
       </div>
 
@@ -183,8 +205,8 @@ export default function WeeklyReport({
         <>
           <div ref={printRef} className="paper-sheet space-y-5 rounded-xl border border-[var(--border)] bg-white p-5 text-[13px] text-[#201f1c]">
             <div>
-              <p className="text-lg font-bold">Better Batt Insulation — Weekly report</p>
-              <p style={{ color: MUTED }}>Mon {long(monday)} to Sun {long(sunday)}. All dollar figures exclude GST.</p>
+              <p className="text-lg font-bold">Better Batt Insulation — {isDay ? "Daily" : "Weekly"} report</p>
+              <p style={{ color: MUTED }}>{rangeText}. All dollar figures exclude GST.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -197,7 +219,7 @@ export default function WeeklyReport({
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">1. Jobs completed</h3><span className="tabular-nums">{jobs.length} jobs · {money(jobsTotal)}</span></div>
-              <p className="mb-1 text-xs" style={{ color: MUTED }}>Work orders with a completed date in the week.</p>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Work orders with a completed date in the {unit}.</p>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead><tr><th style={thS} className={th}>WO</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Contractor</th><th style={thS} className={th}>Completed</th><th style={thS} className={th}>Inspection</th><th style={thS} className={th + " text-right"}>Quote value</th></tr></thead>
@@ -205,7 +227,7 @@ export default function WeeklyReport({
                     {jobs.map((j) => (
                       <tr key={j.id}><td style={tdS} className={td}>{j.wo}</td><td style={tdS} className={td}>{j.customer}</td><td style={tdS} className={td}>{j.site}</td><td style={tdS} className={td}>{j.contractor}</td><td style={tdS} className={td}>{short(j.date)}</td><td style={tdS} className={td}>{j.inspection}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(j.value)}</td></tr>
                     ))}
-                    {!jobs.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No jobs completed this week.</td></tr>}
+                    {!jobs.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No jobs completed this {unit}.</td></tr>}
                   </tbody>
                   <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={6}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(jobsTotal)}</td></tr></tfoot>
                 </table>
@@ -222,7 +244,7 @@ export default function WeeklyReport({
                     {cash.kept.map((r) => (
                       <tr key={r.number}><td style={tdS} className={td}>INV-{r.number}</td><td style={tdS} className={td}>{short(r.date)}</td><td style={tdS} className={td}>{r.customer}</td><td style={tdS} className={td}>{r.items.join("; ")}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(r.ex)}</td></tr>
                     ))}
-                    {!cash.kept.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No cash sales this week.</td></tr>}
+                    {!cash.kept.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No cash sales this {unit}.</td></tr>}
                   </tbody>
                   <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(cashEx)}</td></tr></tfoot>
                 </table>
@@ -236,7 +258,7 @@ export default function WeeklyReport({
 
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">3. Quotes</h3><span className="tabular-nums">{quotes.length} quotes · {money(quotesEx)}</span></div>
-              <p className="mb-1 text-xs" style={{ color: MUTED }}>Quotes created in the week, with their value ex GST.</p>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Quotes created in the {unit}, with their value ex GST.</p>
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead><tr><th style={thS} className={th}>Quote</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Outcome</th><th style={thS} className={th + " text-right"}>Value ex GST</th></tr></thead>
@@ -244,7 +266,7 @@ export default function WeeklyReport({
                     {quotes.map((q) => (
                       <tr key={q.id}><td style={tdS} className={td}>Q{q.number}</td><td style={tdS} className={td}>{q.customer}</td><td style={tdS} className={td}>{q.site}</td><td style={tdS} className={td}>{q.outcome}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(q.ex)}</td></tr>
                     ))}
-                    {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this week.</td></tr>}
+                    {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this {unit}.</td></tr>}
                   </tbody>
                   <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
                 </table>

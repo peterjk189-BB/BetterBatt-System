@@ -823,7 +823,7 @@ export default function ReportsView({
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
         {tabBtn("sales", "Product sales")}
-        {tabBtn("weekly", "Weekly report")}
+        {tabBtn("weekly", "Daily / weekly report")}
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
       </div>
