@@ -3,6 +3,7 @@
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import Papa from "papaparse";
+import { todayAU } from "@/lib/dates";
 
 type Part = {
   id: string;
@@ -90,7 +91,7 @@ export default function PriceBook({ parts, suppliers }: { parts: Part[]; supplie
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `price-book-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `price-book-${todayAU()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }

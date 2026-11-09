@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { jobProgress, STAGE_LABEL, STAGE_STYLE, type JobStage } from "@/lib/jobProgress";
+import { todayAU } from "@/lib/dates";
 
 export type JobRow = {
   id: string;
@@ -37,7 +38,7 @@ const SWMS_STYLE: Record<SwmsState, string> = {
 };
 
 const fmtDate = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("en-AU") : "—");
-const todayStr = () => new Date().toISOString().slice(0, 10);
+const todayStr = () => todayAU();
 
 function daysFrom(d: string | null) {
   if (!d) return null;

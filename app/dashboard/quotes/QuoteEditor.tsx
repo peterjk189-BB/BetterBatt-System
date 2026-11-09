@@ -15,6 +15,7 @@ import SearchSelect from "../SearchSelect";
 import { OPTION_KEYS, optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 import { PRICE_TIERS, supplyPackPrice, tierLabel, tierPriceMissing } from "@/lib/priceTiers";
 import { activeRateDate, activeRates, hasContractRate, supplyInstallCharge, type ContractRate } from "@/lib/contractPricing";
+import { todayAU } from "@/lib/dates";
 
 type Customer = {
   id: string;
@@ -289,7 +290,7 @@ export default function QuoteEditor({
     lot_no: project?.lot_no || "",
     address: project?.address || prefill?.address || "",
     suburb: project?.suburb || prefill?.suburb || "",
-    entry_date: project?.entry_date || new Date().toISOString().slice(0, 10),
+    entry_date: project?.entry_date || todayAU(),
     notes: project?.notes || "",
     contractor_notes: project?.contractor_notes || "",
     internal_notes: project?.internal_notes || "",

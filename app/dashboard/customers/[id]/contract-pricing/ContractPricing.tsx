@@ -8,6 +8,7 @@ import PartPicker from "@/app/dashboard/PartPicker";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { activeRateDate, type ContractRate } from "@/lib/contractPricing";
+import { todayAU } from "@/lib/dates";
 
 type Part = {
   id: string;
@@ -30,7 +31,7 @@ type Row = {
 };
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => todayAU();
 const dmy = (d: string) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : "");
 let keySeq = 0;
 const newKey = () => `n${++keySeq}`;

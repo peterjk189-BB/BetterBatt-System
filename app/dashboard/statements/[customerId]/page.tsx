@@ -4,11 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { ageingOf, BUCKET_LABELS, statementRows, type StatementInvoice, type StatementPayment } from "@/lib/statements";
 import { fmtDate, invNo, money } from "@/lib/invoices";
 import StatementActions from "./StatementActions";
+import { todayAU } from "@/lib/dates";
 
 export default async function StatementPage({ params, searchParams }: { params: { customerId: string }; searchParams: { date?: string } }) {
   const { customerId } = params;
   const sp = searchParams;
-  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : new Date().toISOString().slice(0, 10);
+  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayAU();
   const supabase = await createClient();
   const { data: c } = await supabase.from("customers").select("*").eq("id", customerId).single();
   if (!c) notFound();

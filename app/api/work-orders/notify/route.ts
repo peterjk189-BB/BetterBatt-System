@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getEmailSender } from "@/lib/emailSender";
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 import { buildDaySheetPdf, loadDaySheet } from "@/lib/daySheet";
+import { todayAU } from "@/lib/dates";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -54,7 +55,7 @@ export async function POST(req: Request) {
   const proj = (wo as any).projects;
   const p = Array.isArray(proj) ? proj[0] : proj;
   const site = [p?.lot_no ? `Lot ${p.lot_no}` : "", p?.address, p?.suburb].filter(Boolean).join(", ");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayAU();
   const link = `${siteUrl()}/dashboard/calendar`;
   let emailed = 0;
   const sentTo: string[] = [];

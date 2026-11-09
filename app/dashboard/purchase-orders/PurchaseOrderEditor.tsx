@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { plural, unitsOf } from "@/lib/units";
 import { fuelLevyAmount } from "@/lib/poFuel";
+import { todayAU } from "@/lib/dates";
 
 type Supplier = { id: string; name: string };
 
@@ -95,7 +96,7 @@ export default function PurchaseOrderEditor({
   const [form, setForm] = useState({
     supplier_id: purchaseOrder?.supplier_id || (isNew ? initial?.supplier_id : undefined) || "",
     status: purchaseOrder?.status || "Draft",
-    order_date: purchaseOrder?.order_date || new Date().toISOString().slice(0, 10),
+    order_date: purchaseOrder?.order_date || todayAU(),
     delivery_address: purchaseOrder?.delivery_address || (isNew ? initial?.delivery_address : undefined) || "",
     site_contact_name: purchaseOrder?.site_contact_name || "",
     site_contact_phone: purchaseOrder?.site_contact_phone || "",

@@ -1,3 +1,4 @@
+import { todayAU } from "./dates";
 export type Invoice = {
   id: string;
   invoice_number: number;
@@ -41,11 +42,12 @@ export const PAY_METHODS = ["Bank transfer", "Card", "Cash", "Cheque", "Other"] 
 export const invNo = (n: number) => `INV-${n}`;
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export const round4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = () => todayAU();
 
 export function addDays(iso: string, days: number) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
+  // Pure date arithmetic (no time zone shifts): parse as UTC noon-free midnight and format as UTC.
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 

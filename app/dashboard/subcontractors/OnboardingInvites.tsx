@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { setInsuranceReminders } from "@/lib/subInsurance";
 import { FILE_KIND_CATEGORY, FILE_KIND_LABEL, type InviteFile, type OnboardingData } from "@/lib/onboarding";
+import { todayAU } from "@/lib/dates";
 
 export type Invite = {
   id: string;
@@ -274,7 +275,7 @@ function ReviewModal({ invite, onClose, onDone }: { invite: Invite; onClose: () 
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayAU();
     const { data: sub, error } = await supabase
       .from("subcontractors")
       .insert({

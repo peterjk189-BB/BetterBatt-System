@@ -4,6 +4,7 @@ import { loadStatement } from "@/lib/statementServer";
 import { getEmailSender } from "@/lib/emailSender";
 import { sendEmail, brandedEmailHtml, cleanEmailList } from "@/lib/email";
 import { fmtDate, money } from "@/lib/invoices";
+import { todayAU } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -13,7 +14,7 @@ export async function POST(req: Request) {
   const ctx = await requireStaff();
   if (!ctx) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
-  const date = typeof body.date === "string" && body.date ? body.date : new Date().toISOString().slice(0, 10);
+  const date = typeof body.date === "string" && body.date ? body.date : todayAU();
   const out = await loadStatement(ctx.supabase, String(body.customer_id || ""), date);
   if (!out) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
   const { good: toList, bad } = cleanEmailList((typeof body.to === "string" && body.to.trim()) || out.email || "");

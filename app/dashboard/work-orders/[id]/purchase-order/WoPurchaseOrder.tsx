@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { packsNeeded } from "@/lib/picking";
+import { todayAU } from "@/lib/dates";
 
 type Job = { id: string; woNumber: string; customer: string; address: string };
 type WoLine = { id: string; qty: number; note: string | null; part_id: string | null; picked: boolean };
@@ -186,7 +187,7 @@ export default function WoPurchaseOrder({
       const poRow = {
           supplier_id: supplierId,
           status: "Draft",
-          order_date: new Date().toISOString().slice(0, 10),
+          order_date: todayAU(),
           delivery_address: form.delivery_address || null,
           site_contact_name: form.site_contact_name || null,
           site_contact_phone: form.site_contact_phone || null,

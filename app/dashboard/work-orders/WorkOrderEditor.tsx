@@ -24,6 +24,7 @@ type Part = { id: string; name: string; installer_rate_per_m2?: number; coverage
 import { lineRate } from "@/lib/woRate";
 import { woLinePacks } from "@/lib/picking";
 import PartPicker from "../PartPicker";
+import { todayAU } from "@/lib/dates";
 
 type WorkOrder = {
   id: string;
@@ -107,7 +108,7 @@ export default function WorkOrderEditor({
     wo_number: workOrder?.wo_number || prefillHeader?.wo_number || "",
     po_number: workOrder?.po_number || "",
     po_value: workOrder?.po_value ?? prefillHeader?.po_value ?? 0,
-    entry_date: workOrder?.entry_date || new Date().toISOString().slice(0, 10),
+    entry_date: workOrder?.entry_date || todayAU(),
     completed_date: workOrder?.completed_date || "",
     jsa_received: workOrder?.jsa_received || false,
     notes: workOrder?.notes || prefillHeader?.notes || "",

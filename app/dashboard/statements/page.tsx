@@ -1,10 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { ageingOf, statementRows, type StatementInvoice, type StatementPayment } from "@/lib/statements";
 import StatementsList from "./StatementsList";
+import { todayAU } from "@/lib/dates";
 
 export default async function StatementsPage({ searchParams }: { searchParams: { date?: string } }) {
   const sp = searchParams;
-  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : new Date().toISOString().slice(0, 10);
+  const date = sp.date && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : todayAU();
   const supabase = await createClient();
   const [{ data: invoices }, { data: payments }, custRes, logRes] = await Promise.all([
     supabase.from("invoices").select("id, invoice_number, customer_id, description, customer_po, total, status, invoice_date, due_date").neq("status", "Void").not("customer_id", "is", null),

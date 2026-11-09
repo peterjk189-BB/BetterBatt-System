@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { invNo } from "@/lib/invoices";
+import { todayAU } from "@/lib/dates";
 
 export const runtime = "nodejs";
 
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
   return new NextResponse(out.join("\r\n") + "\r\n", {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Content-Disposition": `attachment; filename="BetterBatt-invoices-${new Date().toISOString().slice(0, 10)}.iif"`,
+      "Content-Disposition": `attachment; filename="BetterBatt-invoices-${todayAU()}.iif"`,
     },
   });
 }

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { derivedStatus, fmtDate, invNo, money, paidTotal, STATUS_STYLE, type DerivedStatus, type Invoice, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
+import { todayAU } from "@/lib/dates";
 
 type Row = Invoice & {
   customers: { name: string } | null;
@@ -81,7 +82,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
       const blob = await res.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `BetterBatt-invoices-${new Date().toISOString().slice(0, 10)}.iif`;
+      a.download = `BetterBatt-invoices-${todayAU()}.iif`;
       a.click();
       setMsg({ ok: true, text: "Downloaded. In QuickBooks: File > Utilities > Import > IIF Files. Refresh this page to see them marked as exported." });
       setSelected(new Set());

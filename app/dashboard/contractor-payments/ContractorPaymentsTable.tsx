@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
 import { downloadWeekSummaryPdf, mondayOfDay, addDays } from "@/lib/contractorWeekPdf";
+import { todayAU } from "@/lib/dates";
 
 type Sub = {
   id: string;
@@ -266,7 +267,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 10);
+    const stamp = todayAU();
     a.href = url;
     a.download = `contractor-payments-${stamp}.csv`;
     a.click();
