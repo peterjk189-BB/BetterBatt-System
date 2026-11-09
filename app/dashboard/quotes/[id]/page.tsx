@@ -5,7 +5,7 @@ import QuoteEditor from "../QuoteEditor";
 
 export default async function QuotePage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const [{ data: project }, { data: lines }, { data: customers }, { data: parts }, role, { data: workOrders }] = await Promise.all([
+  const [{ data: project }, { data: lines }, { data: customers }, { data: parts }, role, { data: workOrders }, siteVisitsRes] = await Promise.all([
     supabase.from("projects").select("*").eq("id", params.id).single(),
     supabase.from("project_lines").select("*").eq("project_id", params.id).order("sort_order"),
     supabase.from("customers").select("*").eq("archived", false).order("name"),
@@ -17,6 +17,12 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
       .eq("project_id", params.id)
       .eq("archived", false)
       .order("created_at"),
+    supabase
+      .from("site_visits")
+      .select("id, visit_number, visit_date, visit_time, status, visit_type, notes")
+      .eq("project_id", params.id)
+      .eq("archived", false)
+      .order("visit_date", { ascending: false }),
   ]);
 
   if (!project) notFound();
@@ -38,6 +44,7 @@ export default async function QuotePage({ params }: { params: { id: string } }) 
       customers={customers ?? []}
       parts={[...(parts ?? []), ...archivedParts]}
       workOrders={(workOrders ?? []) as any}
+      siteVisits={((siteVisitsRes as any)?.data ?? []) as any}
       isAdmin={role === "admin"}
       crmEnabled={role === "admin" || role === "office"}
     />

@@ -164,6 +164,7 @@ export default function QuoteEditor({
   prefill = null,
   crmEnabled = false,
   workOrders = [],
+  siteVisits = [],
 }: {
   project: Project | null;
   lines: Line[];
@@ -173,6 +174,7 @@ export default function QuoteEditor({
   prefill?: QuotePrefill | null;
   crmEnabled?: boolean;
   workOrders?: QuoteWorkOrder[];
+  siteVisits?: { id: string; visit_number: number; visit_date: string | null; visit_time: string | null; status: string; visit_type: string | null; notes: string | null }[];
 }) {
   const supabase = createClient();
   const router = useRouter();
@@ -218,7 +220,7 @@ export default function QuoteEditor({
     return ids.map((id) => ({ id, name: supplierNames[id] })).sort((a, b) => a.name.localeCompare(b.name));
   }, [parts, supplierNames]);
   const isNew = !project;
-  const [tab, setTab] = useState<"details" | "crm">("details");
+  const [tab, setTab] = useState<"details" | "crm" | "visit">("details");
 
   // Local copy so a customer created on the fly (below) shows up in the dropdown right away.
   const [customerList, setCustomerList] = useState(customers);
@@ -1005,9 +1007,9 @@ export default function QuoteEditor({
         </div>
       )}
 
-      {crmEnabled && !isNew && (
+      {!isNew && (
         <div className="mt-5 flex gap-1 border-b border-[var(--border)]">
-          {([["details", "Quote"], ["crm", "CRM"]] as const).map(([k, label]) => (
+          {([["details", "Quote"], ...(crmEnabled ? [["crm", "CRM"]] : []), ["visit", "Site visit"]] as [("details" | "crm" | "visit"), string][]).map(([k, label]) => (
             <button
               key={k}
               type="button"
@@ -1015,8 +1017,43 @@ export default function QuoteEditor({
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${tab === k ? "border-[var(--brand-gold-dark)] text-[#201f1c]" : "border-transparent text-[var(--muted)]"}`}
             >
               {label}
+              {k === "visit" && (
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${siteVisits.some((v) => v.status === "Visited" || v.status === "Quoted") ? "bg-green-100 text-green-800" : siteVisits.length ? "bg-amber-100 text-amber-800" : "bg-[#efece5] text-[#6b6862]"}`}>
+                  {siteVisits.some((v) => v.status === "Visited" || v.status === "Quoted") ? "Visited" : siteVisits.length ? "Booked" : "None"}
+                </span>
+              )}
             </button>
           ))}
+        </div>
+      )}
+      {!isNew && tab === "visit" && (
+        <div className="mt-5 space-y-3">
+          {siteVisits.length === 0 ? (
+            <div className="rounded-xl border border-[var(--border)] p-5 text-sm">
+              <p className="font-medium">No site visit is linked to this quote.</p>
+              <p className="mt-1 text-[var(--muted)]">If a visit was done for this job, open it in Site visits and link it to this quote. Or book a new one.</p>
+              <a href="/dashboard/site-visits/new" className="mt-3 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">Book a site visit</a>
+            </div>
+          ) : (
+            siteVisits.map((v) => {
+              const done = v.status === "Visited" || v.status === "Quoted";
+              const cancelled = v.status === "Cancelled";
+              const when = v.visit_date ? new Date(v.visit_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" }) : "No date";
+              return (
+                <div key={v.id} className="rounded-xl border border-[var(--border)] p-5">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className={`rounded-full px-3 py-1 text-sm font-bold ${done ? "bg-green-100 text-green-800" : cancelled ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                      {done ? "✓ Visited" : cancelled ? "Cancelled" : "Booked, not visited yet"}
+                    </span>
+                    <span className="font-semibold">Site visit #{v.visit_number}</span>
+                    <span className="text-sm text-[var(--muted)]">{when}{v.visit_time ? ` at ${v.visit_time.slice(0, 5)}` : ""}{v.visit_type ? ` · ${v.visit_type}` : ""}</span>
+                    <a href={`/dashboard/site-visits/${v.id}`} className="ml-auto text-sm text-accent hover:underline">Open site visit</a>
+                  </div>
+                  {v.notes && <p className="mt-3 whitespace-pre-wrap text-sm text-[var(--muted)]">{v.notes}</p>}
+                </div>
+              );
+            })
+          )}
         </div>
       )}
       {crmEnabled && !isNew && tab === "crm" && (
@@ -1035,7 +1072,7 @@ export default function QuoteEditor({
         />
       )}
 
-      <div className={tab === "crm" ? "hidden" : ""}>
+      <div className={tab !== "details" ? "hidden" : ""}>
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
           {error}
