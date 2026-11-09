@@ -4,6 +4,7 @@ import { supplyInstallCharge } from "@/lib/contractPricing";
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment, type PlWoReturn } from "./ProfitLossReport";
 import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
+import CertificatesReport, { type CertInspection } from "./CertificatesReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { fuelLevyAmount } from "@/lib/poFuel";
@@ -763,7 +764,7 @@ function QuotesReport({ projects, projectLines }: { projects: Project[]; project
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly";
+type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly" | "certs";
 
 export default function ReportsView({
   parts,
@@ -776,6 +777,8 @@ export default function ReportsView({
   jobSwms,
   jobInspections,
   jobLines,
+  certInspections = [],
+  certSentColumn = false,
   pl,
 }: {
   parts: Part[];
@@ -788,6 +791,8 @@ export default function ReportsView({
   jobSwms: JobSwms[];
   jobInspections: JobInspection[];
   jobLines: JobLine[];
+  certInspections?: CertInspection[];
+  certSentColumn?: boolean;
   pl: {
     projects: PlProject[];
     projectLines: PlProjectLine[];
@@ -826,6 +831,7 @@ export default function ReportsView({
         {tabBtn("weekly", "Daily / weekly report")}
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
+        {tabBtn("certs", "Certificates")}
       </div>
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
@@ -835,6 +841,7 @@ export default function ReportsView({
       {tab === "sales" && <ProductSalesReport />}
       {tab === "weekly" && <WeeklyReport workOrders={jobWorkOrders} inspections={jobInspections} projects={projects as any} projectLines={projectLines as any} />}
       {tab === "pnl" && <ProfitLossReport {...pl} />}
+      {tab === "certs" && <CertificatesReport inspections={certInspections} invoices={pl.invoices} payments={pl.payments} sentColumn={certSentColumn} />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
   );

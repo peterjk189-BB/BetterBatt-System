@@ -44,6 +44,7 @@ export default function CertificateView({
     inspector_name: string | null;
     inspector_signature: string | null;
     signed_at: string | null;
+    certificate_sent_at?: string | null;
   };
   woNumber: string | null;
   installedOn: string;
@@ -57,6 +58,19 @@ export default function CertificateView({
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [sentAt, setSentAt] = useState<string | null>(inspection.certificate_sent_at ?? null);
+
+  async function markSent(sent: boolean) {
+    setError(null);
+    const v = sent ? new Date().toISOString() : null;
+    const { error: upErr } = await supabase.from("inspections").update({ certificate_sent_at: v }).eq("id", inspection.id);
+    if (upErr) {
+      setError(/certificate_sent_at/.test(upErr.message) ? "Run migration 0092 in Supabase first (certificate sent date), then try again." : upErr.message);
+      return;
+    }
+    setSentAt(v);
+    logAudit(supabase, { eventType: "update", entityType: "Inspection", entityId: inspection.id, entityLabel: certificateNumber(inspection.inspection_number), details: sent ? "Certificate marked as sent" : "Certificate sent mark removed" });
+  }
 
   const certNo = certificateNumber(inspection.inspection_number);
   const address = [inspection.site_address, inspection.suburb].filter(Boolean).join(", ");
@@ -140,6 +154,15 @@ export default function CertificateView({
         >
           Print / Save as PDF
         </button>
+        {sentAt ? (
+          <button type="button" onClick={() => markSent(false)} className="rounded-lg border border-green-600 bg-green-50 px-4 py-2 text-sm font-medium text-green-800" title="Click to undo">
+            ✓ Sent {new Date(sentAt).toLocaleDateString("en-AU")}
+          </button>
+        ) : (
+          <button type="button" onClick={() => markSent(true)} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]">
+            Mark certificate sent
+          </button>
+        )}
         <span className={`text-sm ${status === "error" ? "text-red-700" : status === "dirty" ? "text-[var(--brand-gold-dark)]" : "text-[var(--muted)]"}`}>
           {status === "saved"
             ? "Saved."

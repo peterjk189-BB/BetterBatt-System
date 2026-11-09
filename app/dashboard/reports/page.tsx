@@ -78,6 +78,13 @@ export default async function ReportsPage() {
     .from("wo_stock_returns")
     .select("work_order_id, multi, packs, estimated, parts(name, pack_cost_ex_gst, pack_per_multi)");
 
+  // Passed inspections = certificates to issue. certificate_sent_at exists only after migration 0092.
+  const certSelect =
+    "id, inspection_number, inspection_date, builder_name, site_address, suburb, project_id, work_order_id, projects(quote_number, customers(name)), work_orders(wo_number, project_id, projects(quote_number, customers(name)))";
+  let certRes: any = await supabase.from("inspections").select(`${certSelect}, certificate_sent_at`).eq("result", "PASS").eq("archived", false);
+  const certSentColumn = !certRes.error;
+  if (certRes.error) certRes = await supabase.from("inspections").select(certSelect).eq("result", "PASS").eq("archived", false);
+
   const excluded = await unacceptedOptionLineIds(supabase);
   const countedProjectLines = (projectLines ?? []).filter((l: any) => !excluded.has(l.id));
 
@@ -97,6 +104,8 @@ export default async function ReportsPage() {
       jobSwms={(jobSwms ?? []) as any}
       jobInspections={(jobInspections ?? []) as any}
       jobLines={(jobLines ?? []) as any}
+      certInspections={(certRes.data ?? []) as any}
+      certSentColumn={certSentColumn}
       pl={{
         projects: (projects ?? []) as any,
         projectLines: countedProjectLines as any,
