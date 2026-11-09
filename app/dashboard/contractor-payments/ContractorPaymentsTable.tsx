@@ -69,6 +69,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  const [view, setView] = useState<"contractor" | "weekly">("contractor");
+  const [wkStatus, setWkStatus] = useState<StatusFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("unpaid");
   const [contractorFilter, setContractorFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
@@ -223,6 +225,44 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
+  // ---- Weekly tab: Monday to Sunday by work date, a total per job and per contractor ----
+  const wkStart = mondayOfDay(weekDay);
+  const wkEnd = addDays(wkStart, 6);
+  const weekRows = useMemo(() => {
+    const byC = new Map<string, Map<string, typeof computed>>();
+    for (const l of computed) {
+      if (!l.contractorId || !l.task_date || l.task_date < wkStart || l.task_date > wkEnd) continue;
+      if (wkStatus === "unpaid" && l.paid) continue;
+      if (wkStatus === "paid" && !l.paid) continue;
+      const jobs = byC.get(l.contractorId) ?? new Map<string, typeof computed>();
+      jobs.set(l.work_order_id, [...(jobs.get(l.work_order_id) ?? []), l]);
+      byC.set(l.contractorId, jobs);
+    }
+    return subs
+      .filter((s) => byC.has(s.id))
+      .map((s) => {
+        const jobs = Array.from(byC.get(s.id)!.entries())
+          .map(([woId, ls]) => ({
+            woId,
+            first: ls[0],
+            lines: ls.length,
+            total: ls.reduce((t, l) => t + l.cost, 0),
+            unpaid: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
+            days: Array.from(new Set(ls.map((l) => l.task_date as string))).sort(),
+          }))
+          .sort((a, b) => a.days[0].localeCompare(b.days[0]));
+        const total = jobs.reduce((t, j) => t + j.total, 0);
+        const unpaid = jobs.reduce((t, j) => t + j.unpaid, 0);
+        const gst = s.gst_registered ? total * 0.1 : 0;
+        return { sub: s, jobs, total, unpaid, gst };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [computed, subs, wkStart, wkEnd, wkStatus]);
+  const weekTotal = weekRows.reduce((t, r) => t + r.total, 0);
+  const weekUnpaid = weekRows.reduce((t, r) => t + r.unpaid, 0);
+  const weekGst = weekRows.reduce((t, r) => t + r.gst, 0);
+  const weekJobs = weekRows.reduce((t, r) => t + r.jobs.length, 0);
+
   function exportCsv() {
     const header = [
       "Contractor",
@@ -299,6 +339,114 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         </div>
       </div>
 
+      <div className="mt-4 flex gap-2">
+        {([["contractor", "By contractor"], ["weekly", "Weekly (Mon to Sun)"]] as const).map(([k, l]) => (
+          <button key={k} type="button" onClick={() => setView(k)} className={`rounded-lg px-4 py-2 text-sm font-medium ${view === k ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {view === "weekly" && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => setWeekDay(addDays(wkStart, -7))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label="Previous week">‹</button>
+            <span className="min-w-[230px] text-center text-sm font-semibold">
+              Mon {fmtDate(wkStart)} to Sun {fmtDate(wkEnd)}
+            </span>
+            <button onClick={() => setWeekDay(addDays(wkStart, 7))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label="Next week">›</button>
+            <button onClick={() => setWeekDay(mondayOfDay(todayAU()))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">This week</button>
+            <button onClick={() => setWeekDay(addDays(mondayOfDay(todayAU()), -7))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Last week</button>
+            <select value={wkStatus} onChange={(e) => setWkStatus(e.target.value as StatusFilter)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]">
+              <option value="all">All lines</option>
+              <option value="unpaid">Unpaid only</option>
+              <option value="paid">Paid only</option>
+            </select>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Week total (ex GST)</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(weekTotal)}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">GST (registered contractors)</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(weekGst)}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Still unpaid</div>
+              <div className="mt-1 text-2xl font-bold text-red-700">{fmtCurrency(weekUnpaid)}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Jobs this week</div>
+              <div className="mt-1 text-2xl font-bold">{weekJobs}</div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-5">
+            {weekRows.length === 0 && (
+              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">No contractor work dated in this week.</div>
+            )}
+            {weekRows.map(({ sub, jobs, total, unpaid, gst }) => (
+              <div key={sub.id} className="rounded-xl border border-[var(--border)]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
+                  <div className="font-semibold">
+                    {sub.name}
+                    {sub.gst_registered && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-normal text-blue-800">GST registered</span>}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div><span className="text-[var(--muted)]">Week </span><span className="font-bold">{fmtCurrency(total)}</span></div>
+                    {sub.gst_registered && <div><span className="text-[var(--muted)]">+ GST </span><span className="font-semibold">{fmtCurrency(total + gst)}</span></div>}
+                    <div><span className="text-[var(--muted)]">Unpaid </span><span className={`font-semibold ${unpaid > 0.005 ? "text-red-700" : ""}`}>{fmtCurrency(unpaid)}</span></div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full whitespace-nowrap text-sm">
+                    <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                      <tr>
+                        <th className="px-4 py-2">Work order</th>
+                        <th className="px-4 py-2">Customer / site</th>
+                        <th className="px-4 py-2">Days worked</th>
+                        <th className="px-4 py-2 text-right">Lines</th>
+                        <th className="px-4 py-2 text-right">Job total</th>
+                        <th className="px-4 py-2 text-right">Unpaid</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobs.map((j) => {
+                        const p = j.first.work_orders?.projects;
+                        return (
+                          <tr key={j.woId} className="border-t border-[var(--border)]">
+                            <td className="px-4 py-2">
+                              <Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.first.work_orders?.wo_number || "—"}</Link>
+                            </td>
+                            <td className="px-4 py-2 text-[var(--muted)]">
+                              {p ? `Q${p.quote_number} — ${p.customers?.name || "—"}` : "—"}
+                              {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
+                            </td>
+                            <td className="px-4 py-2 text-[var(--muted)]">{j.days.map((d) => new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric" })).join(", ")}</td>
+                            <td className="px-4 py-2 text-right text-[var(--muted)]">{j.lines}</td>
+                            <td className="px-4 py-2 text-right font-medium">{fmtCurrency(j.total)}</td>
+                            <td className={`px-4 py-2 text-right ${j.unpaid > 0.005 ? "text-red-700" : "text-[var(--muted)]"}`}>{j.unpaid > 0.005 ? fmtCurrency(j.unpaid) : "Paid"}</td>
+                          </tr>
+                        );
+                      })}
+                      <tr className="border-t border-[var(--border)] bg-[#f2f0ec] font-semibold">
+                        <td className="px-4 py-2" colSpan={4}>{sub.name} week total</td>
+                        <td className="px-4 py-2 text-right">{fmtCurrency(total)}</td>
+                        <td className="px-4 py-2 text-right">{unpaid > 0.005 ? fmtCurrency(unpaid) : "Paid"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {view === "contractor" && (
+        <>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-[var(--border)] p-4">
           <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Owed (filtered)</div>
@@ -581,6 +729,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           {unassignedLines.length} task line(s) have no contractor assigned on their work order and aren't shown
           above.
         </div>
+      )}
+        </>
       )}
     </div>
   );
