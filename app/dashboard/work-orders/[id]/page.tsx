@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getEffectiveRole, getEffectiveSubcontractorId } from "@/lib/currentUser";
 import ContractorWorkOrder from "../ContractorWorkOrder";
 import WorkOrderEditor from "../WorkOrderEditor";
@@ -14,7 +15,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       supabase.from("work_orders").select("id, wo_number, notes, projects(id, address, suburb)").eq("id", params.id).single(),
       (async () => {
         // "rate" only exists once migration 0045 is run: fall back to the product's rate without it.
-        const sel = "id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item)";
+        const sel = "id, part_id, qty, task_date, task_time, completed, note, subcontractor_id, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item)";
         const r = await supabase.from("work_order_lines").select(sel + ", rate").eq("work_order_id", params.id).order("sort_order");
         if (!r.error) return r;
         return supabase.from("work_order_lines").select(sel).eq("work_order_id", params.id).order("sort_order");
@@ -27,6 +28,23 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
         .eq("work_order_id", params.id),
     ]);
     if (!wo) notFound();
+    // Contractors cannot read the Inventory (parts) table, so the product name, packs and coverage on their lines come back empty.
+    // Look up just those products with the admin client, only for lines already returned for this work order.
+    const cLinesFull = ((cLines ?? []) as any[]).map((l) => ({ ...l }));
+    const needPartIds = Array.from(new Set(cLinesFull.filter((l) => l.part_id && !l.parts).map((l) => l.part_id as string)));
+    if (needPartIds.length) {
+      const { data: pr } = await createAdminClient()
+        .from("parts")
+        .select("id, name, installer_rate_per_m2, coverage_m2, is_stock_item")
+        .in("id", needPartIds);
+      const byId = new Map(((pr ?? []) as any[]).map((x) => [x.id, x]));
+      for (const l of cLinesFull) {
+        if (l.part_id && !l.parts) {
+          const x = byId.get(l.part_id);
+          if (x) l.parts = { name: x.name, installer_rate_per_m2: x.installer_rate_per_m2, coverage_m2: x.coverage_m2, is_stock_item: x.is_stock_item };
+        }
+      }
+    }
     // Optional tax invoicing: only shown to contractors the office has switched it on for.
     let invoicing: { enabled: boolean; invoices: { id: string; invoice_number: string; status: string }[] } | undefined;
     if (subId) {
@@ -59,7 +77,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       <ContractorWorkOrder
         workOrder={{ id: (wo as any).id, wo_number: (wo as any).wo_number, notes: (wo as any).notes }}
         site={[proj?.address, proj?.suburb].filter(Boolean).join(", ")}
-        lines={((cLines ?? []) as any[]).filter((l) => !subId || !l.subcontractor_id || l.subcontractor_id === subId) as any}
+        lines={cLinesFull.filter((l) => !subId || !l.subcontractor_id || l.subcontractor_id === subId) as any}
         extras={(cExtras ?? []) as any}
         subcontractorId={subId}
         progress={{ swms: (cSwms ?? []) as any, inspections: (cIns ?? []) as any }}
