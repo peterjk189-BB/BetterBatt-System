@@ -827,6 +827,11 @@ export default function QuoteEditor({
                     {Number(partById[l.part_id || ""]?.pack_per_multi) > 0 && (
                       <div className="whitespace-nowrap font-sans text-[10px]">
                         {Number(partById[l.part_id || ""].pack_per_multi)} packs / multi
+                        {Number(l.packs) > 0 && (
+                          <span className="ml-1 font-semibold">
+                            · {(Number(l.packs) / Number(partById[l.part_id || ""].pack_per_multi)).toLocaleString("en-AU", { maximumFractionDigits: 1 })} multis
+                          </span>
+                        )}
                       </div>
                     )}
                   </td>
