@@ -52,7 +52,7 @@ export default function PickingSlip({
   reservedByPart,
   onDraft = {},
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; contactName?: string | null; contactPhone?: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
   /** Shortfalls already on a draft purchase order for this job, by part. */
@@ -356,6 +356,10 @@ export default function PickingSlip({
       <p className="mt-1 text-sm text-[var(--muted)]">
         {[workOrder.customerName, workOrder.address].filter(Boolean).join(" — ") || "No address on file"}
         {workOrder.quoteNumber ? ` · Q${workOrder.quoteNumber}` : ""}
+      </p>
+      <p className="mt-1 text-sm">
+        <span className="text-[var(--muted)]">Contact name:</span> <b>{workOrder.contactName || "—"}</b>
+        <span className="ml-4 text-[var(--muted)]">Contact phone:</span> <b>{workOrder.contactPhone || "—"}</b>
       </p>
 
       <label className="mt-4 flex flex-wrap items-center gap-3 text-sm font-medium">

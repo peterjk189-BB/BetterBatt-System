@@ -19,6 +19,8 @@ type WorkOrder = {
   wo_number: string;
   address: string | null;
   customerName: string | null;
+  contactName?: string | null;
+  contactPhone?: string | null;
   quoteNumber: number | null;
   deliveryDate?: string | null;
   supplierDelivery?: boolean;
@@ -87,6 +89,10 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
               {workOrder.customerName || "—"}
             </div>
             <div className="text-gray-600">{workOrder.address || "—"}</div>
+            <div className="mt-1 text-gray-800">
+              <span className="text-gray-500">Contact name:</span> <b>{workOrder.contactName || "—"}</b>
+              <span className="ml-4 text-gray-500">Contact phone:</span> <b>{workOrder.contactPhone || "—"}</b>
+            </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-xs uppercase tracking-wide text-gray-500">{sup ? "Supplier delivery date" : "Delivery date"}</div>
