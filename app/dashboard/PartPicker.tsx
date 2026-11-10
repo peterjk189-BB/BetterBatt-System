@@ -24,16 +24,20 @@ export default function PartPicker({
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const keyNav = useRef(false);
 
   // The list is position:fixed so scrolling/overflow-hidden parents (e.g. the line-items table) can't clip it.
   useEffect(() => {
     if (!open) return;
-    function place() {
+    function place(ev?: Event) {
+      // Scrolling the list itself must not re-place it (that re-rendered and snapped the list back to the top on touch screens).
+      if (ev && ev.target instanceof Node && listRef.current?.contains(ev.target)) return;
       const r = inputRef.current?.getBoundingClientRect();
       if (!r) return;
       const width = Math.min(448, window.innerWidth * 0.9);
       const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-      setPos({ left, top: r.bottom + 4 });
+      const top = r.bottom + 4;
+      setPos((cur) => (cur && cur.left === left && cur.top === top ? cur : { left, top }));
     }
     place();
     window.addEventListener("scroll", place, true);
@@ -43,6 +47,13 @@ export default function PartPicker({
       window.removeEventListener("resize", place);
     };
   }, [open]);
+
+  // Keep the highlighted row visible only while using the arrow keys (not on every render / touch scroll).
+  useEffect(() => {
+    if (!open || !keyNav.current) return;
+    keyNav.current = false;
+    listRef.current?.querySelector<HTMLElement>('[data-active="1"]')?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
 
   const sorted = useMemo(
     () => [...parts].sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true, sensitivity: "base" })),
@@ -71,10 +82,12 @@ export default function PartPicker({
   function onKey(e: KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      keyNav.current = true;
       setOpen(true);
       setActive((a) => Math.min(a + 1, matches.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      keyNav.current = true;
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter" && open) {
       e.preventDefault();
@@ -114,8 +127,8 @@ export default function PartPicker({
       {open && pos && (
         <div
           ref={listRef}
-          style={{ position: "fixed", left: pos.left, top: pos.top }}
-          className="z-50 max-h-64 w-[28rem] max-w-[90vw] overflow-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-xs shadow-lg"
+          style={{ position: "fixed", left: pos.left, top: pos.top, WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          className="z-50 max-h-[45vh] w-[28rem] max-w-[90vw] overflow-y-auto overscroll-contain rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-xs shadow-lg"
         >
           {matches.length === 0 && <div className="px-3 py-2 text-[var(--muted)]">No products match.</div>}
           {matches.map((p, i) => (
@@ -127,9 +140,7 @@ export default function PartPicker({
                 pick(p.id);
               }}
               onMouseEnter={() => setActive(i)}
-              ref={(el) => {
-                if (el && i === active) el.scrollIntoView({ block: "nearest" });
-              }}
+              data-active={i === active ? "1" : undefined}
               className={`cursor-pointer px-3 py-1.5 ${i === active ? "bg-[#e8effd]" : ""} ${p.id === value ? "font-semibold" : ""}`}
             >
               {p.name}
