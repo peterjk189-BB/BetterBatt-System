@@ -104,7 +104,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
 
   // line table
   y += 12;
-  doc.setFillColor(242, 240, 236);
+  doc.setFillColor(205, 201, 192);
   doc.rect(M, y - 5, W - M * 2, 8, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
