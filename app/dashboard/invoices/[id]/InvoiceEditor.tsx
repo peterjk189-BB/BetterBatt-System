@@ -573,7 +573,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Inventory items</h2>
         <p className="mt-1 text-xs text-[var(--muted)]">Add materials you&apos;re selling on this invoice. Once there are items, the invoice amount is the total of the items. Prices are per pack, ex GST.</p>
         {lines.length > 0 && (
-          <div className="mt-3 overflow-x-auto">
+          <div className="mt-3 hidden overflow-x-auto sm:block">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-[var(--muted)]">
                 <tr><th className="min-w-[22rem] py-1 pr-2">Item</th><th className="w-20 px-2">Qty</th><th className="w-32 px-2">Pack price inc GST</th><th className="w-28 px-2 text-right">Amount ex GST</th>{hasFulfilCols && <th className="w-52 px-2">From</th>}<th></th></tr>
@@ -612,6 +612,51 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {lines.length > 0 && (
+          <div className="mt-3 space-y-3 sm:hidden">
+            {lines.map((l) => (
+              <div key={l.id} className="rounded-lg border border-[var(--border)] p-3 text-sm">
+                {draft ? (
+                  <input className="w-full rounded border border-[var(--border)] bg-white px-2 py-1" value={l.description} onChange={(e) => setLines(lines.map((x) => (x.id === l.id ? { ...x, description: e.target.value } : x)))} onBlur={() => changeLine(l, { description: l.description })} />
+                ) : (
+                  <div className="font-medium">{l.description}</div>
+                )}
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <label className="block">
+                    <span className="text-[var(--muted)]">Qty</span>
+                    {draft ? <input className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" inputMode="decimal" defaultValue={l.qty} onBlur={(e) => Number(e.target.value) !== Number(l.qty) && changeLine(l, { qty: Number(e.target.value) || 0 })} /> : <div className="mt-0.5 text-sm">{l.qty}</div>}
+                  </label>
+                  <label className="block">
+                    <span className="text-[var(--muted)]">Pack inc GST</span>
+                    {draft ? <input key={`${l.id}-${l.unit_price}`} className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-2 py-1 text-sm" inputMode="decimal" defaultValue={round2(Number(l.unit_price) * 1.1).toFixed(2)} onBlur={(e) => { const inc = Number(e.target.value) || 0; if (round2(inc) !== round2(Number(l.unit_price) * 1.1)) changeLine(l, { unit_price: round4(inc / 1.1) }); }} /> : <div className="mt-0.5 text-sm">{money(round2(Number(l.unit_price) * 1.1))}</div>}
+                  </label>
+                  <div>
+                    <span className="text-[var(--muted)]">Ex GST</span>
+                    <div className="mt-0.5 text-sm font-semibold">{money(l.line_ex)}</div>
+                  </div>
+                </div>
+                {hasFulfilCols && (
+                  <div className="mt-2">
+                    {isStockLine(l) ? (
+                      <div>
+                        <span className="text-xs text-[var(--muted)]">From</span>
+                        <select className="mt-0.5 w-full rounded border border-[var(--border)] bg-white px-2 py-2 text-sm" value={l.fulfilment ?? "warehouse"} onChange={(e) => setFulfilment(l, e.target.value as "warehouse" | "supplier")}>
+                          <option value="warehouse">Warehouse (pick)</option>
+                          <option value="supplier">Order from supplier</option>
+                        </select>
+                        {l.picked && <div className="mt-0.5 text-[11px] font-semibold text-green-700">✓ Picked</div>}
+                        {l.po_id && <div className="mt-0.5 text-[11px] font-semibold text-blue-700"><Link href={`/dashboard/purchase-orders/${l.po_id}`} className="hover:underline">On {poNumbers[l.po_id] || "PO"}</Link></div>}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-[var(--muted)]">{l.part_id ? "Non-stock" : "—"}</span>
+                    )}
+                  </div>
+                )}
+                {draft && <button onClick={() => removeLine(l)} className="mt-2 text-xs text-red-700 underline">Remove</button>}
+              </div>
+            ))}
           </div>
         )}
         {lines.length > 0 && (() => {
