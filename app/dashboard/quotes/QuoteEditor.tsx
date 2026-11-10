@@ -1709,7 +1709,7 @@ export default function QuoteEditor({
                 <div key={k} className={`flex justify-between gap-3 border-b border-dashed border-[var(--border)] py-1.5 text-sm tabular-nums ${on ? "" : "text-[var(--muted)]"}`}>
                   <span>
                     {optionTitle(optTitles, k)}{" "}
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${on ? "bg-green-100 text-green-800" : "bg-[#efece5] text-[#6b6862]"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${on ? "bg-green-400 text-black" : "bg-orange-400 text-black"}`}>
                       {on ? "Accepted" : "Not accepted"}
                     </span>
                   </span>
