@@ -11,6 +11,10 @@ import { siteAddress } from "@/lib/siteAddress";
 
 type QuoteItem = {
   id: string;
+  job_type?: string;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  itemLines?: { part_id: string; description: string; qty: number; unit_price: number }[];
   quote_number: number;
   lot_no: string | null;
   address: string | null;
@@ -143,27 +147,45 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from("invoices")
-      .insert({
-        project_id: q?.id ?? null,
-        customer_id: q?.customer_id ?? customerId,
-        kind,
-        description,
-        amount_ex_gst: ex,
-        gst,
-        total,
-        invoice_date: invoiceDate,
-        due_date: due || null,
-        terms,
-        customer_po: po.trim() || null,
-        site_address: siteAddr.trim() || null,
-        ...(deliveryAddr.trim() ? { delivery_address: deliveryAddr.trim() } : {}),
-        notes: notes.trim() || null,
-        created_by: user?.id ?? null,
-      })
-      .select()
-      .single();
+    // A Full (or first Balance) invoice for a Supply only quote carries the quote's products over as invoice items.
+    const copyLines = !!q && q.job_type === "SUPPLY ONLY" && (q.itemLines?.length ?? 0) > 0 && (kind === "Full" || (kind === "Balance" && q.invoiced_ex < 0.005));
+    const linesSum = copyLines ? round2(q!.itemLines!.reduce((s, l) => s + round2(l.qty * l.unit_price), 0)) : 0;
+    const baseRow = {
+      project_id: q?.id ?? null,
+      customer_id: q?.customer_id ?? customerId,
+      kind,
+      description,
+      amount_ex_gst: ex,
+      gst,
+      total,
+      invoice_date: invoiceDate,
+      due_date: due || null,
+      terms,
+      customer_po: po.trim() || null,
+      site_address: siteAddr.trim() || null,
+      ...(deliveryAddr.trim() ? { delivery_address: deliveryAddr.trim() } : {}),
+      notes: notes.trim() || null,
+      created_by: user?.id ?? null,
+    };
+    // Optional columns (site contact; discount). If an older database lacks them, retry without.
+    const extras: Record<string, any> = {};
+    if (q?.contact_name?.trim()) extras.delivery_contact_name = q.contact_name.trim();
+    if (q?.contact_phone?.trim()) extras.delivery_contact_phone = q.contact_phone.trim();
+    if (copyLines) {
+      // Lines are at list price; the difference to the quote total (customer discount / markup) goes in the adjustment.
+      extras.discount_type = "amount";
+      extras.discount_value = round2(linesSum - ex);
+      if (Math.abs(linesSum - ex) > 0.004) extras.discount_label = linesSum > ex ? "Discount" : "Adjustment";
+    }
+    let { data, error } = await supabase.from("invoices").insert({ ...baseRow, ...extras }).select().single();
+    if (error && Object.keys(extras).length) {
+      ({ data, error } = await supabase.from("invoices").insert(baseRow).select().single());
+    }
+    if (!error && data && copyLines) {
+      await supabase.from("invoice_lines").insert(
+        q!.itemLines!.map((l, i) => ({ invoice_id: data!.id, part_id: l.part_id, description: l.description, qty: l.qty, unit_price: l.unit_price, line_ex: round2(l.qty * l.unit_price), sort_order: i }))
+      );
+    }
     setSaving(false);
     if (error || !data) return setErr((error?.message || "Could not create the invoice") + " (has migration 0031 been run?)");
     logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: data.id, entityLabel: `INV-${data.invoice_number}`, details: `${kind} ${isItems ? "item sale" : money(total)}${q ? ` for Q${q.quote_number}` : ""}` });

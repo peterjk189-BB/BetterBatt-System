@@ -13,7 +13,7 @@ import { fmtPicked, plural, unitsOf } from "@/lib/units";
 
 type Full = Invoice & {
   customers: { name: string; contact_email: string | null; accounts_contact_name?: string | null; accounts_contact_email?: string | null; accounts_contact_phone?: string | null } | null;
-  projects: { id: string; quote_number: number; lot_no: string | null; address: string | null; suburb: string | null; contact_email: string | null } | null;
+  projects: { id: string; quote_number: number; lot_no: string | null; address: string | null; suburb: string | null; contact_email: string | null; contact_name?: string | null; contact_phone?: string | null } | null;
 };
 
 const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm";
@@ -264,7 +264,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
-    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, lot_no, address, suburb, contact_email)").single();
+    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, lot_no, address, suburb, contact_email, contact_name, contact_phone)").single();
     setBusy("");
     if (error || !data) return setMsg({ ok: false, text: error?.message || "Could not save" });
     // keep any delivery details typed but not yet saved (they have their own Save button)
@@ -461,6 +461,11 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
           <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
           {(inv as any).customers?.contact_email && <p className="text-[var(--muted)]">{(inv as any).customers.contact_email}</p>}
+          {(inv.projects?.contact_name || inv.projects?.contact_phone || inv.projects?.contact_email) && (
+            <p className="mt-1 text-[var(--muted)]">
+              Quote contact: {[inv.projects?.contact_name, inv.projects?.contact_email, inv.projects?.contact_phone].filter(Boolean).join(" · ")}
+            </p>
+          )}
           {(inv.customers?.accounts_contact_email || inv.customers?.accounts_contact_name || inv.customers?.accounts_contact_phone) ? (
             <p className="mt-1 text-[var(--muted)]">
               <span className="font-medium">Accounts:</span>{" "}

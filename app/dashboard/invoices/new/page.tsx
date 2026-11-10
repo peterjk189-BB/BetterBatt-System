@@ -2,11 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { quoteTotals } from "@/lib/quoteTotals";
 import NewInvoice from "./NewInvoice";
 import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
+import { supplyPackPrice } from "@/lib/priceTiers";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
   const supabase = await createClient();
-  const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, customers(name, discount_pct, payment_terms, contact_email)";
-  const lineSel = "*, parts(coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
+  const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, contact_name, contact_phone, customers(name, discount_pct, payment_terms, contact_email)";
+  const lineSel = "*, parts(id, code, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
   const loadProjects = (cols: string) =>
     supabase.from("projects").select(cols).in("outcome", ["Accepted", "Complete"]).eq("archived", false).order("quote_number", { ascending: false });
   const [pr, ln, { data: invoices, error: invErr }, { data: customers }] = await Promise.all([
@@ -38,8 +39,28 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
   const items = (projects ?? []).map((p: any) => {
     const t = quoteTotals(p, (lines ?? []).filter((l: any) => l.project_id === p.id) as any);
     const invoicedEx = (invoices ?? []).filter((i: any) => i.project_id === p.id).reduce((s: number, i: any) => s + Number(i.amount_ex_gst || 0), 0);
+    // Supply only quotes are product sales: carry each product over as an invoice item (packs x pack price).
+    const itemLines =
+      p.job_type === "SUPPLY ONLY"
+        ? (lines ?? [])
+            .filter((l: any) => l.project_id === p.id && l.part_id && l.parts)
+            .map((l: any) => {
+              const packs = l.parts.coverage_m2 > 0 ? Math.ceil((Number(l.qty_m2) || 0) / l.parts.coverage_m2) : 0;
+              return {
+                part_id: l.part_id as string,
+                description: `${l.parts.code ? l.parts.code + " - " : ""}${l.parts.name}`,
+                qty: packs,
+                unit_price: Math.round(supplyPackPrice(l.parts, p.price_tier) * 10000) / 10000,
+              };
+            })
+            .filter((x: any) => x.qty > 0)
+        : [];
     return {
       id: p.id,
+      job_type: p.job_type as string,
+      contact_name: (p.contact_name as string | null) ?? null,
+      contact_phone: (p.contact_phone as string | null) ?? null,
+      itemLines,
       quote_number: p.quote_number,
       lot_no: p.lot_no,
       address: p.address,

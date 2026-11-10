@@ -953,7 +953,7 @@ export default function QuoteEditor({
               Email to customer
             </button>
           )}
-          {!isNew && form.outcome !== "Complete" && (
+          {!isNew && (form.outcome !== "Complete" || isSupplyOnly) && (
             <Link
               href={`/dashboard/work-orders/new?project_id=${project!.id}`}
               className={
