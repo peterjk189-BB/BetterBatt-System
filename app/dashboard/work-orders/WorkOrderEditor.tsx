@@ -590,9 +590,16 @@ export default function WorkOrderEditor({
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/dashboard/work-orders" className="text-sm text-[var(--muted)] hover:underline">
-            &larr; Work orders
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-4">
+            <Link href="/dashboard/work-orders" className="text-sm text-[var(--muted)] hover:underline">
+              &larr; Work orders
+            </Link>
+            {form.project_id && (
+              <Link href={`/dashboard/quotes/${form.project_id}`} className="text-sm font-medium text-accent hover:underline">
+                &larr; Back to quote{(() => { const q = projects.find((x) => x.id === form.project_id); return q ? ` Q${q.quote_number}` : ""; })()}
+              </Link>
+            )}
+          </div>
           <h1 className="mt-1 text-2xl font-bold">
             {isNew ? "New work order" : `Work order ${workOrder!.wo_number}`}
           </h1>
