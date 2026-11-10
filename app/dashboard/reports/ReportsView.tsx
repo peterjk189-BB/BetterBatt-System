@@ -4,6 +4,7 @@ import { supplyInstallCharge } from "@/lib/contractPricing";
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment, type PlWoReturn } from "./ProfitLossReport";
 import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
+import LowStockReport from "./LowStockReport";
 import CertificatesReport, { type CertInspection } from "./CertificatesReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
@@ -764,7 +765,7 @@ function QuotesReport({ projects, projectLines }: { projects: Project[]; project
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly" | "certs";
+type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly" | "certs" | "lowstock";
 
 export default function ReportsView({
   parts,
@@ -832,6 +833,7 @@ export default function ReportsView({
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
         {tabBtn("certs", "Certificates")}
+        {tabBtn("lowstock", "Low stock")}
       </div>
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
@@ -842,6 +844,7 @@ export default function ReportsView({
       {tab === "weekly" && <WeeklyReport workOrders={jobWorkOrders} inspections={jobInspections} projects={projects as any} projectLines={projectLines as any} />}
       {tab === "pnl" && <ProfitLossReport {...pl} />}
       {tab === "certs" && <CertificatesReport inspections={certInspections} invoices={pl.invoices} payments={pl.payments} sentColumn={certSentColumn} />}
+      {tab === "lowstock" && <LowStockReport />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
   );
