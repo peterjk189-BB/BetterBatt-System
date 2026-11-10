@@ -28,6 +28,7 @@ type Part = {
   id: string;
   name: string;
   coverage_m2: number;
+  pack_per_multi?: number | null;
   pack_cost_ex_gst: number;
   installer_rate_per_m2: number;
   supply_charge_per_pack: number;
@@ -821,6 +822,11 @@ export default function QuoteEditor({
                     {Number(partById[l.part_id || ""]?.coverage_m2) > 0 && (
                       <div className="whitespace-nowrap font-sans text-[10px]">
                         {Number(partById[l.part_id || ""].coverage_m2).toLocaleString("en-AU", { maximumFractionDigits: 2 })} m² / pack
+                      </div>
+                    )}
+                    {Number(partById[l.part_id || ""]?.pack_per_multi) > 0 && (
+                      <div className="whitespace-nowrap font-sans text-[10px]">
+                        {Number(partById[l.part_id || ""].pack_per_multi)} packs / multi
                       </div>
                     )}
                   </td>
