@@ -534,7 +534,8 @@ export default function QuoteEditor({
   const [targetText, setTargetText] = useState("");
   function setTotalTo(target: number) {
     if (!(target > 0)) return;
-    const base = subtotal - adjustmentAmount;
+    // Rounds the Total payable: the main quote plus any ACCEPTED options (the few cents land in the main adjustment).
+    const base = subtotal + acceptedOptSub - adjustmentAmount;
     const ideal = Math.round((target / 1.1 - base) * 100);
     let adj = ideal / 100;
     for (const k of [0, 1, -1, 2, -2]) {
@@ -1621,7 +1622,7 @@ export default function QuoteEditor({
               type="button"
               onClick={() => {
                 // Keeps your discount/markup and only nudges it by the few cents needed to land on the rounded total.
-                const t = Math.round(total * 100) / 100;
+                const t = Math.round(grandTotal * 100) / 100;
                 const r =
                   b.mode === "down" ? Math.floor(t / b.step + 1e-9) * b.step : b.mode === "up" ? Math.ceil(t / b.step - 1e-9) * b.step : Math.round(t / b.step) * b.step;
                 setTotalTo(r);
@@ -1653,7 +1654,7 @@ export default function QuoteEditor({
             Set
           </button>
           <span className="w-full text-xs text-[var(--muted)]">
-            Total now {fmtCurrency(total)}. The few cents are added to or taken off your discount/markup above, so the total including GST comes out on a round figure.
+            {acceptedOptKeys.length > 0 ? "Total payable now" : "Total now"} {fmtCurrency(grandTotal)}{acceptedOptKeys.length > 0 ? " (main quote + accepted options)" : ""}. The few cents are added to or taken off your discount/markup above, so the total including GST comes out on a round figure.
           </span>
         </div>
       </div>
