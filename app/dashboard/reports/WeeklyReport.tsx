@@ -136,8 +136,11 @@ export default function WeeklyReport({
     const rows = invoiceRows
       .filter((i) => i.status !== "Draft" && i.status !== "Void" && inWeek(i.invoice_date))
       .sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : a.invoice_date > b.invoice_date ? 1 : Number(a.invoice_number) - Number(b.invoice_number)));
+    const drafts = invoiceRows.filter((i) => i.status === "Draft" && inWeek(i.invoice_date));
     return {
       rows,
+      drafts,
+      draftEx: drafts.reduce((t, i) => t + (Number(i.amount_ex_gst) || 0), 0),
       ex: rows.reduce((t, i) => t + (Number(i.amount_ex_gst) || 0), 0),
       gst: rows.reduce((t, i) => t + (Number(i.gst) || 0), 0),
       total: rows.reduce((t, i) => t + (Number(i.total) || 0), 0),
@@ -295,6 +298,11 @@ export default function WeeklyReport({
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">4. Invoices issued</h3><span className="tabular-nums">{invoiced.rows.length} invoices · {money(invoiced.ex)} ex GST</span></div>
               <p className="mb-1 text-xs" style={{ color: MUTED }}>Tax invoices dated in the {unit} (drafts and voided invoices are not counted).</p>
+              {invoiced.drafts.length > 0 && (
+                <p className="mb-1 rounded px-2 py-1 text-xs font-semibold" style={{ background: "#fde9b8", color: "#000" }}>
+                  {invoiced.drafts.length} draft invoice{invoiced.drafts.length === 1 ? "" : "s"} dated this {unit} ({money(invoiced.draftEx)} ex GST) not counted yet: {invoiced.drafts.map((d) => `INV-${d.invoice_number}`).join(", ")}. Drafts count once they are sent/issued.
+                </p>
+              )}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
