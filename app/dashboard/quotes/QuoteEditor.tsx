@@ -845,8 +845,15 @@ export default function QuoteEditor({
                   </td>
                   <td className="px-3 py-2">
                     <textarea
-                      rows={Math.max(1, Math.ceil((l.note || "").length / 52))}
-                      className="block w-[26rem] max-w-full resize-none whitespace-normal rounded-lg border border-[var(--border)] px-2 py-1.5 leading-snug"
+                      rows={1}
+                      ref={(el) => {
+                        // Grow to fit every line of the note (a row-count guess used to hide the last line).
+                        if (el) {
+                          el.style.height = "auto";
+                          el.style.height = `${el.scrollHeight + 2}px`;
+                        }
+                      }}
+                      className="block w-[26rem] max-w-full resize-none overflow-hidden whitespace-normal rounded-lg border border-[var(--border)] px-2 py-1.5 leading-snug"
                       value={l.note || ""}
                       onChange={(e) => updateLine(idx, { note: e.target.value })}
                     />
