@@ -50,6 +50,7 @@ export default function WeeklyReport({
   const [mode, setMode] = useState<"week" | "day">("week");
   const [day, setDay] = useState(() => new Date());
   const [invLines, setInvLines] = useState<any[] | null>(null);
+  const [invoiceRows, setInvoiceRows] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -60,6 +61,9 @@ export default function WeeklyReport({
         .select("invoice_id, part_id, description, qty, line_ex, invoices(invoice_number, invoice_date, status, project_id, customers(name))");
       if (res.error) setError(res.error.message);
       else setInvLines(res.data ?? []);
+      // Every invoice header, for the "Invoiced" total (drafts and voids are left out below).
+      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, customers(name)");
+      if (!inv.error) setInvoiceRows(inv.data ?? []);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,6 +130,20 @@ export default function WeeklyReport({
     return { kept, left, leftEx: left.reduce((s, r) => s + r.ex, 0) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [invLines, workOrders, start, end]);
+
+  // Invoices issued in the period (Sent or Paid; drafts and voids are not counted).
+  const invoiced = useMemo(() => {
+    const rows = invoiceRows
+      .filter((i) => i.status !== "Draft" && i.status !== "Void" && inWeek(i.invoice_date))
+      .sort((a, b) => (a.invoice_date < b.invoice_date ? -1 : a.invoice_date > b.invoice_date ? 1 : Number(a.invoice_number) - Number(b.invoice_number)));
+    return {
+      rows,
+      ex: rows.reduce((t, i) => t + (Number(i.amount_ex_gst) || 0), 0),
+      gst: rows.reduce((t, i) => t + (Number(i.gst) || 0), 0),
+      total: rows.reduce((t, i) => t + (Number(i.total) || 0), 0),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceRows, start, end]);
 
   // 3. Quotes created in the week (value ex GST).
   const quotes = useMemo(() => {
@@ -206,10 +224,11 @@ export default function WeeklyReport({
           <div ref={printRef} className="paper-sheet space-y-5 rounded-xl border border-[var(--border)] bg-white p-5 text-[13px] text-[#201f1c]">
             <div>
               <p className="text-lg font-bold">Better Batt Insulation — {isDay ? "Daily" : "Weekly"} report</p>
-              <p style={{ color: MUTED }}>{rangeText}. All dollar figures exclude GST.</p>
+              <p style={{ color: MUTED }}>{rangeText}. All dollar figures exclude GST unless marked.</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            {tile("Invoiced", money(invoiced.ex), `${invoiced.rows.length} invoices · ${money(invoiced.total)} inc GST`)}
             {tile("Jobs completed", String(jobs.length), `${money(jobsTotal)} quoted ex GST`)}
             {tile("Cash sales", money(cashEx), `${cash.kept.length} invoices, ex GST`)}
             {tile("Quotes", String(quotes.length), `${money(quotesEx)} ex GST`)}
@@ -269,6 +288,23 @@ export default function WeeklyReport({
                     {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this {unit}.</td></tr>}
                   </tbody>
                   <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
+                </table>
+              </div>
+            </section>
+
+            <section>
+              <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">4. Invoices issued</h3><span className="tabular-nums">{invoiced.rows.length} invoices · {money(invoiced.ex)} ex GST</span></div>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Tax invoices dated in the {unit} (drafts and voided invoices are not counted).</p>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
+                  <tbody>
+                    {invoiced.rows.map((i) => (
+                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
+                    ))}
+                    {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No invoices issued this {unit}.</td></tr>}
+                  </tbody>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total invoiced</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.gst)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.total)}</td></tr></tfoot>
                 </table>
               </div>
             </section>
