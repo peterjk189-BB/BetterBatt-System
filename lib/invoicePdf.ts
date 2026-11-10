@@ -166,6 +166,16 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     row("Balance due", money(Math.max(0, inv.total - input.paid)), true);
   }
 
+  // Notes sit above the payment terms.
+  if (inv.notes) {
+    y += 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    const nl = doc.splitTextToSize(inv.notes, W - M * 2) as string[];
+    doc.text(nl, M, y);
+    y += nl.length * 4.8 - 3;
+  }
+
   y += 8;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
@@ -180,12 +190,6 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   for (const l of payLines) {
     doc.text(l, M, y);
     y += 4.8;
-  }
-  if (inv.notes) {
-    y += 3;
-    const nl = doc.splitTextToSize(inv.notes, W - M * 2) as string[];
-    doc.text(nl, M, y);
-    y += nl.length * 4.8;
   }
   if (company.footer) {
     y += 6;
