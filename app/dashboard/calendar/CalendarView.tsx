@@ -1085,7 +1085,7 @@ export default function CalendarView({
                               title={`Site visit #${ev.visitNumber} — ${ev.customerName} (${ev.address}) — ${ev.status}${
                                 ev.assignedToName ? ` — ${ev.assignedToName}` : ""
                               }`}
-                              className="block rounded bg-lime-300 px-1.5 py-1 text-[11px] leading-tight text-[#1a2e05] hover:bg-lime-400"
+                              className="cal-visit block rounded bg-lime-300 px-1.5 py-1 text-[11px] leading-tight text-[#1a2e05] hover:bg-lime-400"
                             >
                               <div className="truncate font-medium">
                                 {ev.time ? `${fmtTime(ev.time)} · ` : ""}
