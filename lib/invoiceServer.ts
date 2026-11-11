@@ -27,7 +27,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
   ]);
   const bytes = await buildInvoicePdf({
     invoice: inv as Invoice,
-    customerName: customer?.name || "",
+    customerName: (inv as any).bill_to_name || customer?.name || "",
     customerEmail: customer?.contact_email || project?.contact_email || null,
     deliveryAddress: inv.delivery_address ?? null,
     siteAddress: inv.site_address || (project ? siteAddress(project as any) : null),
@@ -36,5 +36,5 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     lines: (lines ?? []) as any,
     company: { abn: settings?.abn, phone: settings?.company_phone, bankDetails: settings?.invoice_bank_details, footer: settings?.invoice_footer },
   });
-  return { bytes, inv: inv as Invoice, customerEmail: customer?.contact_email || project?.contact_email || null, customerName: customer?.name || "" };
+  return { bytes, inv: inv as Invoice, customerEmail: customer?.contact_email || project?.contact_email || null, customerName: (inv as any).bill_to_name || customer?.name || "" };
 }

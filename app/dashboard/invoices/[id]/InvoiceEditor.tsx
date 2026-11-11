@@ -32,6 +32,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [tier, setTier] = useState<string>((invoice.customers as any)?.price_tier || "retail");
   const [partSearch, setPartSearch] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [editBill, setEditBill] = useState(false);
+  const [billName, setBillName] = useState("");
   const [editCust, setEditCust] = useState(false);
   const [custList, setCustList] = useState<{ id: string; name: string }[]>([]);
   const [custChoice, setCustChoice] = useState("");
@@ -428,7 +430,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         {inv.qb_exported_at && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">In QuickBooks export {fmtDate(inv.qb_exported_at.slice(0, 10))}</span>}
       </div>
       <p className="mt-1 text-sm text-[var(--muted)]">
-        {inv.customers?.name || "No customer"}
+        {(inv as any).bill_to_name || inv.customers?.name || "No customer"}
         {inv.projects && (
           <>
             {" · "}
@@ -459,8 +461,24 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
       <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
         <div className="rounded-lg bg-black/[0.03] p-3 text-sm">
           <p className="text-xs uppercase tracking-wide text-[var(--muted)]">Bill to</p>
-          <p className="text-base font-semibold">{inv.customers?.name || "No customer"}</p>
+          <p className="text-base font-semibold">{(inv as any).bill_to_name || inv.customers?.name || "No customer"}</p>
           {(inv as any).customers?.contact_email && <p className="text-[var(--muted)]">{(inv as any).customers.contact_email}</p>}
+          {inv.status !== "Void" && (
+            <div className="mt-2">
+              {editBill ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input className={input + " max-w-xs"} value={billName} placeholder={inv.customers?.name || "Name on invoice"} onChange={(e) => setBillName(e.target.value)} />
+                  <button type="button" onClick={async () => { await save({ bill_to_name: billName.trim() || null } as any, "Name on invoice updated."); setEditBill(false); }} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white">Save name</button>
+                  <button type="button" onClick={() => setEditBill(false)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Cancel</button>
+                  <span className="w-full text-xs text-[var(--muted)]">Changes the name on this invoice only (screen, PDF and email). Leave empty to use the customer name.</span>
+                </div>
+              ) : (
+                <button type="button" onClick={() => { setBillName((inv as any).bill_to_name || inv.customers?.name || ""); setEditBill(true); }} className="text-xs font-medium text-accent hover:underline">
+                  Edit name on this invoice
+                </button>
+              )}
+            </div>
+          )}
           {(inv.projects?.contact_name || inv.projects?.contact_phone || inv.projects?.contact_email) && (
             <p className="mt-1 text-[var(--muted)]">
               Quote contact: {[inv.projects?.contact_name, inv.projects?.contact_email, inv.projects?.contact_phone].filter(Boolean).join(" · ")}

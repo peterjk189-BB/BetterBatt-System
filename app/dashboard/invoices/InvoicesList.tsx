@@ -188,7 +188,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                     {invNo(inv.invoice_number)}
                   </Link>
                 </td>
-                <td className="px-3 py-2">{inv.customers?.name || "—"}</td>
+                <td className="px-3 py-2">{(inv as any).bill_to_name || inv.customers?.name || "—"}</td>
                 <td className="px-3 py-2 text-[var(--muted)]">{inv.projects ? `Q${inv.projects.quote_number} · ${siteAddress(inv.projects)}` : "—"}</td>
                 <td className="px-3 py-2">{inv.kind}</td>
                 <td className="px-3 py-2">{fmtDate(inv.invoice_date)}</td>
