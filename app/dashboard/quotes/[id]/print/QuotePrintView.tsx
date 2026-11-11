@@ -181,7 +181,21 @@ export default function QuotePrintView({
             size: A4;
             margin: 0;
           }
+          /* The app's grey page background and the page padding around the quote were printing
+             as a border on page 1 and a grey wash on page 2. Print on plain white paper. */
+          html,
+          body,
+          main {
+            background: #fff !important;
+          }
+          main {
+            padding: 0 !important;
+          }
           .quote-sheet {
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            max-width: none !important;
             padding: 12mm 14mm !important;
             -webkit-box-decoration-break: clone;
             box-decoration-break: clone;
