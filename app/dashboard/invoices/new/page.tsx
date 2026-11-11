@@ -6,7 +6,7 @@ import { supplyPackPrice } from "@/lib/priceTiers";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
   const supabase = await createClient();
-  const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, contact_name, contact_phone, customers(name, discount_pct, payment_terms, contact_email)";
+  const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, contact_name, contact_phone, option_accepted, option_adjust, customers(name, discount_pct, payment_terms, contact_email)";
   const lineSel = "*, parts(id, code, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
   const loadProjects = (cols: string) =>
     supabase.from("projects").select(cols).in("outcome", ["Accepted", "Complete"]).eq("archived", false).order("quote_number", { ascending: false });

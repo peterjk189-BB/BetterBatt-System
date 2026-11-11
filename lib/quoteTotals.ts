@@ -12,7 +12,7 @@ type PartForTotal = {
 
 /** Quote total ex GST / GST / inc GST, the same sums the quote print view uses. */
 export function quoteTotals(
-  project: { job_type: string; quote_markup: number | null; price_tier?: string | null; customers?: { discount_pct: number | null } | null },
+  project: { job_type: string; quote_markup: number | null; price_tier?: string | null; option_accepted?: string[] | null; option_adjust?: Record<string, number> | null; customers?: { discount_pct: number | null } | null },
   lines: { qty_m2: number; contract_rate?: number | null; parts: PartForTotal }[]
 ) {
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
@@ -24,7 +24,9 @@ export function quoteTotals(
     return s + (isSupplyOnly ? packs * supplyPackPrice(part as any, project.price_tier) : supplyInstallCharge(q, part, l.contract_rate));
   }, 0);
   const disc = before * ((project.customers?.discount_pct || 0) / 100);
-  const ex = before - disc + (Number(project.quote_markup) || 0);
+  // Discount / markup typed on an accepted option (option_adjust, saved in $) is part of what the customer pays.
+  const optionAdj = (project.option_accepted ?? []).reduce((a, k) => a + (Number(project.option_adjust?.[k]) || 0), 0);
+  const ex = before - disc + (Number(project.quote_markup) || 0) + optionAdj;
   const gst = ex * 0.1;
   return { ex, gst, total: ex + gst };
 }
