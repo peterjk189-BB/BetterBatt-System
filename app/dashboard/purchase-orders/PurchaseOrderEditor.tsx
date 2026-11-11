@@ -225,7 +225,27 @@ export default function PurchaseOrderEditor({
     return (Number(l.qty_pks) || 0) * (Number(l.unit_cost) || 0);
   }
 
-  const showJobs = lineItems.some((l) => !!l.work_order_id);
+  // Work orders a line can be linked to (so a PO raised by hand can still be tied to its job).
+  const [woOptions, setWoOptions] = useState<{ id: string; label: string }[]>([]);
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("work_orders")
+        .select("id, wo_number, projects(address, suburb, customers(name))")
+        .eq("archived", false)
+        .order("created_at", { ascending: false })
+        .limit(250);
+      setWoOptions(
+        ((data ?? []) as any[]).map((w) => {
+          const pr = Array.isArray(w.projects) ? w.projects[0] : w.projects;
+          const cu = Array.isArray(pr?.customers) ? pr.customers[0] : pr?.customers;
+          return { id: w.id, label: [w.wo_number, cu?.name, [pr?.address, pr?.suburb].filter(Boolean).join(", ")].filter(Boolean).join(" · ") };
+        })
+      );
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const showJobs = true;
   const subtotal = lineItems.reduce((s, l) => s + lineTotal(l), 0);
   const fuelLevy = fuelLevyAmount(subtotal, form.fuel_levy_type, form.fuel_levy_value);
   const gst = (subtotal + fuelLevy) * 0.1;
@@ -730,12 +750,23 @@ export default function PurchaseOrderEditor({
                   })()}
                   {showJobs && (
                     <td className="px-3 py-2">
-                      {l.work_order_id ? (
-                        <Link href={`/dashboard/work-orders/${l.work_order_id}`} className="text-accent hover:underline">
-                          {woNumbers[l.work_order_id] || "Work order"}
+                      <select
+                        className="w-full min-w-[11rem] rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-xs"
+                        value={l.work_order_id ?? ""}
+                        onChange={(e) => updateLine(idx, { work_order_id: e.target.value || null })}
+                      >
+                        <option value="">For stock (no job)</option>
+                        {l.work_order_id && !woOptions.some((o) => o.id === l.work_order_id) && (
+                          <option value={l.work_order_id}>{woNumbers[l.work_order_id] || "Work order"}</option>
+                        )}
+                        {woOptions.map((o) => (
+                          <option key={o.id} value={o.id}>{o.label}</option>
+                        ))}
+                      </select>
+                      {l.work_order_id && (
+                        <Link href={`/dashboard/work-orders/${l.work_order_id}`} className="mt-0.5 block text-xs text-accent hover:underline">
+                          Open {woNumbers[l.work_order_id] || "work order"}
                         </Link>
-                      ) : (
-                        <span className="text-[var(--muted)]">—</span>
                       )}
                     </td>
                   )}
