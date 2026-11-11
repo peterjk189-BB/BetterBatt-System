@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { packsNeeded } from "@/lib/picking";
@@ -15,6 +15,7 @@ type Row = {
   onOrder: number;
   reorder: number | null;
   cost: number;
+  orders: { poId: string; poNumber: string; supplier: string; orderDate: string | null; due: string | null; left: number; job: string | null }[];
 };
 
 const num = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
@@ -29,6 +30,7 @@ export default function LowStockReport() {
   const [filter, setFilter] = useState<"low" | "all">("low");
   const [supplierFilter, setSupplierFilter] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     (async () => {
@@ -56,18 +58,41 @@ export default function LowStockReport() {
       }
 
       // Packs on purchase orders that are Ordered but not received yet.
-      const po: any = await supabase
-        .from("purchase_order_lines")
-        .select("part_id, qty_pks, received_multi, received_pks, purchase_orders!inner(status, archived)")
-        .eq("purchase_orders.status", "Ordered")
-        .eq("purchase_orders.archived", false);
+      const poSel = "part_id, qty_pks, received_multi, received_pks, work_orders(wo_number, projects(customers(name))), purchase_orders!inner(id, po_number, status, archived, order_date, delivery_date, suppliers(name))";
+      let po: any = await supabase.from("purchase_order_lines").select(poSel).eq("purchase_orders.status", "Ordered").eq("purchase_orders.archived", false);
+      if (po.error) {
+        // Fall back to the plain query if the job link can't be loaded.
+        po = await supabase
+          .from("purchase_order_lines")
+          .select("part_id, qty_pks, received_multi, received_pks, purchase_orders!inner(id, po_number, status, archived, order_date, delivery_date, suppliers(name))")
+          .eq("purchase_orders.status", "Ordered")
+          .eq("purchase_orders.archived", false);
+      }
       const onOrder = new Map<string, number>();
+      const orderList = new Map<string, Row["orders"]>();
       for (const l of (po.data ?? []) as any[]) {
         if (!l.part_id) continue;
         const part = partsData.find((p) => p.id === l.part_id);
         const got = (Number(l.received_multi) || 0) * (Number(part?.pack_per_multi) || 0) + (Number(l.received_pks) || 0);
         const left = Math.max(0, (Number(l.qty_pks) || 0) - got);
-        if (left) onOrder.set(l.part_id, (onOrder.get(l.part_id) ?? 0) + left);
+        if (!left) continue;
+        onOrder.set(l.part_id, (onOrder.get(l.part_id) ?? 0) + left);
+        const o = Array.isArray(l.purchase_orders) ? l.purchase_orders[0] : l.purchase_orders;
+        const sup = Array.isArray(o?.suppliers) ? o.suppliers[0] : o?.suppliers;
+        const wo = Array.isArray(l.work_orders) ? l.work_orders[0] : l.work_orders;
+        const proj = Array.isArray(wo?.projects) ? wo.projects[0] : wo?.projects;
+        const cust = Array.isArray(proj?.customers) ? proj.customers[0] : proj?.customers;
+        const arr = orderList.get(l.part_id) ?? [];
+        arr.push({
+          poId: o?.id,
+          poNumber: o?.po_number || "PO",
+          supplier: sup?.name || "—",
+          orderDate: o?.order_date ?? null,
+          due: o?.delivery_date ?? null,
+          left,
+          job: wo?.wo_number ? `${wo.wo_number}${cust?.name ? " · " + cust.name : ""}` : null,
+        });
+        orderList.set(l.part_id, arr);
       }
 
       setRows(
@@ -85,6 +110,7 @@ export default function LowStockReport() {
               onOrder: onOrder.get(p.id) ?? 0,
               reorder: p.reorder_level == null ? null : Number(p.reorder_level),
               cost: Number(p.pack_cost_ex_gst) || 0,
+              orders: orderList.get(p.id) ?? [],
             };
           })
       );
@@ -174,7 +200,8 @@ export default function LowStockReport() {
               </thead>
               <tbody>
                 {view.map((r) => (
-                  <tr key={r.id} className="border-b border-[var(--border)]">
+                  <Fragment key={r.id}>
+                  <tr className="border-b border-[var(--border)]">
                     <td className={td}>
                       <Link href="/dashboard/parts" className="hover:underline">{r.code ? `${r.code} · ` : ""}{r.name}</Link>
                       {r.out && <span className="ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: "#f5b5ae", color: "#000" }}>Out</span>}
@@ -184,7 +211,18 @@ export default function LowStockReport() {
                     <td className={td + " text-right tabular-nums"}>{num(r.onHand)}</td>
                     <td className={td + " text-right tabular-nums"}>{r.reserved ? num(r.reserved) : "—"}</td>
                     <td className={td + " text-right font-semibold tabular-nums"}>{num(r.available)}</td>
-                    <td className={td + " text-right tabular-nums"}>{r.onOrder ? num(r.onOrder) : "—"}</td>
+                    <td className={td + " text-right tabular-nums"}>
+                      {r.onOrder ? (
+                        <button
+                          type="button"
+                          onClick={() => setOpen((o) => { const n = new Set(o); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
+                          className="font-medium text-accent underline decoration-dotted"
+                          title="Show which orders this is on"
+                        >
+                          {num(r.onOrder)} {open.has(r.id) ? "▴" : "▾"}
+                        </button>
+                      ) : "—"}
+                    </td>
                     <td className={td + " text-right tabular-nums"}>{r.suggest ? num(r.suggest) : "—"}</td>
                     <td className={td + " text-right"}>
                       <input
@@ -198,6 +236,25 @@ export default function LowStockReport() {
                       />
                     </td>
                   </tr>
+                  {open.has(r.id) && r.orders.length > 0 && (
+                    <tr className="border-b border-[var(--border)] bg-black/[0.03]">
+                      <td className={td} colSpan={8}>
+                        <div className="space-y-1 pl-4 text-xs">
+                          {r.orders.map((o, i) => (
+                            <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+                              <Link href={`/dashboard/purchase-orders/${o.poId}`} className="font-semibold text-accent hover:underline">{o.poNumber}</Link>
+                              <span>{o.supplier}</span>
+                              <span><b>{num(o.left)}</b> packs still to arrive</span>
+                              {o.orderDate && <span className="text-[var(--muted)]">ordered {new Date(o.orderDate + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>}
+                              {o.due && <span className="text-[var(--muted)]">due {new Date(o.due + "T00:00:00").toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>}
+                              <span>{o.job ? <>For job <b>{o.job}</b></> : <span className="text-[var(--muted)]">For stock (no job)</span>}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
                 {view.length === 0 && (
                   <tr><td className={td + " text-[var(--muted)]"} colSpan={8}>{filter === "low" ? "Nothing is below its reorder level." : "No products."}</td></tr>
