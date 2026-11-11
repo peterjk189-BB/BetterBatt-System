@@ -310,7 +310,7 @@ export default function WeeklyReport({
                     {invoiced.rows.map((i) => (
                       <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td}>{i.qb_ref || "—"}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
                     ))}
-                    {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No invoices issued this {unit}.</td></tr>}
+                    {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={8}>No invoices issued this {unit}.</td></tr>}
                   </tbody>
                   <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={5}>Total invoiced</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.gst)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.total)}</td></tr></tfoot>
                 </table>
