@@ -62,7 +62,7 @@ export default function WeeklyReport({
       if (res.error) setError(res.error.message);
       else setInvLines(res.data ?? []);
       // Every invoice header, for the "Invoiced" total (drafts and voids are left out below).
-      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, customers(name)");
+      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, qb_ref, customers(name)");
       if (!inv.error) setInvoiceRows(inv.data ?? []);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -305,14 +305,14 @@ export default function WeeklyReport({
               )}
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
+                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th}>QB ref</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
                   <tbody>
                     {invoiced.rows.map((i) => (
-                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
+                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td}>{i.qb_ref || "—"}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
                     ))}
                     {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={7}>No invoices issued this {unit}.</td></tr>}
                   </tbody>
-                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total invoiced</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.gst)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.total)}</td></tr></tfoot>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={5}>Total invoiced</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.gst)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.total)}</td></tr></tfoot>
                 </table>
               </div>
             </section>

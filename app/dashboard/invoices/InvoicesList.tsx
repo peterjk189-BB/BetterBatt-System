@@ -173,6 +173,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
               <th className="px-3 py-2 text-right">Balance</th>
               <th className="px-3 py-2">Status</th>
               <th className="px-3 py-2">QB</th>
+              <th className="px-3 py-2">QB ref</th>
             </tr>
           </thead>
           <tbody>
@@ -199,11 +200,12 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>{status}</span>
                 </td>
                 <td className="px-3 py-2 text-xs text-[var(--muted)]">{inv.qb_exported_at ? "✓ exported" : "—"}</td>
+                <td className="px-3 py-2 text-xs">{inv.qb_ref || <span className="text-[var(--muted)]">—</span>}</td>
               </tr>
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-4 py-8 text-center text-[var(--muted)]">
+                <td colSpan={12} className="px-4 py-8 text-center text-[var(--muted)]">
                   No invoices here yet.
                 </td>
               </tr>
