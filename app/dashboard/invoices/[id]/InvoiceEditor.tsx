@@ -501,12 +501,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                   {custList.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
                 </select>
               </label>
-              {custChoice === ((inv as any).customer_id ?? "") && (
-                <label className="block text-sm">
-                  Customer name <span className="text-xs text-[var(--muted)]">(renaming changes it everywhere this customer appears, not just this invoice)</span>
-                  <input className={input} value={custName} onChange={(e) => setCustName(e.target.value)} />
-                </label>
-              )}
+              <p className="text-xs text-[var(--muted)]">To put a different name on just this invoice (e.g. a cash sale), close this and use "Edit name on this invoice" instead. Renaming a customer is done on the Customers page.</p>
               <div className="flex gap-2">
                 <button type="button" onClick={saveCustomer} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white">Save customer</button>
                 <button type="button" onClick={() => setEditCust(false)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Cancel</button>
