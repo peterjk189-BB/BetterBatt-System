@@ -537,3 +537,17 @@ html[data-theme="dark"] .sv-none{background-color:#6b6b6b;color:#fff}
 html[data-theme="dark"] .cal-visit,html[data-theme="dark"] .cal-visit:hover{background-color:#39ff14;color:#000;box-shadow:0 0 10px rgba(57,255,20,.55)}
 html[data-theme="dark"] .cal-visit *{color:#000}
 html[data-theme="dark"] .cal-visit .bg-\[\#1e4fbf\],html[data-theme="dark"] .cal-visit .bg-\[\#1f6b35\]{color:#fff}
+
+/* Printing: always plain white paper. The app's grey page background and the padding around the page
+   were printing as a tinted border / grey page on quotes, work orders, picking slips, certificates, etc. */
+@media print {
+  html,
+  body,
+  body > div,
+  main {
+    background: #fff !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+}
