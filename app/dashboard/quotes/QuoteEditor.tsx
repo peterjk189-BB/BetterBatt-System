@@ -1037,7 +1037,7 @@ export default function QuoteEditor({
             >
               {label}
               {k === "visit" && (
-                <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${siteVisits.some((v) => v.status === "Visited" || v.status === "Quoted") ? "bg-green-100 text-green-800" : siteVisits.length ? "bg-amber-100 text-amber-800" : "bg-[#efece5] text-[#6b6862]"}`}>
+                <span className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-bold ${siteVisits.some((v) => v.status === "Visited" || v.status === "Quoted") ? "sv-visited bg-green-100 text-green-800" : siteVisits.length ? "sv-booked bg-amber-100 text-amber-800" : "sv-none bg-[#efece5] text-[#6b6862]"}`}>
                   {siteVisits.some((v) => v.status === "Visited" || v.status === "Quoted") ? "Visited" : siteVisits.length ? "Booked" : "None"}
                 </span>
               )}
@@ -1061,7 +1061,7 @@ export default function QuoteEditor({
               return (
                 <div key={v.id} className="rounded-xl border border-[var(--border)] p-5">
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className={`rounded-full px-3 py-1 text-sm font-bold ${done ? "bg-green-100 text-green-800" : cancelled ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                    <span className={`rounded-full px-3 py-1 text-sm font-bold ${done ? "sv-visited bg-green-100 text-green-800" : cancelled ? "sv-cancelled bg-red-100 text-red-800" : "sv-booked bg-amber-100 text-amber-800"}`}>
                       {done ? "✓ Visited" : cancelled ? "Cancelled" : "Booked, not visited yet"}
                     </span>
                     <span className="font-semibold">Site visit #{v.visit_number}</span>
