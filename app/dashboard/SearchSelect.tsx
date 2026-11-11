@@ -9,6 +9,7 @@ export default function SearchSelect({
   options,
   value,
   onChange,
+  pinned,
   emptyLabel = "Choose...",
   placeholder = "Type to search...",
   className = "",
@@ -16,6 +17,8 @@ export default function SearchSelect({
   options: Option[];
   value: string;
   onChange: (id: string) => void;
+  /** An action entry (e.g. "+ Add new customer") kept at the very top of the list, whatever is typed. */
+  pinned?: Option;
   /** Label of the "nothing selected" entry (shown at the top of the list); leave "" to hide it. */
   emptyLabel?: string;
   placeholder?: string;
@@ -26,13 +29,17 @@ export default function SearchSelect({
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const keyNav = useRef(false);
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    function place() {
+    function place(ev?: Event) {
+      // Scrolling the list itself must not re-place it (that re-rendered and snapped the list back to the top).
+      if (ev && ev.target instanceof Node && listRef.current?.contains(ev.target)) return;
       const r = inputRef.current?.getBoundingClientRect();
-      if (r) setPos({ left: r.left, top: r.bottom + 4, width: r.width });
+      if (r) setPos((cur) => (cur && cur.left === r.left && cur.top === r.bottom + 4 && cur.width === r.width ? cur : { left: r.left, top: r.bottom + 4, width: r.width }));
     }
     place();
     window.addEventListener("scroll", place, true);
@@ -65,8 +72,16 @@ export default function SearchSelect({
           .sort((a, b) => a.r - b.r || a.i - b.i)
           .map((x) => x.o)
       : options;
-    return emptyLabel && !words.length ? [{ id: "", label: emptyLabel }, ...list] : list;
-  }, [options, query, emptyLabel]);
+    const withEmpty = emptyLabel && !words.length ? [{ id: "", label: emptyLabel }, ...list] : list;
+    return pinned ? [pinned, ...withEmpty.filter((o) => o.id !== pinned.id)] : withEmpty;
+  }, [options, query, emptyLabel, pinned]);
+
+  // Keep the highlighted row visible only while using the arrow keys (not on every render / touch scroll).
+  useEffect(() => {
+    if (!open || !keyNav.current) return;
+    keyNav.current = false;
+    listRef.current?.querySelector<HTMLElement>('[data-active="1"]')?.scrollIntoView({ block: "nearest" });
+  }, [active, open]);
 
   function pick(id: string) {
     onChange(id);
@@ -77,10 +92,12 @@ export default function SearchSelect({
   function onKey(e: KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      keyNav.current = true;
       setOpen(true);
       setActive((a) => Math.min(a + 1, matches.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      keyNav.current = true;
       setActive((a) => Math.max(a - 1, 0));
     } else if (e.key === "Enter" && open) {
       e.preventDefault();
@@ -119,8 +136,9 @@ export default function SearchSelect({
       />
       {open && pos && (
         <div
-          style={{ position: "fixed", left: pos.left, top: pos.top, width: Math.max(pos.width, 260) }}
-          className="z-50 max-h-64 max-w-[92vw] overflow-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-sm shadow-lg"
+          ref={listRef}
+          style={{ position: "fixed", left: pos.left, top: pos.top, width: Math.max(pos.width, 260), WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+          className="z-50 max-h-[45vh] max-w-[92vw] overflow-y-auto overscroll-contain rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 text-sm shadow-lg"
         >
           {matches.length === 0 && <div className="px-3 py-2 text-[var(--muted)]">Nothing matches.</div>}
           {matches.map((o, i) => (
@@ -131,10 +149,8 @@ export default function SearchSelect({
                 pick(o.id);
               }}
               onMouseEnter={() => setActive(i)}
-              ref={(el) => {
-                if (el && i === active) el.scrollIntoView({ block: "nearest" });
-              }}
-              className={`cursor-pointer px-3 py-1.5 ${i === active ? "bg-[#e8effd] text-black" : ""} ${o.id === value ? "font-semibold" : ""}`}
+              data-active={i === active ? "1" : undefined}
+              className={`cursor-pointer px-3 py-1.5 ${pinned && o.id === pinned.id ? "font-semibold text-accent " : ""}${i === active ? "bg-[#e8effd] text-black" : ""} ${o.id === value ? "font-semibold" : ""}`}
             >
               {o.label}
             </div>

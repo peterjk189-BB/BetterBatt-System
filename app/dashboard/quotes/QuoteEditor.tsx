@@ -1135,7 +1135,8 @@ export default function QuoteEditor({
             emptyLabel="Select customer..."
             placeholder="Type the customer name..."
             value={form.customer_id}
-            options={[...customerList.map((c) => ({ id: c.id, label: c.name })), { id: "__new__", label: "+ Add new customer..." }]}
+            pinned={{ id: "__new__", label: "+ Add new customer..." }}
+            options={customerList.map((c) => ({ id: c.id, label: c.name }))}
             onChange={(id) => setCustomer(id)}
           />
         </label>
