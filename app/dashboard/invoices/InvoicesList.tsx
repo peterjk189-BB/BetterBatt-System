@@ -5,6 +5,7 @@ import Link from "next/link";
 import { derivedStatus, fmtDate, invNo, money, paidTotal, STATUS_STYLE, type DerivedStatus, type Invoice, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 import { todayAU } from "@/lib/dates";
+import { createClient } from "@/lib/supabase/client";
 
 type Row = Invoice & {
   customers: { name: string } | null;
@@ -18,6 +19,19 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
+  const [qbSaved, setQbSaved] = useState<Record<string, string>>({});
+  const [qbErr, setQbErr] = useState<string | null>(null);
+  async function saveQb(id: string, current: string | null, text: string) {
+    const v = text.trim();
+    if (v === (current ?? "")) return;
+    const { error } = await supabase.from("invoices").update({ qb_ref: v || null }).eq("id", id);
+    if (error) setQbErr(`Couldn't save the QB reference: ${error.message}`);
+    else {
+      setQbErr(null);
+      setQbSaved((m) => ({ ...m, [id]: v }));
+    }
+  }
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const paidBy = useMemo(() => {
@@ -157,6 +171,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
         </button>
       </div>
       {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-green-700" : "text-red-700"}`}>{msg.text}</p>}
+      {qbErr && <p className="mt-2 text-sm text-red-700">{qbErr}</p>}
 
       <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border)]">
         <table className="w-full whitespace-nowrap text-sm">
@@ -199,8 +214,14 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>{status}</span>
                 </td>
                 <td className="px-3 py-2 text-xs">
-                  {inv.qb_ref ? <span className="font-medium">{inv.qb_ref}</span> : null}
-                  {inv.qb_exported_at ? <span className="block text-[var(--muted)]">✓ exported</span> : !inv.qb_ref ? <span className="text-[var(--muted)]">—</span> : null}
+                  <input
+                    className="w-24 rounded border border-[var(--border)] bg-transparent px-1.5 py-0.5 text-xs font-medium"
+                    placeholder="QB #"
+                    defaultValue={qbSaved[inv.id] ?? inv.qb_ref ?? ""}
+                    onBlur={(e) => saveQb(inv.id, qbSaved[inv.id] ?? inv.qb_ref, e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+                  />
+                  {inv.qb_exported_at && <span className="block text-[var(--muted)]">✓ exported</span>}
                 </td>
               </tr>
             ))}
