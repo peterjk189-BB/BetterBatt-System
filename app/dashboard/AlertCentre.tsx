@@ -36,6 +36,7 @@ const KIND_ICON: Record<string, string> = {
   email_bounce: "📧",
   contractor_invoice: "🧾",
   quote_viewed: "👀",
+  quote_accepted: "🎉",
 };
 
 /**

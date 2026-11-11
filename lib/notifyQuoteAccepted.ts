@@ -1,5 +1,6 @@
 import { brandedEmailHtml, sendEmail, siteUrl } from "@/lib/email";
 import { pushConfigured, sendPushToUser } from "@/lib/push";
+import { recordAlert } from "@/lib/alerts";
 
 function esc(s: string) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -32,6 +33,15 @@ export async function notifyQuoteAccepted(
     const opts = q.options?.length ? ` with option${q.options.length > 1 ? "s" : ""} ${q.options.join(", ")}` : "";
     const link = `${siteUrl()}/dashboard/quotes/${q.projectId}`;
     const summary = [customer, site].filter(Boolean).join(" · ");
+
+    // Also save it in the Alerts inbox (the pop-up/push alone leaves no record there).
+    await recordAlert(admin, {
+      kind: "quote_accepted",
+      title: `Quote Q${q.quoteNumber} accepted${customer ? " — " + customer : ""}`,
+      body: [`${q.by} accepted it${opts}`, site].filter(Boolean).join(" · "),
+      path: `/dashboard/quotes/${q.projectId}`,
+      dedupeKey: `quote-accepted:${q.projectId}:${(q.options ?? []).join("")}`,
+    });
 
     await Promise.all(
       Array.from(emails).map((to) =>
