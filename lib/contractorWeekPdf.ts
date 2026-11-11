@@ -30,7 +30,7 @@ function iso(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[]) {
+async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[]) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const L = 14;
@@ -193,5 +193,17 @@ export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfCon
     doc.text(`Better Batt Insulation · paid work done ${range} · printed ${dFull(new Date())} · GST added at 10% for GST-registered contractors only`, L, 203);
     doc.text(`Page ${p} of ${pages}`, R, 203, { align: "right" });
   }
+  return doc;
+}
+
+export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[]) {
+  const doc = await buildWeekSummaryPdf(weekStart, rows);
   doc.save(`Contractor-Payments-Week-${weekStart}.pdf`);
+}
+
+/** The same PDF as base64 (no data: prefix), for attaching to an email. */
+export async function weekSummaryPdfBase64(weekStart: string, rows: WeekPdfContractor[]) {
+  const doc = await buildWeekSummaryPdf(weekStart, rows);
+  const dataUri = doc.output("datauristring") as string;
+  return dataUri.slice(dataUri.indexOf("base64,") + 7);
 }

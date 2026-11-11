@@ -7,7 +7,7 @@ import { lineRate } from "@/lib/woRate";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { downloadContractorPdf, type ContractorPdfRow } from "@/lib/contractorPdf";
-import { downloadWeekSummaryPdf, mondayOfDay, addDays } from "@/lib/contractorWeekPdf";
+import { downloadWeekSummaryPdf, weekSummaryPdfBase64, mondayOfDay, addDays } from "@/lib/contractorWeekPdf";
 import { todayAU } from "@/lib/dates";
 
 type Sub = {
@@ -191,8 +191,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   }
 
   // One page for the whole week (Mon–Sun by work date): every contractor paid for the week, regardless of the filters above.
-  async function exportWeekPdf() {
-    const start = mondayOfDay(weekDay);
+  function weekPdfRows(start: string) {
     const end = addDays(start, 6);
     const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
@@ -202,7 +201,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       e.exGst += l.cost;
       map.set(l.contractorId, e);
     }
-    const rows = subs
+    return subs
       .filter((s) => map.has(s.id))
       .map((s) => {
         const e = map.get(s.id)!;
@@ -218,11 +217,61 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           exGst: e.exGst,
         };
       });
+  }
+  async function exportWeekPdf() {
     try {
-      await downloadWeekSummaryPdf(start, rows);
+      const start = mondayOfDay(weekDay);
+      await downloadWeekSummaryPdf(start, weekPdfRows(start));
     } catch (e: any) {
       alert(`Couldn't create the PDF: ${e?.message || e}`);
     }
+  }
+
+  const ACCOUNTS_EMAIL = "kradford@regencyplaster.com.au";
+  const [emailing, setEmailing] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ start: string; pdf: string; url: string; contractors: number; exGst: number } | null>(null);
+  // Step 1: build the PDF and show it for checking. Nothing is sent yet.
+  async function previewWeekPdf() {
+    const start = mondayOfDay(weekDay);
+    const rows = weekPdfRows(start);
+    setEmailMsg(null);
+    if (rows.length === 0) {
+      setEmailMsg("Nothing paid for that week, so there is nothing to send.");
+      return;
+    }
+    try {
+      const pdf = await weekSummaryPdfBase64(start, rows);
+      const bin = atob(pdf);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      setPreview({ start, pdf, url, contractors: rows.length, exGst: rows.reduce((t, r) => t + r.exGst, 0) });
+    } catch (e: any) {
+      setEmailMsg(`Couldn't create the PDF: ${e?.message || e}`);
+    }
+  }
+  function closePreview() {
+    if (preview) URL.revokeObjectURL(preview.url);
+    setPreview(null);
+  }
+  // Step 2: send exactly what was previewed.
+  async function sendPreviewed() {
+    if (!preview) return;
+    setEmailing(true);
+    try {
+      const res = await fetch("/api/contractor-payments/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weekStart: preview.start, to: ACCOUNTS_EMAIL, pdf: preview.pdf, contractors: preview.contractors, exGst: preview.exGst }),
+      });
+      const j = await res.json().catch(() => ({}));
+      setEmailMsg(res.ok ? `Sent to ${ACCOUNTS_EMAIL}.` : `Not sent: ${j.error || res.status}`);
+      if (res.ok) closePreview();
+    } catch (e: any) {
+      setEmailMsg(`Not sent: ${e?.message || e}`);
+    }
+    setEmailing(false);
   }
 
   // ---- Weekly tab: Monday to Sunday by work date, a total per job and per contractor ----
@@ -331,6 +380,13 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             Weekly summary PDF
           </button>
           <button
+            onClick={previewWeekPdf}
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
+            title={`Preview the weekly summary PDF, then email it to ${ACCOUNTS_EMAIL}`}
+          >
+            Preview &amp; email to accounts
+          </button>
+          <button
             onClick={exportCsv}
             className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
           >
@@ -338,6 +394,29 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           </button>
         </div>
       </div>
+      {emailMsg && <p className="mt-2 text-sm font-medium">{emailMsg}</p>}
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">Preview: contractor payments, week from {fmtDate(preview.start)}</div>
+                <div className="text-sm text-[var(--muted)]">
+                  To: {ACCOUNTS_EMAIL} · {preview.contractors} contractor{preview.contractors === 1 ? "" : "s"} · {fmtCurrency(preview.exGst)} ex GST. This PDF is attached to the email.
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={closePreview} disabled={emailing} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">Cancel</button>
+                <button onClick={sendPreviewed} disabled={emailing} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+                  {emailing ? "Sending…" : "Send email"}
+                </button>
+              </div>
+            </div>
+            {emailMsg && <p className="mt-2 text-sm font-medium text-red-700">{emailMsg}</p>}
+            <iframe src={preview.url} title="Weekly summary preview" className="mt-3 w-full flex-1 rounded-lg border border-[var(--border)] bg-white" />
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 flex gap-2">
         {([["contractor", "By contractor"], ["weekly", "Weekly (Mon to Sun)"]] as const).map(([k, l]) => (
