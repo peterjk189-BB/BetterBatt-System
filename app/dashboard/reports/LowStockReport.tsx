@@ -2,14 +2,17 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { packsNeeded } from "@/lib/picking";
+import { todayAU } from "@/lib/dates";
 
 type Row = {
   id: string;
   code: string | null;
   name: string;
   supplier: string;
+  supplierId: string | null;
   onHand: number;
   reserved: number;
   onOrder: number;
@@ -23,6 +26,8 @@ const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", curr
 
 export default function LowStockReport() {
   const supabase = useMemo(() => createClient(), []);
+  const router = useRouter();
+  const [creating, setCreating] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +110,7 @@ export default function LowStockReport() {
               code: p.code ?? null,
               name: p.name,
               supplier: s?.name || "—",
+              supplierId: p.supplier_id ?? null,
               onHand: Number(p.stock_on_hand) || 0,
               reserved: reserved.get(p.id) ?? 0,
               onOrder: onOrder.get(p.id) ?? 0,
@@ -143,6 +149,32 @@ export default function LowStockReport() {
       .sort((a, b) => Number(b.out) - Number(a.out) || b.suggest - a.suggest || a.name.localeCompare(b.name));
   }, [rows, filter, supplierFilter]);
 
+  // Draft purchase orders (one per supplier) pre-loaded with the suggested quantities; unwanted lines are removed in the PO.
+  async function createPos() {
+    const todo = view.filter((r) => r.suggest > 0);
+    const noSupplier = todo.filter((r) => !r.supplierId);
+    const bySup = new Map<string, typeof todo>();
+    for (const r of todo) if (r.supplierId) bySup.set(r.supplierId, [...(bySup.get(r.supplierId) ?? []), r]);
+    if (bySup.size === 0) {
+      setError(todo.length ? "These products have no supplier set in Inventory, so a PO can't be created." : "Nothing to order: no suggested quantities.");
+      return;
+    }
+    const summary = Array.from(bySup.values()).map((rs) => `${rs[0].supplier}: ${rs.length} product${rs.length === 1 ? "" : "s"}`).join("\n");
+    if (!window.confirm(`Create draft purchase orders from the suggestions?\n\n${summary}${noSupplier.length ? `\n\n(${noSupplier.length} product${noSupplier.length === 1 ? " has" : "s have"} no supplier and will be skipped.)` : ""}\n\nYou can remove any lines you don't need in each PO before sending.`)) return;
+    setCreating(true);
+    setError(null);
+    const ids: string[] = [];
+    for (const [supplierId, rs] of Array.from(bySup.entries())) {
+      const { data: po, error: e1 } = await supabase.from("purchase_orders").insert({ supplier_id: supplierId, status: "Draft", order_date: todayAU(), notes: "Created from the Low stock report" }).select().single();
+      if (e1 || !po) { setError(e1?.message || "Couldn't create the purchase order."); setCreating(false); return; }
+      const { error: e2 } = await supabase.from("purchase_order_lines").insert(rs.map((r) => ({ purchase_order_id: po.id, part_id: r.id, qty_multi: 0, qty_pks: r.suggest, received_multi: 0, received_pks: 0, unit_cost: r.cost })));
+      if (e2) { setError(e2.message); setCreating(false); return; }
+      ids.push(po.id);
+    }
+    setCreating(false);
+    router.push(ids.length === 1 ? `/dashboard/purchase-orders/${ids[0]}` : "/dashboard/purchase-orders");
+  }
+
   const suppliers = useMemo(() => Array.from(new Set(rows.map((r) => r.supplier))).sort(), [rows]);
   const noLevel = rows.filter((r) => r.reorder == null).length;
   const lowCount = view.filter((r) => r.low).length;
@@ -168,6 +200,9 @@ export default function LowStockReport() {
               <option key={s}>{s}</option>
             ))}
           </select>
+          <button onClick={createPos} disabled={creating || loading || !view.some((r) => r.suggest > 0)} className="rounded-lg bg-accent px-3 py-1.5 font-medium text-white disabled:opacity-50" title="Creates a draft PO per supplier from the suggested quantities shown">
+            {creating ? "Creating…" : "Create PO from suggestions"}
+          </button>
           <button onClick={() => setFilter("low")} className={`rounded-lg px-3 py-1.5 ${filter === "low" ? "bg-accent text-white" : "border border-[var(--border)]"}`}>
             Low only
           </button>
