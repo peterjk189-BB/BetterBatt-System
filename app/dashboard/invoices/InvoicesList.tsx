@@ -65,6 +65,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
     return (
       invNo(r.inv.invoice_number).toLowerCase().includes(q) ||
       (r.inv.customers?.name || "").toLowerCase().includes(q) ||
+      (((r.inv as any).bill_to_name as string) || "").toLowerCase().includes(q) ||
       (r.inv.projects ? `q${r.inv.projects.quote_number} ${siteAddress(r.inv.projects)}`.toLowerCase().includes(q) : false) ||
       (r.inv.customer_po || "").toLowerCase().includes(q)
     );
@@ -203,7 +204,12 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                     {invNo(inv.invoice_number)}
                   </Link>
                 </td>
-                <td className="px-3 py-2">{(inv as any).bill_to_name || inv.customers?.name || "—"}</td>
+                <td className="px-3 py-2">
+                  {(inv as any).bill_to_name || inv.customers?.name || "—"}
+                  {(inv as any).bill_to_name && inv.customers?.name && (inv as any).bill_to_name !== inv.customers.name && (
+                    <span className="block text-[11px] text-[var(--muted)]">{inv.customers.name}</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-[var(--muted)]">{inv.projects ? `Q${inv.projects.quote_number} · ${siteAddress(inv.projects)}` : "—"}</td>
                 <td className="px-3 py-2">{inv.kind}</td>
                 <td className="px-3 py-2">{fmtDate(inv.invoice_date)}</td>

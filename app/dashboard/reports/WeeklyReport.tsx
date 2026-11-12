@@ -58,11 +58,11 @@ export default function WeeklyReport({
     (async () => {
       const res: any = await supabase
         .from("invoice_lines")
-        .select("invoice_id, part_id, description, qty, line_ex, invoices(invoice_number, invoice_date, status, project_id, customers(name))");
+        .select("invoice_id, part_id, description, qty, line_ex, invoices(invoice_number, invoice_date, status, project_id, bill_to_name, customers(name))");
       if (res.error) setError(res.error.message);
       else setInvLines(res.data ?? []);
       // Every invoice header, for the "Invoiced" total (drafts and voids are left out below).
-      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, qb_ref, customers(name)");
+      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, qb_ref, bill_to_name, customers(name)");
       if (!inv.error) setInvoiceRows(inv.data ?? []);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,7 +119,7 @@ export default function WeeklyReport({
       const inv = l.invoices;
       if (!inv || inv.status === "Void" || inv.status === "Draft") continue;
       if (!l.part_id || !inWeek(inv.invoice_date)) continue;
-      const r = byInv.get(l.invoice_id) ?? { number: inv.invoice_number, date: inv.invoice_date, customer: inv.customers?.name || "Cash Sale", items: [] as string[], ex: 0, project: inv.project_id as string | null };
+      const r = byInv.get(l.invoice_id) ?? { number: inv.invoice_number, date: inv.invoice_date, customer: inv.bill_to_name || inv.customers?.name || "Cash Sale", items: [] as string[], ex: 0, project: inv.project_id as string | null };
       r.items.push(`${(l.description || "Item").trim()} × ${Number(l.qty) || 0}`);
       r.ex += Number(l.line_ex) || 0;
       byInv.set(l.invoice_id, r);
@@ -308,7 +308,7 @@ export default function WeeklyReport({
                   <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th}>QB ref</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
                   <tbody>
                     {invoiced.rows.map((i) => (
-                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td}>{i.qb_ref || "—"}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
+                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{i.bill_to_name || i.customers?.name || "Cash Sale"}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td}>{i.qb_ref || "—"}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
                     ))}
                     {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={8}>No invoices issued this {unit}.</td></tr>}
                   </tbody>
