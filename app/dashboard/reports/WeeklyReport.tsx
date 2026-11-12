@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { elementToPdf } from "@/lib/elementToPdf";
 import { quoteTotals } from "@/lib/quoteTotals";
@@ -265,23 +265,61 @@ export default function WeeklyReport({
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">2. Cash sales</h3><span className="tabular-nums">{cash.kept.length} sales · {money(cashEx)}</span></div>
               <p className="mb-1 text-xs" style={{ color: MUTED }}>Inventory items sold on invoices to anyone. Deliveries to job sites that have a work order are left out.</p>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Items</th><th style={thS} className={th + " text-right"}>Ex GST</th></tr></thead>
-                  <tbody>
-                    {cash.kept.map((r) => (
-                      <tr key={r.number}><td style={tdS} className={td}>INV-{r.number}</td><td style={tdS} className={td}>{short(r.date)}</td><td style={tdS} className={td}>{r.customer}</td><td style={tdS} className={td}>{r.items.join("; ")}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(r.ex)}</td></tr>
-                    ))}
-                    {!cash.kept.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No cash sales this {unit}.</td></tr>}
-                  </tbody>
-                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(cashEx)}</td></tr></tfoot>
-                </table>
-              </div>
-              {cash.left.length > 0 && (
-                <p className="mt-1 text-xs" style={{ color: MUTED }}>
-                  {cash.left.length} invoice{cash.left.length === 1 ? "" : "s"} left out (deliveries to jobs with work orders): {cash.left.map((r) => `INV-${r.number}`).join(", ")}, {money(cash.leftEx)}.
-                </p>
-              )}
+              {(() => {
+                const isCash = (i: any) => (i.customers?.name || "").toLowerCase().startsWith("cash sale");
+                const cash = invoiced.rows.filter(isCash);
+                const cashEx = cash.reduce((t, i) => t + (Number(i.amount_ex_gst) || 0), 0);
+                const days: { date: string; rows: any[] }[] = [];
+                for (const i of invoiced.rows) {
+                  let d = days.find((x) => x.date === i.invoice_date);
+                  if (!d) days.push((d = { date: i.invoice_date, rows: [] }));
+                  d.rows.push(i);
+                }
+                // Cash sales first within each day, then everything else by invoice number.
+                for (const d of days) d.rows.sort((x, y) => Number(isCash(y)) - Number(isCash(x)) || Number(x.invoice_number) - Number(y.invoice_number));
+                const sum = (rs: any[]) => rs.reduce((t, i) => t + (Number(i.amount_ex_gst) || 0), 0);
+                return (
+                  <>
+                    <div className="mb-2 grid gap-2 sm:grid-cols-3">
+                      {tile("Total invoiced", money(invoiced.ex), `${invoiced.rows.length} invoices`)}
+                      {tile("Cash sales", money(cashEx), `${cash.length} invoices`)}
+                      {tile("Account / job invoices", money(invoiced.ex - cashEx), `${invoiced.rows.length - cash.length} invoices`)}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>QB ref</th><th style={thS} className={th + " text-right"}>Ex GST</th></tr></thead>
+                        <tbody>
+                          {days.map((d) => (
+                            <Fragment key={d.date}>
+                              <tr>
+                                <td colSpan={3} className={td + " font-bold"} style={{ background: "#e6e6e6", borderTop: "1px solid #000", color: "#000" }}>{short(d.date)}</td>
+                                <td className={td + " text-right font-bold"} style={{ background: "#e6e6e6", borderTop: "1px solid #000", color: "#000" }}>{d.rows.length} invoice{d.rows.length === 1 ? "" : "s"}</td>
+                              </tr>
+                              {d.rows.map((i) => (
+                                <tr key={i.id}>
+                                  <td style={tdS} className={td}>INV-{i.invoice_number}</td>
+                                  <td style={tdS} className={td}>{custLabel(i.customers?.name, i.bill_to_name)}</td>
+                                  <td style={tdS} className={td}>{i.qb_ref || "—"}</td>
+                                  <td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td>
+                                </tr>
+                              ))}
+                              <tr>
+                                <td colSpan={3} className={td + " font-bold"} style={{ borderTop: "1px solid #000", color: "#000" }}>Total {short(d.date)}</td>
+                                <td className={td + " text-right font-bold tabular-nums"} style={{ borderTop: "1px solid #000", color: "#000" }}>{money(sum(d.rows))}</td>
+                              </tr>
+                            </Fragment>
+                          ))}
+                          {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={4}>No invoices issued this {unit}.</td></tr>}
+                        </tbody>
+                        <tfoot>
+                          <tr><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " font-bold"} colSpan={3}>{isDay ? "Day" : "Week"} total (ex GST)</td><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td></tr>
+                          <tr><td style={tdS} className={td} colSpan={3}>GST {money(invoiced.gst)} · Total inc GST</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(invoiced.total)}</td></tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
             </section>
 
             <section>
