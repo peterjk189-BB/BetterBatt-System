@@ -829,7 +829,7 @@ export default function ReportsView({
         {tabBtn("customers", "Customer activity")}
         {tabBtn("suppliers", "Supplier spend")}
         {tabBtn("sales", "Product sales")}
-        {tabBtn("weekly", "Daily / weekly report")}
+        {tabBtn("weekly", "Daily / weekly / monthly")}
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
         {tabBtn("certs", "Certificates")}

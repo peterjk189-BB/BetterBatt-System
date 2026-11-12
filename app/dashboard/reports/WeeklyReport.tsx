@@ -53,7 +53,7 @@ export default function WeeklyReport({
   const supabase = createClient();
   const printRef = useRef<HTMLDivElement>(null);
   const [monday, setMonday] = useState(() => mondayOf(new Date()));
-  const [mode, setMode] = useState<"week" | "day">("week");
+  const [mode, setMode] = useState<"week" | "day" | "month">("week");
   const [day, setDay] = useState(() => new Date());
   const [invLines, setInvLines] = useState<any[] | null>(null);
   const [invoiceRows, setInvoiceRows] = useState<any[]>([]);
@@ -75,16 +75,22 @@ export default function WeeklyReport({
   }, []);
 
   const isDay = mode === "day";
-  const unit = isDay ? "day" : "week";
+  const isMonth = mode === "month";
+  const unit = isDay ? "day" : isMonth ? "month" : "week";
+  const monthFirst = new Date(day.getFullYear(), day.getMonth(), 1);
+  const monthLast = new Date(day.getFullYear(), day.getMonth() + 1, 0);
+  const monthLabel = monthFirst.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
   const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
-  const start = isDay ? iso(day) : iso(monday);
-  const end = isDay ? iso(day) : iso(sunday);
+  const start = isDay ? iso(day) : isMonth ? iso(monthFirst) : iso(monday);
+  const end = isDay ? iso(day) : isMonth ? iso(monthLast) : iso(sunday);
   const dayLong = day.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short", year: "numeric" });
-  const rangeText = isDay ? dayLong : `Mon ${long(monday)} to Sun ${long(sunday)}`;
+  const rangeText = isDay ? dayLong : isMonth ? monthLabel : `Mon ${long(monday)} to Sun ${long(sunday)}`;
   const inWeek = (d: string | null | undefined) => !!d && d >= start && d <= end;
   const thisMonday = iso(mondayOf(new Date()));
   const shift = (days: number) =>
-    isDay
+    isMonth
+      ? setDay(new Date(day.getFullYear(), day.getMonth() + (days > 0 ? 1 : -1), 1))
+      : isDay
       ? setDay(new Date(day.getFullYear(), day.getMonth(), day.getDate() + (days > 0 ? 1 : -1)))
       : setMonday(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + days));
 
@@ -181,7 +187,7 @@ export default function WeeklyReport({
     if (!printRef.current) return;
     setBusy(true);
     try {
-      await elementToPdf(printRef.current, `${isDay ? "daily" : "weekly"}-report-${start}.pdf`, "landscape");
+      await elementToPdf(printRef.current, `${isDay ? "daily" : isMonth ? "monthly" : "weekly"}-report-${start}.pdf`, "landscape");
     } finally {
       setBusy(false);
     }
@@ -206,12 +212,18 @@ export default function WeeklyReport({
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex overflow-hidden rounded-lg border border-[var(--border)] text-sm">
           <button onClick={() => setMode("day")} className={`px-3 py-1.5 ${isDay ? "bg-accent text-white" : ""}`}>Daily</button>
-          <button onClick={() => setMode("week")} className={`px-3 py-1.5 ${!isDay ? "bg-accent text-white" : ""}`}>Weekly</button>
+          <button onClick={() => setMode("week")} className={`px-3 py-1.5 ${!isDay && !isMonth ? "bg-accent text-white" : ""}`}>Weekly</button>
+          <button onClick={() => setMode("month")} className={`px-3 py-1.5 ${isMonth ? "bg-accent text-white" : ""}`}>Monthly</button>
         </div>
         <button onClick={() => shift(-7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label={`Previous ${unit}`}>‹</button>
-        <span className="min-w-[210px] text-center text-sm font-semibold">{isDay ? dayLong : `Mon ${long(monday)} – Sun ${long(sunday)}`}</span>
+        <span className="min-w-[210px] text-center text-sm font-semibold">{isDay ? dayLong : isMonth ? monthLabel : `Mon ${long(monday)} – Sun ${long(sunday)}`}</span>
         <button onClick={() => shift(7)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm" aria-label={`Next ${unit}`}>›</button>
-        {isDay ? (
+        {isMonth ? (
+          <>
+            <button onClick={() => setDay(new Date())} disabled={start === iso(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">This month</button>
+            <button onClick={() => { const t = new Date(); setDay(new Date(t.getFullYear(), t.getMonth() - 1, 1)); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Last month</button>
+          </>
+        ) : isDay ? (
           <>
             <button onClick={() => setDay(new Date())} disabled={start === iso(new Date())} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm disabled:opacity-50">Today</button>
             <button onClick={() => { const t = new Date(); setDay(new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1)); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Yesterday</button>
@@ -232,7 +244,7 @@ export default function WeeklyReport({
         <>
           <div ref={printRef} className="paper-sheet space-y-5 rounded-xl border border-[var(--border)] bg-white p-5 text-[13px] text-[#201f1c]">
             <div>
-              <p className="text-lg font-bold">Better Batt Insulation — {isDay ? "Daily" : "Weekly"} report</p>
+              <p className="text-lg font-bold">Better Batt Insulation — {isDay ? "Daily" : isMonth ? "Monthly" : "Weekly"} report</p>
               <p style={{ color: MUTED }}>{rangeText}. All dollar figures exclude GST unless marked.</p>
             </div>
 
@@ -265,6 +277,50 @@ export default function WeeklyReport({
             <section>
               <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">2. Cash sales</h3><span className="tabular-nums">{cash.kept.length} sales · {money(cashEx)}</span></div>
               <p className="mb-1 text-xs" style={{ color: MUTED }}>Inventory items sold on invoices to anyone. Deliveries to job sites that have a work order are left out.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Items</th><th style={thS} className={th + " text-right"}>Ex GST</th></tr></thead>
+                  <tbody>
+                    {cash.kept.map((r) => (
+                      <tr key={r.number}><td style={tdS} className={td}>INV-{r.number}</td><td style={tdS} className={td}>{short(r.date)}</td><td style={tdS} className={td}>{r.customer}</td><td style={tdS} className={td}>{r.items.join("; ")}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(r.ex)}</td></tr>
+                    ))}
+                    {!cash.kept.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No cash sales this {unit}.</td></tr>}
+                  </tbody>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(cashEx)}</td></tr></tfoot>
+                </table>
+              </div>
+              {cash.left.length > 0 && (
+                <p className="mt-1 text-xs" style={{ color: MUTED }}>
+                  {cash.left.length} invoice{cash.left.length === 1 ? "" : "s"} left out (deliveries to jobs with work orders): {cash.left.map((r) => `INV-${r.number}`).join(", ")}, {money(cash.leftEx)}.
+                </p>
+              )}
+            </section>
+
+            <section>
+              <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">3. Quotes</h3><span className="tabular-nums">{quotes.length} quotes · {money(quotesEx)}</span></div>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Quotes created in the {unit}, with their value ex GST.</p>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead><tr><th style={thS} className={th}>Quote</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Outcome</th><th style={thS} className={th + " text-right"}>Value ex GST</th></tr></thead>
+                  <tbody>
+                    {quotes.map((q) => (
+                      <tr key={q.id}><td style={tdS} className={td}>Q{q.number}</td><td style={tdS} className={td}>{q.customer}</td><td style={tdS} className={td}>{q.site}</td><td style={tdS} className={td}>{q.outcome}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(q.ex)}</td></tr>
+                    ))}
+                    {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this {unit}.</td></tr>}
+                  </tbody>
+                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
+                </table>
+              </div>
+            </section>
+
+            <section>
+              <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">4. Invoices issued</h3><span className="tabular-nums">{invoiced.rows.length} invoices · {money(invoiced.ex)} ex GST</span></div>
+              <p className="mb-1 text-xs" style={{ color: MUTED }}>Tax invoices dated in the {unit} (drafts and voided invoices are not counted).</p>
+              {invoiced.drafts.length > 0 && (
+                <p className="mb-1 rounded px-2 py-1 text-xs font-semibold" style={{ background: "#fde9b8", color: "#000" }}>
+                  {invoiced.drafts.length} draft invoice{invoiced.drafts.length === 1 ? "" : "s"} dated this {unit} ({money(invoiced.draftEx)} ex GST) not counted yet: {invoiced.drafts.map((d) => `INV-${d.invoice_number}`).join(", ")}. Drafts count once they are sent/issued.
+                </p>
+              )}
               {(() => {
                 const isCash = (i: any) => (i.customers?.name || "").toLowerCase().startsWith("cash sale");
                 const cash = invoiced.rows.filter(isCash);
@@ -312,7 +368,7 @@ export default function WeeklyReport({
                           {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={4}>No invoices issued this {unit}.</td></tr>}
                         </tbody>
                         <tfoot>
-                          <tr><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " font-bold"} colSpan={3}>{isDay ? "Day" : "Week"} total (ex GST)</td><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td></tr>
+                          <tr><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " font-bold"} colSpan={3}>{isDay ? "Day" : isMonth ? "Month" : "Week"} total (ex GST)</td><td style={{ ...tdS, borderTop: "2px solid #000" }} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td></tr>
                           <tr><td style={tdS} className={td} colSpan={3}>GST {money(invoiced.gst)} · Total inc GST</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(invoiced.total)}</td></tr>
                         </tfoot>
                       </table>
@@ -320,45 +376,6 @@ export default function WeeklyReport({
                   </>
                 );
               })()}
-            </section>
-
-            <section>
-              <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">3. Quotes</h3><span className="tabular-nums">{quotes.length} quotes · {money(quotesEx)}</span></div>
-              <p className="mb-1 text-xs" style={{ color: MUTED }}>Quotes created in the {unit}, with their value ex GST.</p>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr><th style={thS} className={th}>Quote</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Site</th><th style={thS} className={th}>Outcome</th><th style={thS} className={th + " text-right"}>Value ex GST</th></tr></thead>
-                  <tbody>
-                    {quotes.map((q) => (
-                      <tr key={q.id}><td style={tdS} className={td}>Q{q.number}</td><td style={tdS} className={td}>{q.customer}</td><td style={tdS} className={td}>{q.site}</td><td style={tdS} className={td}>{q.outcome}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(q.ex)}</td></tr>
-                    ))}
-                    {!quotes.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={5}>No quotes created this {unit}.</td></tr>}
-                  </tbody>
-                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={4}>Total</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(quotesEx)}</td></tr></tfoot>
-                </table>
-              </div>
-            </section>
-
-            <section>
-              <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">4. Invoices issued</h3><span className="tabular-nums">{invoiced.rows.length} invoices · {money(invoiced.ex)} ex GST</span></div>
-              <p className="mb-1 text-xs" style={{ color: MUTED }}>Tax invoices dated in the {unit} (drafts and voided invoices are not counted).</p>
-              {invoiced.drafts.length > 0 && (
-                <p className="mb-1 rounded px-2 py-1 text-xs font-semibold" style={{ background: "#fde9b8", color: "#000" }}>
-                  {invoiced.drafts.length} draft invoice{invoiced.drafts.length === 1 ? "" : "s"} dated this {unit} ({money(invoiced.draftEx)} ex GST) not counted yet: {invoiced.drafts.map((d) => `INV-${d.invoice_number}`).join(", ")}. Drafts count once they are sent/issued.
-                </p>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead><tr><th style={thS} className={th}>Invoice</th><th style={thS} className={th}>Date</th><th style={thS} className={th}>Customer</th><th style={thS} className={th}>Status</th><th style={thS} className={th}>QB ref</th><th style={thS} className={th + " text-right"}>Ex GST</th><th style={thS} className={th + " text-right"}>GST</th><th style={thS} className={th + " text-right"}>Total inc GST</th></tr></thead>
-                  <tbody>
-                    {invoiced.rows.map((i) => (
-                      <tr key={i.id}><td style={tdS} className={td}>INV-{i.invoice_number}</td><td style={tdS} className={td}>{short(i.invoice_date)}</td><td style={tdS} className={td}>{custLabel(i.customers?.name, i.bill_to_name)}</td><td style={tdS} className={td}>{i.status}</td><td style={tdS} className={td}>{i.qb_ref || "—"}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.amount_ex_gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.gst) || 0)}</td><td style={tdS} className={td + " text-right tabular-nums"}>{money(Number(i.total) || 0)}</td></tr>
-                    ))}
-                    {!invoiced.rows.length && <tr><td className={td} style={{ ...tdS, color: MUTED }} colSpan={8}>No invoices issued this {unit}.</td></tr>}
-                  </tbody>
-                  <tfoot><tr><td style={tdS} className={td + " font-bold"} colSpan={5}>Total invoiced</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.ex)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.gst)}</td><td style={tdS} className={td + " text-right font-bold tabular-nums"}>{money(invoiced.total)}</td></tr></tfoot>
-                </table>
-              </div>
             </section>
           </div>
         </>
