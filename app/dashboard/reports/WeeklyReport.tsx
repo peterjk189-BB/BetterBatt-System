@@ -338,8 +338,8 @@ export default function WeeklyReport({
                   <>
                     <div className="mb-2 grid gap-2 sm:grid-cols-3">
                       {tile("Total invoiced", money(invoiced.ex), `${invoiced.rows.length} invoices`)}
-                      {tile("Cash sales", money(cashEx), `${cash.length} invoices`)}
-                      {tile("Account / job invoices", money(invoiced.ex - cashEx), `${invoiced.rows.length - cash.length} invoices`)}
+                      {tile("Cash Sale customer", money(cashEx), `${cash.length} invoices, whole invoice value`)}
+                      {tile("All other customers", money(invoiced.ex - cashEx), `${invoiced.rows.length - cash.length} invoices`)}
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full">
