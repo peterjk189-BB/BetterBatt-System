@@ -168,12 +168,15 @@ export default function ContractorWorkOrder({
             </tr>
           </thead>
           <tbody>
-            {priced.map((l) => (
+            {priced.map((l) => {
+              // Travel fee (fuel cover) is a flat amount: no m² or rate to show.
+              const flat = /travel/i.test(l.parts?.name || "");
+              return (
               <tr key={l.id} className="border-t border-[var(--border)]">
                 <td className="px-3 py-2">{l.parts?.name || "—"}</td>
-                <td className="px-3 py-2 text-right">{l.qty}</td>
-                <td className="px-3 py-2 text-right">{woLinePacks(l.qty, l.parts) ?? ""}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">{money(l.rate)}</td>
+                <td className="px-3 py-2 text-right">{flat ? "" : l.qty}</td>
+                <td className="px-3 py-2 text-right">{flat ? "" : woLinePacks(l.qty, l.parts) ?? ""}</td>
+                <td className="px-3 py-2 text-right whitespace-nowrap">{flat ? "" : money(l.rate)}</td>
                 <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{money(l.amount)}</td>
                 <td className="px-3 py-2 whitespace-nowrap">
                   {fmtDate(l.task_date)}
@@ -181,7 +184,8 @@ export default function ContractorWorkOrder({
                 </td>
                 <td className="px-3 py-2 text-[var(--muted)]">{l.note || ""}</td>
               </tr>
-            ))}
+              );
+            })}
             {lines.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-3 py-6 text-center text-[var(--muted)]">
