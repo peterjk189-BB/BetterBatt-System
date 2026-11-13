@@ -27,6 +27,7 @@ export default function ContractMarginReport() {
   const [latestOnly, setLatestOnly] = useState(true);
   const [withLabour, setWithLabour] = useState(true);
   const [supFilter, setSupFilter] = useState("");
+  const [hideOk, setHideOk] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(false);
 
   // Builders that have a contract price list.
@@ -127,7 +128,7 @@ export default function ContractMarginReport() {
   const suppliers = useMemo(() => Array.from(new Set(rows.map((x) => x.sup).filter((s) => s !== "—"))).sort(), [rows]);
   const exportPdf = () =>
     downloadSupplierPricingPdf(
-      rows.filter((x) => x.p).map((x) => ({ product: x.p!.name, code: x.p!.code ?? "", supplier: x.sup, m2PerPack: x.cov, packs: x.v.packs, nowPack: x.buy, targetPack: Math.max(0, x.maxBuy) })),
+      rows.filter((x) => x.p && x.cut > 0.005).map((x) => ({ product: x.p!.name, code: x.p!.code ?? "", supplier: x.sup, m2PerPack: x.cov, packs: x.v.packs, nowPack: x.buy, targetPack: Math.max(0, x.maxBuy) })),
       todayAU(),
       supFilter
     );
@@ -163,6 +164,9 @@ export default function ContractMarginReport() {
             {suppliers.map((s) => (<option key={s} value={s}>{s}</option>))}
           </select>
           <button type="button" onClick={exportPdf} className="rounded-lg bg-[var(--accent,#141413)] px-3 py-1.5 font-medium text-white">Export supplier PDF</button>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={hideOk} onChange={(e) => setHideOk(e.target.checked)} /> Hide items needing no change
+          </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={withLabour} onChange={(e) => setWithLabour(e.target.checked)} /> Include installer cost
           </label>
@@ -202,7 +206,7 @@ export default function ContractMarginReport() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((x) => {
+                {rows.filter((x) => !hideOk || x.cut > 0.005).map((x) => {
                   const ok = x.cut <= 0.005;
                   const c = x.cov || 1;
                   return (
