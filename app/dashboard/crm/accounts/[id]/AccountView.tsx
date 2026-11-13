@@ -18,6 +18,7 @@ import {
   type Task,
 } from "@/lib/crm";
 import { logActivity } from "@/lib/crmActions";
+import { AutoTextarea, EditableNote } from "../../ActivityParts";
 
 type Customer = {
   id: string;
@@ -88,9 +89,10 @@ export default function AccountView({
 
   async function addActivity() {
     if (!actNote.trim()) return;
-    const err = await logActivity(supabase, { kind: actKind, note: actNote.trim(), customer_id: c.id }, userId);
+    const newId = crypto.randomUUID();
+    const err = await logActivity(supabase, { id: newId, kind: actKind, note: actNote.trim(), customer_id: c.id }, userId);
     if (err) return setError(err);
-    setActivity((a) => [{ id: crypto.randomUUID(), kind: actKind, note: actNote.trim(), created_by: userId, created_at: new Date().toISOString() }, ...a]);
+    setActivity((a) => [{ id: newId, kind: actKind, note: actNote.trim(), created_by: userId, created_at: new Date().toISOString() }, ...a]);
     if (actKind !== "Note") setC((x) => ({ ...x, last_contact_at: new Date().toISOString() }));
     setActNote("");
   }
@@ -176,13 +178,13 @@ export default function AccountView({
       </Card>
 
       <Card title="Log contact">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[8rem_1fr_auto]">
+        <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[8rem_1fr_auto]">
           <select className={inputCls} value={actKind} onChange={(e) => setActKind(e.target.value)}>
             {ACTIVITY_KINDS.map((k) => (
               <option key={k}>{k}</option>
             ))}
           </select>
-          <input className={inputCls} placeholder="What was said or agreed?" value={actNote} onChange={(e) => setActNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addActivity()} />
+          <AutoTextarea className={inputCls} placeholder="What was said or agreed?" value={actNote} onChange={setActNote} onSubmit={addActivity} />
           <button onClick={addActivity} className="rounded-lg bg-[#201f1c] px-4 py-2 text-sm font-semibold text-white">
             Log
           </button>
@@ -194,7 +196,7 @@ export default function AccountView({
               <div className="text-xs text-[var(--muted)]">
                 {a.kind} · {staffName(staff, a.created_by)} · {fmtDay(a.created_at)}
               </div>
-              <div className="whitespace-pre-wrap">{a.note}</div>
+              <EditableNote id={a.id} note={a.note} inputCls={inputCls} onSaved={(id, n) => setActivity((list) => list.map((x) => (x.id === id ? { ...x, note: n } : x)))} />
             </div>
           ))}
         </div>

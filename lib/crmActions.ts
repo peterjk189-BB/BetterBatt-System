@@ -55,10 +55,11 @@ export async function moveStage(
 /** Logs a note / call / email against a lead and/or customer, and stamps the customer's last contact. */
 export async function logActivity(
   supabase: Db,
-  a: { kind: string; note: string; lead_id?: string | null; customer_id?: string | null },
+  a: { id?: string; kind: string; note: string; lead_id?: string | null; customer_id?: string | null },
   userId: string
 ): Promise<string | null> {
   const { error } = await supabase.from("crm_activity").insert({
+    ...(a.id ? { id: a.id } : {}),
     kind: a.kind,
     note: a.note,
     lead_id: a.lead_id ?? null,

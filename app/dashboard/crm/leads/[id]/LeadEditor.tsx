@@ -24,6 +24,7 @@ import {
   type Task,
 } from "@/lib/crm";
 import { logActivity, moveStage } from "@/lib/crmActions";
+import { AutoTextarea, EditableNote } from "../../ActivityParts";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-base sm:text-sm focus:border-[var(--brand-gold-dark)] focus:outline-none";
@@ -145,9 +146,10 @@ export default function LeadEditor({
 
   async function addActivity() {
     if (!actNote.trim()) return;
-    const err = await logActivity(supabase, { kind: actKind, note: actNote.trim(), lead_id: lead.id, customer_id: lead.customer_id }, userId);
+    const newId = crypto.randomUUID();
+    const err = await logActivity(supabase, { id: newId, kind: actKind, note: actNote.trim(), lead_id: lead.id, customer_id: lead.customer_id }, userId);
     if (err) return setError(err);
-    setActivity((a) => [{ id: crypto.randomUUID(), kind: actKind, note: actNote.trim(), created_by: userId, created_at: new Date().toISOString() }, ...a]);
+    setActivity((a) => [{ id: newId, kind: actKind, note: actNote.trim(), created_by: userId, created_at: new Date().toISOString() }, ...a]);
     setActNote("");
   }
 
@@ -407,7 +409,7 @@ export default function LeadEditor({
               <option key={k}>{k}</option>
             ))}
           </select>
-          <input className={inputCls} placeholder="What was said or agreed?" value={actNote} onChange={(e) => setActNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addActivity()} />
+          <AutoTextarea className={inputCls} placeholder="What was said or agreed?" value={actNote} onChange={setActNote} onSubmit={addActivity} />
           <button onClick={addActivity} className="rounded-lg bg-[#201f1c] px-4 py-2 text-sm font-semibold text-white">
             Log
           </button>
@@ -419,7 +421,7 @@ export default function LeadEditor({
               <div className="text-xs text-[var(--muted)]">
                 {a.kind} · {staffName(staff, a.created_by)} · {fmtDay(a.created_at)}
               </div>
-              <div className="whitespace-pre-wrap">{a.note}</div>
+              <EditableNote id={a.id} note={a.note} inputCls={inputCls} onSaved={(id, n) => setActivity((list) => list.map((x) => (x.id === id ? { ...x, note: n } : x)))} />
             </div>
           ))}
         </div>

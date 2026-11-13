@@ -18,6 +18,7 @@ import {
   type Task,
 } from "@/lib/crm";
 import { ensureLead, logActivity } from "@/lib/crmActions";
+import { AutoTextarea, EditableNote } from "./ActivityParts";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-base sm:text-sm focus:border-[var(--brand-gold-dark)] focus:outline-none";
@@ -275,7 +276,7 @@ export default function CrmPanel({ seed, mode }: { seed: CrmSeed; mode: "record"
                   <option key={k}>{k}</option>
                 ))}
               </select>
-              <input className={`${inputCls} col-span-2 sm:col-span-8`} placeholder="What was said or agreed?" value={note} onChange={(e) => setNote(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addNote()} />
+              <AutoTextarea className={`${inputCls} col-span-2 sm:col-span-8`} placeholder="What was said or agreed?" value={note} onChange={setNote} onSubmit={addNote} />
               <button onClick={addNote} className="col-span-2 rounded-lg bg-accent px-3 py-2 font-medium text-white sm:col-span-2">
                 Log
               </button>
@@ -285,7 +286,7 @@ export default function CrmPanel({ seed, mode }: { seed: CrmSeed; mode: "record"
               {activity.map((a) => (
                 <div key={a.id} className="py-2">
                   <span className="font-medium">{a.kind}</span> <span className="text-[var(--muted)]">· {fmtDay(a.created_at)} · {staffName(staff, a.created_by)}</span>
-                  <div className="whitespace-pre-wrap">{a.note}</div>
+                  <EditableNote id={a.id} note={a.note} inputCls={inputCls} onSaved={(id, n) => setActivity((list) => list.map((x) => (x.id === id ? { ...x, note: n } : x)))} />
                 </div>
               ))}
             </div>
