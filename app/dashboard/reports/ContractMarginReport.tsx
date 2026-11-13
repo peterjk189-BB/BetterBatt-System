@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { downloadSupplierPricingPdf } from "@/lib/supplierPricingPdf";
+import { todayAU } from "@/lib/dates";
 
 type Rate = { id: string; customer_id: string; part_id: string | null; builder_description: string; rate_per_m2: number; effective_from: string; sort_order: number };
 type Part = { id: string; name: string; code: string | null; coverage_m2: number; pack_cost_ex_gst: number; installer_rate_per_m2: number; suppliers?: any };
@@ -24,6 +26,7 @@ export default function ContractMarginReport() {
   const [target, setTarget] = useState("15");
   const [latestOnly, setLatestOnly] = useState(true);
   const [withLabour, setWithLabour] = useState(true);
+  const [supFilter, setSupFilter] = useState("");
   const [jobsLoading, setJobsLoading] = useState(false);
 
   // Builders that have a contract price list.
@@ -121,6 +124,14 @@ export default function ContractMarginReport() {
     return { packs, rev, cost, margin: rev > 0 ? (rev - cost) / rev : 0, saving };
   }, [rows]);
 
+  const suppliers = useMemo(() => Array.from(new Set(rows.map((x) => x.sup).filter((s) => s !== "—"))).sort(), [rows]);
+  const exportPdf = () =>
+    downloadSupplierPricingPdf(
+      rows.filter((x) => x.p).map((x) => ({ product: x.p!.name, code: x.p!.code ?? "", supplier: x.sup, m2PerPack: x.cov, packs: x.v.packs, nowPack: x.buy, targetPack: Math.max(0, x.maxBuy) })),
+      todayAU(),
+      supFilter
+    );
+
   const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]";
   const td = "px-2 py-1.5 align-top";
   const below = (m: number) => m < t - 0.0005;
@@ -147,6 +158,11 @@ export default function ContractMarginReport() {
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={latestOnly} onChange={(e) => setLatestOnly(e.target.checked)} /> Latest rates only
           </label>
+          <select className="rounded-lg border border-[var(--border)] px-2 py-1.5" value={supFilter} onChange={(e) => setSupFilter(e.target.value)}>
+            <option value="">All suppliers</option>
+            {suppliers.map((s) => (<option key={s} value={s}>{s}</option>))}
+          </select>
+          <button type="button" onClick={exportPdf} className="rounded-lg bg-[var(--accent,#141413)] px-3 py-1.5 font-medium text-white">Export supplier PDF</button>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={withLabour} onChange={(e) => setWithLabour(e.target.checked)} /> Include installer cost
           </label>
