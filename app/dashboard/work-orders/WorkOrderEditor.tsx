@@ -114,6 +114,37 @@ export default function WorkOrderEditor({
     notes: workOrder?.notes || prefillHeader?.notes || "",
   });
 
+  // Duplicate guard: a new work order for a quote that already has one (archived ones count) shows a red confirm popup.
+  const [dupes, setDupes] = useState<any[]>([]);
+  const [dupOpen, setDupOpen] = useState(false);
+  const [dupAck, setDupAck] = useState(false);
+  useEffect(() => {
+    if (!isNew || !form.project_id) return;
+    let alive = true;
+    (async () => {
+      const { data } = await supabase
+        .from("work_orders")
+        .select("id, wo_number, archived, entry_date, po_value, subcontractors(name)")
+        .eq("project_id", form.project_id)
+        .order("wo_number");
+      if (!alive) return;
+      setDupes(data ?? []);
+      setDupAck(false);
+      setDupOpen((data ?? []).length > 0);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, form.project_id]);
+  function createNumbered() {
+    const base = (projects.find((x) => x.id === form.project_id) as any)?.quote_number;
+    const root = `QW${base}`;
+    const used = new Set(dupes.map((d) => d.wo_number));
+    let n = root;
+    for (let i = 2; used.has(n); i++) n = `${root}-${i}`;
+    if (used.has(form.wo_number.trim()) || !form.wo_number.trim()) setForm((f) => ({ ...f, wo_number: n }));
+    setDupOpen(false);
+  }
+
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
   const selectableParts = useMemo(() => parts.filter((p) => !isDeliveryItem(p.name)), [parts]);
 
@@ -588,6 +619,44 @@ export default function WorkOrderEditor({
 
   return (
     <div>
+      {isNew && dupOpen && dupes.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-label="Duplicate work order">
+          <div className="w-full max-w-md overflow-hidden rounded-xl border-2 border-[#c1272d] bg-[var(--surface)] shadow-2xl">
+            <div className="bg-[#c1272d] px-4 py-3 text-base font-bold text-white">⛔ STOP: duplicate work order</div>
+            <div className="grid gap-3 px-4 py-4 text-sm">
+              <div className="text-xl font-extrabold text-[#e5484d]">
+                {dupes.map((d) => d.wo_number).join(", ")} already {dupes.length > 1 ? "exist" : "exists"}
+              </div>
+              <div className="text-[var(--muted)]">This quote already has {dupes.length > 1 ? "work orders" : "a work order"}. Creating another can double up stock and contractor pay.</div>
+              <div className="grid gap-2">
+                {dupes.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-[#c1272d]/50 bg-[#c1272d]/10 px-3 py-2">
+                    <div>
+                      <div className="font-bold">{d.wo_number}{d.archived ? " (archived)" : ""}</div>
+                      <div className="text-xs text-[var(--muted)]">
+                        {d.entry_date ? `Booked ${d.entry_date.split("-").reverse().join("/")}` : "No booking date"}
+                        {(Array.isArray(d.subcontractors) ? d.subcontractors[0]?.name : d.subcontractors?.name) ? ` · ${Array.isArray(d.subcontractors) ? d.subcontractors[0]?.name : d.subcontractors?.name}` : ""}
+                        {d.po_value ? ` · $${Number(d.po_value).toLocaleString("en-AU")}` : ""}
+                      </div>
+                    </div>
+                    <Link href={`/dashboard/work-orders/${d.id}`} className="shrink-0 rounded-lg bg-[#c1272d] px-3 py-1.5 text-xs font-semibold text-white">View</Link>
+                  </div>
+                ))}
+              </div>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1" checked={dupAck} onChange={(e) => setDupAck(e.target.checked)} />
+                <span>I know there is already one and still need another work order for this quote.</span>
+              </label>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--border)] px-4 py-3">
+              <Link href="/dashboard/work-orders" className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">Go back</Link>
+              <button type="button" disabled={!dupAck} onClick={createNumbered} className="rounded-lg bg-[#c1272d] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
+                Create another work order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-x-4">
