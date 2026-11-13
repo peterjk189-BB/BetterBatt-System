@@ -62,9 +62,15 @@ export default async function NewWorkOrderPage({
       const partById = Object.fromEntries((parts ?? []).map((p) => [p.id, p]));
       const total = computeQuoteTotal(project, lines ?? [], partById as any);
       const nonDeliveryLines = (lines ?? []).filter((l) => !isDeliveryItem(partById[l.part_id || ""]?.name));
+      // Work order numbers are unique (archived ones still hold theirs), so suggest the next free one: QW1053, QW1053-2, ...
+      const base = `QW${project.quote_number}`;
+      const { data: taken } = await supabase.from("work_orders").select("wo_number").like("wo_number", `${base}%`);
+      const used = new Set((taken ?? []).map((t: any) => t.wo_number));
+      let woNumber = base;
+      for (let n = 2; used.has(woNumber); n++) woNumber = `${base}-${n}`;
       prefill = {
         project_id: project.id,
-        wo_number: `QW${project.quote_number}`,
+        wo_number: woNumber,
         po_value: Math.round(total * 100) / 100,
         notes: ((project as any).contractor_notes as string | null) || "",
         lines: [
