@@ -146,6 +146,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         delivery_date: inv.delivery_date || null,
         delivery_note: inv.delivery_note?.trim() || null,
         delivery_address: inv.delivery_address?.trim() || null,
+        site_address: inv.site_address?.trim() || null,
         ...(hasContactCols
           ? { delivery_contact_name: inv.delivery_contact_name?.trim() || null, delivery_contact_phone: inv.delivery_contact_phone?.trim() || null, delivery_time: inv.delivery_time || null }
           : {}),
@@ -157,6 +158,14 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     if (error) return setDeliveryMsg({ ok: false, text: error.message + " (has migration 0053 been run?)" });
     setDeliveryMsg({ ok: true, text: "Delivery details saved." });
     logAudit(supabase, { eventType: "update", entityType: "invoice", entityId: inv.id, entityLabel: invNo(inv.invoice_number), details: "Delivery details updated" });
+  }
+
+  /** The site address saves as soon as you click out of the box, so it can't be lost by using a different Save button. */
+  async function saveSiteAddress() {
+    const { data, error } = await supabase.from("invoices").update({ site_address: inv.site_address?.trim() || null }).eq("id", inv.id).select("id");
+    if (error) return setMsg({ ok: false, text: error.message + " (has migration 0032 been run?)" });
+    if (!data || data.length === 0) return setMsg({ ok: false, text: "Site address was not saved (no permission to change this invoice?)." });
+    setMsg({ ok: true, text: "Site address saved." });
   }
 
   /** Draft purchase orders for the lines marked "Order from supplier", one per supplier. */
@@ -518,7 +527,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm">
             Site address {!inv.site_address && inv.projects && <span className="text-xs text-[var(--muted)]">(blank = quote&apos;s address)</span>}
-            <textarea className={input} rows={2} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} placeholder="Lot, street, suburb" />
+            <textarea className={input} rows={2} value={inv.site_address ?? ""} onChange={(e) => setInv({ ...inv, site_address: e.target.value })} onBlur={saveSiteAddress} placeholder="Lot, street, suburb" />
           </label>
           <label className="block text-sm">
             Delivery address <span className="text-xs text-[var(--muted)]">(printed as &quot;Deliver to&quot;)</span>
