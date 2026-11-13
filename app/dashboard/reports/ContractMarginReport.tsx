@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Rate = { id: string; customer_id: string; part_id: string | null; builder_description: string; rate_per_m2: number; effective_from: string; sort_order: number };
-type Part = { id: string; name: string; code: string | null; coverage_m2: number; pack_cost_ex_gst: number; installer_rate_per_m2: number };
+type Part = { id: string; name: string; code: string | null; coverage_m2: number; pack_cost_ex_gst: number; installer_rate_per_m2: number; suppliers?: any };
 type Cust = { id: string; name: string };
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -23,6 +23,7 @@ export default function ContractMarginReport() {
   const [lines, setLines] = useState<any[]>([]);
   const [target, setTarget] = useState("15");
   const [latestOnly, setLatestOnly] = useState(true);
+  const [withLabour, setWithLabour] = useState(true);
   const [jobsLoading, setJobsLoading] = useState(false);
 
   // Builders that have a contract price list.
@@ -53,7 +54,7 @@ export default function ContractMarginReport() {
       setError("");
       const [rr, pp, ll]: any[] = await Promise.all([
         supabase.from("customer_contract_rates").select("*").eq("customer_id", customerId).eq("archived", false),
-        supabase.from("parts").select("id, name, code, coverage_m2, pack_cost_ex_gst, installer_rate_per_m2"),
+        supabase.from("parts").select("id, name, code, coverage_m2, pack_cost_ex_gst, installer_rate_per_m2, suppliers(name)"),
         supabase
           .from("project_lines")
           .select("qty_m2, part_id, contract_rate, contract_rate_id, option_key, projects!inner(customer_id, archived, outcome, option_accepted)")
@@ -99,20 +100,25 @@ export default function ContractMarginReport() {
         const p = r.part_id ? parts[r.part_id] : undefined;
         const cov = Number(p?.coverage_m2) || 0;
         const sellPack = Number(r.rate_per_m2) * cov;
-        const costPack = (Number(p?.pack_cost_ex_gst) || 0) + (Number(p?.installer_rate_per_m2) || 0) * cov;
+        const buy = Number(p?.pack_cost_ex_gst) || 0;
+        const labourPack = withLabour ? (Number(p?.installer_rate_per_m2) || 0) * cov : 0;
+        const costPack = buy + labourPack;
         const margin = sellPack > 0 ? (sellPack - costPack) / sellPack : 0;
-        const needPack = costPack / (1 - t);
+        // Sell price is fixed: the most we can pay the supplier per pack to still make the target margin.
+        const maxBuy = sellPack * (1 - t) - labourPack;
+        const cut = buy - maxBuy;
         const v = vol.get(r.id) ?? { m2: 0, packs: 0, rev: 0 };
-        return { r, p, cov, sellPack, costPack, margin, needPack, needM2: cov > 0 ? needPack / cov : 0, v, cost: v.packs * costPack };
+        const sup = Array.isArray(p?.suppliers) ? p?.suppliers[0]?.name : p?.suppliers?.name;
+        return { r, p, cov, sellPack, buy, labourPack, costPack, margin, maxBuy, cut, cutPct: buy > 0 ? cut / buy : 0, sup: sup || "—", v, cost: v.packs * costPack, saving: Math.max(0, cut) * v.packs };
       });
-  }, [rates, parts, lines, latestOnly, t]);
+  }, [rates, parts, lines, latestOnly, t, withLabour]);
 
   const totals = useMemo(() => {
-    const packs = rows.reduce((s, x) => s + x.v.packs, 0);
-    const rev = rows.reduce((s, x) => s + x.v.rev, 0);
-    const cost = rows.reduce((s, x) => s + x.cost, 0);
-    const needRev = rows.reduce((s, x) => s + x.v.packs * x.needPack, 0);
-    return { packs, rev, cost, margin: rev > 0 ? (rev - cost) / rev : 0, needRev };
+    const packs = rows.reduce((x, y) => x + y.v.packs, 0);
+    const rev = rows.reduce((x, y) => x + y.v.rev, 0);
+    const cost = rows.reduce((x, y) => x + y.cost, 0);
+    const saving = rows.reduce((x, y) => x + y.saving, 0);
+    return { packs, rev, cost, margin: rev > 0 ? (rev - cost) / rev : 0, saving };
   }, [rows]);
 
   const th = "px-2 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]";
@@ -125,8 +131,7 @@ export default function ContractMarginReport() {
         <div>
           <h2 className="text-lg font-semibold">Contract pricing margins</h2>
           <p className="text-xs text-[var(--muted)]">
-            Per product on the builder&apos;s price list: what a pack sells for, what it costs (pack cost + installer rate) and the pack price needed to reach your target margin. Volumes are packs on Accepted / Complete jobs.
-            Margin = profit ÷ sell price, the same as on the quote page.
+            Contractor sell prices stay as they are. For each product this shows the most we can pay the supplier per pack to still make the target margin, and how far that is from what we pay now.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -142,6 +147,9 @@ export default function ContractMarginReport() {
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={latestOnly} onChange={(e) => setLatestOnly(e.target.checked)} /> Latest rates only
           </label>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={withLabour} onChange={(e) => setWithLabour(e.target.checked)} /> Include installer cost
+          </label>
         </div>
       </div>
 
@@ -156,7 +164,7 @@ export default function ContractMarginReport() {
             <div className="rounded-lg border border-[var(--border)] p-3"><div className="text-xs text-[var(--muted)]">Packs sold</div><div className="text-xl font-semibold">{totals.packs.toLocaleString("en-AU")}</div></div>
             <div className="rounded-lg border border-[var(--border)] p-3"><div className="text-xs text-[var(--muted)]">Sales (ex GST)</div><div className="text-xl font-semibold">{money0(totals.rev)}</div></div>
             <div className="rounded-lg border border-[var(--border)] p-3"><div className="text-xs text-[var(--muted)]">Current margin</div><div className="text-xl font-semibold" style={{ color: below(totals.margin) ? "#b3261e" : undefined }}>{pct(totals.margin)}</div></div>
-            <div className="rounded-lg border border-[var(--border)] p-3"><div className="text-xs text-[var(--muted)]">Extra sales needed for {Number(target) || 0}%</div><div className="text-xl font-semibold">{money0(Math.max(0, totals.needRev - totals.rev))}</div></div>
+            <div className="rounded-lg border border-[var(--border)] p-3"><div className="text-xs text-[var(--muted)]">Supplier saving needed (on packs sold)</div><div className="text-xl font-semibold">{money0(totals.saving)}</div></div>
           </div>
 
           <div className="mt-3 overflow-x-auto">
@@ -164,35 +172,35 @@ export default function ContractMarginReport() {
               <thead>
                 <tr className="border-b border-[var(--border)]">
                   <th className={th}>Product</th>
+                  <th className={th}>Supplier</th>
                   <th className={th + " text-right"}>Packs sold</th>
-                  <th className={th + " text-right"}>Cost / pack</th>
                   <th className={th + " text-right"}>Sell / pack</th>
-                  <th className={th + " text-right"}>Margin</th>
-                  <th className={th + " text-right"}>Pack price for {Number(target) || 0}%</th>
-                  <th className={th + " text-right"}>= $/m²</th>
-                  <th className={th + " text-right"}>Change</th>
-                  <th className={th + " text-right"}>Sales</th>
-                  <th className={th + " text-right"}>Profit</th>
+                  <th className={th + " text-right"}>We pay now</th>
+                  <th className={th + " text-right"}>Margin now</th>
+                  <th className={th + " text-right"}>Must pay ≤ ({Number(target) || 0}%)</th>
+                  <th className={th + " text-right"}>Cut per pack</th>
+                  <th className={th + " text-right"}>Cut %</th>
+                  <th className={th + " text-right"}>Saving on packs sold</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((x) => {
-                  const change = x.sellPack > 0 ? x.needPack - x.sellPack : 0;
+                  const ok = x.cut <= 0.005;
                   return (
                     <tr key={x.r.id} className="border-b border-[var(--border)]">
                       <td className={td}>
                         <div className="font-medium">{x.r.builder_description}</div>
                         <div className="text-xs text-[var(--muted)]">{x.p ? `${x.p.code ? x.p.code + " · " : ""}${x.p.name} · ${x.cov} m²/pack` : "No inventory item linked"}{!latestOnly ? ` · rates from ${x.r.effective_from}` : ""}</div>
                       </td>
+                      <td className={td}>{x.sup}</td>
                       <td className={td + " text-right tabular-nums"}>{x.v.packs ? x.v.packs.toLocaleString("en-AU") : "—"}</td>
-                      <td className={td + " text-right tabular-nums"}>{money(x.costPack)}</td>
                       <td className={td + " text-right tabular-nums"}>{money(x.sellPack)}<div className="text-xs text-[var(--muted)]">{money(Number(x.r.rate_per_m2))}/m²</div></td>
+                      <td className={td + " text-right tabular-nums"}>{money(x.buy)}{x.labourPack ? <div className="text-xs text-[var(--muted)]">+ {money(x.labourPack)} install</div> : null}</td>
                       <td className={td + " text-right font-semibold tabular-nums"} style={{ color: below(x.margin) ? "#b3261e" : "#1b7a3a" }}>{pct(x.margin)}</td>
-                      <td className={td + " text-right font-semibold tabular-nums"}>{money(x.needPack)}</td>
-                      <td className={td + " text-right tabular-nums"}>{money(x.needM2)}</td>
-                      <td className={td + " text-right tabular-nums"} style={{ color: change > 0.005 ? "#b3261e" : "#1b7a3a" }}>{change > 0.005 ? "+" : ""}{money(change)}</td>
-                      <td className={td + " text-right tabular-nums"}>{x.v.rev ? money0(x.v.rev) : "—"}</td>
-                      <td className={td + " text-right tabular-nums"}>{x.v.rev ? money0(x.v.rev - x.cost) : "—"}</td>
+                      <td className={td + " text-right font-bold tabular-nums"}>{money(x.maxBuy)}</td>
+                      <td className={td + " text-right tabular-nums"} style={{ color: ok ? "#1b7a3a" : "#b3261e" }}>{ok ? "OK" : "−" + money(x.cut)}</td>
+                      <td className={td + " text-right tabular-nums"} style={{ color: ok ? "#1b7a3a" : "#b3261e" }}>{ok ? "—" : pct(x.cutPct)}</td>
+                      <td className={td + " text-right tabular-nums"}>{x.saving ? money0(x.saving) : "—"}</td>
                     </tr>
                   );
                 })}
@@ -200,19 +208,18 @@ export default function ContractMarginReport() {
               </tbody>
               <tfoot>
                 <tr className="font-bold">
-                  <td className={td}>Total</td>
+                  <td className={td} colSpan={2}>Total</td>
                   <td className={td + " text-right tabular-nums"}>{totals.packs.toLocaleString("en-AU")}</td>
                   <td className={td} colSpan={2}></td>
                   <td className={td + " text-right tabular-nums"} style={{ color: below(totals.margin) ? "#b3261e" : "#1b7a3a" }}>{pct(totals.margin)}</td>
                   <td className={td} colSpan={3}></td>
-                  <td className={td + " text-right tabular-nums"}>{money0(totals.rev)}</td>
-                  <td className={td + " text-right tabular-nums"}>{money0(totals.rev - totals.cost)}</td>
+                  <td className={td + " text-right tabular-nums"}>{money0(totals.saving)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
-            Cost / pack = Inventory pack cost + installer rate × m² per pack (the same costs the quote page uses). &quot;Pack price for {Number(target) || 0}%&quot; = cost ÷ (1 − {Number(target) || 0}%). Change shows how much each pack&apos;s sell price must move. Contract rates are charged on plan m², so real margin on a job can differ slightly from the per-pack figure.
+            Must pay ≤ = sell price per pack × (1 − {Number(target) || 0}%) − installer cost per pack. Take this to the supplier as the target ex-GST pack price. Cut % is the discount needed off today&apos;s Inventory pack cost. Packs sold counts Accepted / Complete jobs only.
           </p>
         </>
       )}
