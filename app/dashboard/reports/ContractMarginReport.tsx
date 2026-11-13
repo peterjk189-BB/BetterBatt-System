@@ -174,10 +174,12 @@ export default function ContractMarginReport() {
                   <th className={th}>Product</th>
                   <th className={th}>Supplier</th>
                   <th className={th + " text-right"}>Packs sold</th>
-                  <th className={th + " text-right"}>Sell / pack</th>
-                  <th className={th + " text-right"}>We pay now</th>
+                  <th className={th + " text-right"}>Maple rate /m²</th>
+                  <th className={th + " text-right"}>Pack cost now /m²</th>
+                  <th className={th + " text-right"}>Installer /m²</th>
                   <th className={th + " text-right"}>Margin now</th>
-                  <th className={th + " text-right"}>Must pay ≤ ({Number(target) || 0}%)</th>
+                  <th className={th + " text-right"}>Must pay ≤ /m² ({Number(target) || 0}%)</th>
+                  <th className={th + " text-right"}>= per pack</th>
                   <th className={th + " text-right"}>Cut per pack</th>
                   <th className={th + " text-right"}>Cut %</th>
                   <th className={th + " text-right"}>Saving on packs sold</th>
@@ -186,6 +188,7 @@ export default function ContractMarginReport() {
               <tbody>
                 {rows.map((x) => {
                   const ok = x.cut <= 0.005;
+                  const c = x.cov || 1;
                   return (
                     <tr key={x.r.id} className="border-b border-[var(--border)]">
                       <td className={td}>
@@ -194,9 +197,11 @@ export default function ContractMarginReport() {
                       </td>
                       <td className={td}>{x.sup}</td>
                       <td className={td + " text-right tabular-nums"}>{x.v.packs ? x.v.packs.toLocaleString("en-AU") : "—"}</td>
-                      <td className={td + " text-right tabular-nums"}>{money(x.sellPack)}<div className="text-xs text-[var(--muted)]">{money(Number(x.r.rate_per_m2))}/m²</div></td>
-                      <td className={td + " text-right tabular-nums"}>{money(x.buy)}{x.labourPack ? <div className="text-xs text-[var(--muted)]">+ {money(x.labourPack)} install</div> : null}</td>
+                      <td className={td + " text-right tabular-nums"}>{money(Number(x.r.rate_per_m2))}</td>
+                      <td className={td + " text-right tabular-nums"}>{money(x.buy / c)}<div className="text-xs text-[var(--muted)]">{money(x.buy)} ÷ {x.cov} m²</div></td>
+                      <td className={td + " text-right tabular-nums"}>{x.labourPack ? money(x.labourPack / c) : "—"}</td>
                       <td className={td + " text-right font-semibold tabular-nums"} style={{ color: below(x.margin) ? "#b3261e" : "#1b7a3a" }}>{pct(x.margin)}</td>
+                      <td className={td + " text-right font-bold tabular-nums"}>{money(x.maxBuy / c)}</td>
                       <td className={td + " text-right font-bold tabular-nums"}>{money(x.maxBuy)}</td>
                       <td className={td + " text-right tabular-nums"} style={{ color: ok ? "#1b7a3a" : "#b3261e" }}>{ok ? "OK" : "−" + money(x.cut)}</td>
                       <td className={td + " text-right tabular-nums"} style={{ color: ok ? "#1b7a3a" : "#b3261e" }}>{ok ? "—" : pct(x.cutPct)}</td>
@@ -204,22 +209,22 @@ export default function ContractMarginReport() {
                     </tr>
                   );
                 })}
-                {!rows.length && <tr><td className={td + " text-[var(--muted)]"} colSpan={10}>No contract rates for this builder.</td></tr>}
+                {!rows.length && <tr><td className={td + " text-[var(--muted)]"} colSpan={12}>No contract rates for this builder.</td></tr>}
               </tbody>
               <tfoot>
                 <tr className="font-bold">
                   <td className={td} colSpan={2}>Total</td>
                   <td className={td + " text-right tabular-nums"}>{totals.packs.toLocaleString("en-AU")}</td>
-                  <td className={td} colSpan={2}></td>
-                  <td className={td + " text-right tabular-nums"} style={{ color: below(totals.margin) ? "#b3261e" : "#1b7a3a" }}>{pct(totals.margin)}</td>
                   <td className={td} colSpan={3}></td>
+                  <td className={td + " text-right tabular-nums"} style={{ color: below(totals.margin) ? "#b3261e" : "#1b7a3a" }}>{pct(totals.margin)}</td>
+                  <td className={td} colSpan={4}></td>
                   <td className={td + " text-right tabular-nums"}>{money0(totals.saving)}</td>
                 </tr>
               </tfoot>
             </table>
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
-            Must pay ≤ = sell price per pack × (1 − {Number(target) || 0}%) − installer cost per pack. Take this to the supplier as the target ex-GST pack price. Cut % is the discount needed off today&apos;s Inventory pack cost. Packs sold counts Accepted / Complete jobs only.
+            Must pay ≤ per m² = the contract rate (fixed) × (1 − {Number(target) || 0}%) − installer rate per m². Per pack = that × m² per pack, the target ex-GST pack price for the supplier. Cut % is the discount needed off today&apos;s Inventory pack cost. Packs sold counts Accepted / Complete jobs only.
           </p>
         </>
       )}
