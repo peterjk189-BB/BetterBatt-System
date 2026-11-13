@@ -72,12 +72,13 @@ export default function BusinessDashboard({ data, errors }: { data: BData; error
         </p>
       )}
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
         <Kpi label="Sales invoiced" value={money(s.sales)} sub="Sent invoices, ex GST" />
         <Kpi label="Gross profit" value={money(s.profit)} sub="Sales less materials and contractors" tone={s.profit >= 0 ? GOOD : BAD} />
         <Kpi label="Margin" value={pct(s.margin)} sub={`Target ${target}%`} tone={s.margin === null ? undefined : marginOk ? GOOD : BAD} />
         <Kpi label="Cash collected" value={money(s.cashIn)} sub="Payments received, inc GST" />
         <Kpi label="Owed to us" value={money(s.owedTotal)} sub={`${money(s.overdueTotal)} overdue`} tone={s.overdueTotal > 0 ? BAD : undefined} />
+        <Kpi label="Quotes created" value={String(s.funnel.quotes)} sub={`${s.funnel.quotes - s.decidedCount} still open · ${s.wonCount} accepted`} />
         <Kpi label="Quote win rate" value={pct(s.winRate, 0)} sub={s.decidedCount ? `${s.wonCount} of ${s.decidedCount} decided` : "No decided quotes"} />
       </section>
 
