@@ -18,11 +18,7 @@ export async function POST(req: Request) {
   const { data: row, error: readErr } = await admin.from("profiles").select("home_layout").eq("id", ctx.user.id).single();
   if (readErr) return NextResponse.json({ error: readErr.message + " (has migration 0095 been run?)" }, { status: 500 });
   const cur = parseLayout((row as any)?.home_layout);
-  const SECTIONS = new Set(["money", "actions", "today", "attention", "followups"]);
-  const cleanSec = (v: unknown) => (Array.isArray(v) ? Array.from(new Set(v.filter((x): x is string => typeof x === "string" && SECTIONS.has(x)))) : null);
   const next = {
-    sections: cleanSec(body.sections) ?? cur.sections,
-    hiddenSections: cleanSec(body.hiddenSections) ?? cur.hiddenSections,
     tiles: clean(body.tiles) ?? cur.tiles,
     hidden: clean(body.hidden) ?? cur.hidden,
     pins: clean(body.pins) ?? cur.pins,
