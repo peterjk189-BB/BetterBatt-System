@@ -13,8 +13,6 @@ import ThemeToggle from "./ThemeToggle";
 import AccessGuard from "./AccessGuard";
 import PreviewBar from "./PreviewBar";
 import QuickEnquiry from "./crm/QuickEnquiry";
-import PinnedBar from "./PinnedBar";
-import { parseLayout } from "@/lib/homeLayout";
 
 export default async function DashboardLayout({
   children,
@@ -50,13 +48,6 @@ export default async function DashboardLayout({
     label: t.label,
     group: t.group,
   }));
-  // Office/admin can pin favourite tabs (needs migration 0095; quietly off if the column is missing).
-  const canArrange = (isAdmin || isOffice) && !previewing;
-  let pins: string[] = [];
-  if (canArrange) {
-    const { data: lay, error: layErr } = await supabase.from("profiles").select("home_layout").eq("id", user.id).single();
-    if (!layErr) pins = parseLayout((lay as any)?.home_layout).pins;
-  }
   const allowedHrefs: string[] = navLinks.map((l) => l.href);
   // Statements live under the Invoices tab (no tab of their own).
   if (allowedHrefs.includes("/dashboard/invoices")) allowedHrefs.push("/dashboard/statements");
@@ -105,9 +96,8 @@ export default async function DashboardLayout({
           </div>
         )}
       </header>
-      {canArrange && hasAnyTab && <PinnedBar tabs={navLinks} initialPins={pins} />}
       <div className="flex w-full items-start">
-        {hasAnyTab && <Sidebar links={navLinks} canPin={canArrange} />}
+        {hasAnyTab && <Sidebar links={navLinks} />}
         <main className="min-w-0 flex-1 px-6 py-8">
           <AccessGuard allowedHrefs={allowedHrefs} />
           <SelectNumberOnFocus />
