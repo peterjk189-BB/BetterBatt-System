@@ -166,8 +166,14 @@ export default async function DashboardHome() {
         </div>
       )}
 
+      <HomeTiles
+        tiles={tiles.map((t) => ({ key: t.key, href: t.href, label: t.label, desc: t.desc, group: t.group }))}
+        layout={layout}
+        canArrange={canArrange}
+      />
+
       {myTabs.includes("crm") && myTasks.length > 0 && (
-        <div className="mt-6 rounded-xl border border-[var(--border)] border-t-4 border-t-[#fdb930] bg-[var(--surface)] p-4 shadow-sm">
+        <div className="mt-8 rounded-xl border border-[var(--border)] border-t-4 border-t-[#fdb930] bg-[var(--surface)] p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">My follow-ups due</p>
             <a href="/dashboard/crm?tab=tasks" className="text-sm text-accent hover:underline">
@@ -190,12 +196,6 @@ export default async function DashboardHome() {
           </div>
         </div>
       )}
-
-      <HomeTiles
-        tiles={tiles.map((t) => ({ key: t.key, href: t.href, label: t.label, desc: t.desc, group: t.group }))}
-        layout={layout}
-        canArrange={canArrange}
-      />
     </div>
   );
 }
