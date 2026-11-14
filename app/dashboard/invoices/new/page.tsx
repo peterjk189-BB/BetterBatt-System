@@ -4,7 +4,7 @@ import NewInvoice from "./NewInvoice";
 import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 import { supplyPackPrice } from "@/lib/priceTiers";
 
-export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string } }) {
+export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string; packs?: string; tier?: string } }) {
   const supabase = await createClient();
   const projSel = "id, quote_number, job_type, lot_no, address, suburb, quote_markup, customer_id, contact_email, contact_name, contact_phone, option_accepted, option_adjust, customers(name, discount_pct, payment_terms, contact_email)";
   const lineSel = "*, parts(id, code, name, coverage_m2, supply_charge_per_pack, supply_install_rate_per_m2";
@@ -73,5 +73,22 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
     };
   });
 
-  return <NewInvoice quotes={items} customers={(customers ?? []) as any} initialProjectId={searchParams.project_id ?? ""} problems={problems} />;
+  // Started from the pack calculator: ?packs=<partId>:<packs>,...&tier=retail. Becomes an item sale with those products filled in.
+  let calcItems: { part_id: string; description: string; qty: number; unit_price: number }[] = [];
+  if (searchParams.packs) {
+    const tier = ["retail", "trade", "regency"].includes(searchParams.tier || "") ? searchParams.tier! : "retail";
+    const wanted = searchParams.packs.split(",").map((x) => x.split(":")).filter(([id, n]) => id && Number(n) > 0);
+    if (wanted.length) {
+      const { data: ps } = await supabase.from("parts").select("*").in("id", wanted.map(([id]) => id));
+      const byId = new Map(((ps ?? []) as any[]).map((p) => [p.id, p]));
+      calcItems = wanted
+        .filter(([id]) => byId.has(id))
+        .map(([id, n]) => {
+          const p = byId.get(id);
+          return { part_id: id, description: `${p.code ? p.code + " - " : ""}${p.name}`, qty: Math.round(Number(n)), unit_price: Math.round(supplyPackPrice(p, tier) * 10000) / 10000 };
+        });
+    }
+  }
+
+  return <NewInvoice quotes={items} customers={(customers ?? []) as any} initialProjectId={searchParams.project_id ?? ""} problems={problems} calcItems={calcItems} />;
 }

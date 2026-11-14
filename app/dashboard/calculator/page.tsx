@@ -3,6 +3,11 @@ import Calculator from "./Calculator";
 
 export default async function CalculatorPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: me } = user ? await supabase.from("profiles").select("role").eq("id", user.id).single() : { data: null };
+  const canInvoice = me?.role === "admin" || me?.role === "office";
   // select("*") so the Retail / Trade / Regency prices are picked up whether or not those columns exist yet.
   const { data: parts } = await supabase.from("parts").select("*").eq("archived", false).order("name");
   const usable = ((parts ?? []) as any[])
@@ -16,5 +21,5 @@ export default async function CalculatorPage() {
       price_trade: Number(p.price_trade) || 0,
       price_regency: Number(p.price_regency) || 0,
     }));
-  return <Calculator parts={usable} />;
+  return <Calculator parts={usable} canInvoice={canInvoice} />;
 }

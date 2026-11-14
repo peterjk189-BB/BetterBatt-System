@@ -21,7 +21,7 @@ const num = (s: string) => Number(s) || 0;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const blankRow = (n: number): Row => ({ name: `Area ${n}`, partId: "", search: "", length: "", width: "", m2: "" });
 
-export default function Calculator({ parts }: { parts: Part[] }) {
+export default function Calculator({ parts, canInvoice = false }: { parts: Part[]; canInvoice?: boolean }) {
   const [tier, setTier] = useState<string>("retail");
   const [rows, setRows] = useState<Row[]>([blankRow(1)]);
   const [openIdx, setOpenIdx] = useState<number | null>(null);
@@ -66,6 +66,7 @@ export default function Calculator({ parts }: { parts: Part[] }) {
   const totalM2 = rows.reduce((s, r) => s + num(r.m2), 0);
   const grandEx = summary.reduce((s, x) => s + x.ex, 0);
   const calcParam = summary.map((x) => `${x.p.id}:${r1(x.need)}`).join(",");
+  const packsParam = summary.filter((x) => x.packs > 0).map((x) => `${x.p.id}:${x.packs}`).join(",");
 
   const inp = "w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm";
   const lab = "flex flex-col gap-1 text-xs text-[var(--muted)]";
@@ -235,6 +236,11 @@ export default function Calculator({ parts }: { parts: Part[] }) {
           {summary.length > 0 && (
             <Link href={`/dashboard/quotes/new?calc=${encodeURIComponent(calcParam)}&tier=${tier}`} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
               Create quote from this
+            </Link>
+          )}
+          {summary.length > 0 && packsParam && canInvoice && (
+            <Link href={`/dashboard/invoices/new?packs=${encodeURIComponent(packsParam)}&tier=${tier}`} className="rounded-lg bg-[#201f1c] px-4 py-2 text-sm font-medium text-white">
+              Create tax invoice
             </Link>
           )}
           <button onClick={() => window.print()} disabled={summary.length === 0} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium disabled:opacity-50">

@@ -58,7 +58,7 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
   );
 }
 
-export default function NewInvoice({ quotes, customers: customersProp, initialProjectId, problems = [] }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string; problems?: string[] }) {
+export default function NewInvoice({ quotes, customers: customersProp, initialProjectId, problems = [], calcItems = [] }: { quotes: QuoteItem[]; customers: { id: string; name: string; payment_terms: string | null }[]; initialProjectId: string; problems?: string[]; calcItems?: { part_id: string; description: string; qty: number; unit_price: number }[] }) {
   const router = useRouter();
   const supabase = createClient();
   const [projectId, setProjectId] = useState(initialProjectId);
@@ -69,6 +69,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
   const [custErr, setCustErr] = useState("");
   // A quote that already has an invoice (e.g. a deposit) can only be invoiced for the balance
   const [kind, setKind] = useState<(typeof KINDS)[number]>(() => {
+    if (calcItems.length > 0) return "Items";
     const iq = quotes.find((x) => x.id === initialProjectId);
     return iq && iq.invoiced_ex > 0.005 ? "Balance" : "Deposit";
   });
@@ -117,13 +118,13 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
   const isItems = kind === "Items";
 
   const ex = useMemo(() => {
-    if (kind === "Items") return 0;
+    if (kind === "Items") return calcItems.length > 0 && !q ? round2(calcItems.reduce((s, l) => s + round2(l.qty * l.unit_price), 0)) : 0;
     if (!q) return 0;
     if (kind === "Balance") return Math.max(0, remainingEx);
     if (kind === "Full") return q.quote_ex;
     if (mode === "pct") return round2((q.quote_ex * (Number(pct) || 0)) / 100);
     return round2(Number(amountEx) || 0);
-  }, [q, kind, mode, pct, amountEx, remainingEx]);
+  }, [q, kind, mode, pct, amountEx, remainingEx, calcItems]);
   const gst = round2(ex * 0.1);
   const total = round2(ex + gst);
 
@@ -141,6 +142,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     if (!q && !(isItems && customerId)) return setErr("Choose an accepted quote, or for an item sale choose a customer.");
     if (q && kind === "Balance" && ex <= 0) return setErr("This quote is already fully invoiced.");
     if (!isItems && ex <= 0) return setErr("Enter an amount above $0.");
+    const useCalc = isItems && !q && calcItems.length > 0;
     if (q && kind !== "Balance" && kind !== "Full" && ex > remainingEx + 0.005 && !confirm(`This is more than the ${money(remainingEx)} (ex GST) still to invoice on this quote. Create it anyway?`)) return;
     setSaving(true);
     setErr("");
@@ -180,6 +182,11 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     let { data, error } = await supabase.from("invoices").insert({ ...baseRow, ...extras }).select().single();
     if (error && Object.keys(extras).length) {
       ({ data, error } = await supabase.from("invoices").insert(baseRow).select().single());
+    }
+    if (!error && data && useCalc) {
+      await supabase.from("invoice_lines").insert(
+        calcItems.map((l, i) => ({ invoice_id: data!.id, part_id: l.part_id, description: l.description, qty: l.qty, unit_price: l.unit_price, line_ex: round2(l.qty * l.unit_price), sort_order: i }))
+      );
     }
     if (!error && data && copyLines) {
       await supabase.from("invoice_lines").insert(
@@ -232,6 +239,12 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
       {problems.length === 0 && quotes.length === 0 && (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           No accepted quotes found. A quote appears here once its outcome is set to <b>Accepted</b> (and it isn&apos;t archived). For a counter or item sale, choose <b>Items</b>.
+        </div>
+      )}
+
+      {calcItems.length > 0 && !q && (
+        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 text-sm">
+          <b>From the pack calculator:</b> {calcItems.map((l) => `${l.qty} × ${l.description}`).join("; ")}. Choose the customer below (or Cash Sale) and these are added to the invoice.
         </div>
       )}
 
