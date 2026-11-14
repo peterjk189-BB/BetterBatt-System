@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
 import HomeTiles from "./HomeTiles";
+import HomeBoard from "./HomeBoard";
+import { loadHomeBoard } from "@/lib/homeBoard";
 import { parseLayout } from "@/lib/homeLayout";
 import { getInstallerScope } from "@/lib/installerScope";
 
@@ -30,7 +32,7 @@ export default async function DashboardHome() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, allowed_tabs")
+    .select("role, allowed_tabs, full_name")
     .eq("id", user!.id)
     .single();
 
@@ -123,6 +125,48 @@ export default async function DashboardHome() {
       .order("due_date")
       .limit(8);
     myTasks = (data ?? []) as typeof myTasks;
+  }
+
+  // Office and admin get a "what needs doing" board; the big tab tiles stay for phones only.
+  if (canArrange) {
+    const board = await loadHomeBoard(supabase, todayMelb, contractorPaymentsDue);
+    const hour = Number(new Date().toLocaleString("en-AU", { hour: "numeric", hour12: false, timeZone: "Australia/Melbourne" }));
+    const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const first = ((profile as any)?.full_name || "").split(" ")[0];
+    const todayLabel = new Date().toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
+    const actions = [
+      myTabs.includes("quotes") && { label: "+ New quote", href: "/dashboard/quotes/new", primary: true },
+      myTabs.includes("invoices") && { label: "+ New invoice", href: "/dashboard/invoices/new", primary: true },
+      myTabs.includes("site-visits") && { label: "Log site visit", href: "/dashboard/site-visits/new" },
+      myTabs.includes("purchase-orders") && { label: "New purchase order", href: "/dashboard/purchase-orders/new" },
+      myTabs.includes("calculator") && { label: "Pack calculator", href: "/dashboard/calculator" },
+    ].filter(Boolean) as { label: string; href: string; primary?: boolean }[];
+    const followups = myTasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      overdue: t.due_date < todayMelb,
+      href: t.lead_id ? `/dashboard/crm/leads/${t.lead_id}` : t.customer_id ? `/dashboard/crm/accounts/${t.customer_id}` : "/dashboard/crm?tab=tasks",
+    }));
+    return (
+      <div>
+        <div className="flex items-center gap-3">
+          <Image src="/logo.png" alt="Better Batt Insulation" width={140} height={70} className="h-10 w-auto" priority />
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+        </div>
+        <HomeBoard
+          data={board}
+          actions={actions}
+          followups={followups}
+          layout={layout}
+          todayLabel={todayLabel}
+          name={`${greet}${first ? `, ${first}` : ""}`}
+          showFollowups={myTabs.includes("crm")}
+        />
+        <div className="mt-8 sm:hidden">
+          <HomeTiles tiles={tiles.map((t) => ({ key: t.key, href: t.href, label: t.label, desc: t.desc, group: t.group }))} layout={layout} canArrange={false} />
+        </div>
+      </div>
+    );
   }
 
   const kpis: { label: string; value: string; href: string }[] = [];
