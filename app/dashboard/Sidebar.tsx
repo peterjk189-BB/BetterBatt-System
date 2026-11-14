@@ -9,7 +9,7 @@ import { GROUP_ACCENTS, GROUP_ACCENT_TEXT } from "@/lib/tabs";
 
 type NavLink = { key: string; href: string; label: string; group: string };
 
-export default function Sidebar({ links }: { links: NavLink[] }) {
+export default function Sidebar({ links, canPin = false }: { links: NavLink[]; canPin?: boolean }) {
   const pathname = usePathname();
   // Highlight the tab the moment it's tapped, before the new page has finished loading.
   const [pending, setPending] = useState<string | null>(null);
@@ -45,6 +45,8 @@ export default function Sidebar({ links }: { links: NavLink[] }) {
                       key={l.href}
                       href={l.href}
                       onClick={() => setPending(l.href)}
+                      draggable={canPin}
+                      onDragStart={canPin ? (e) => { e.dataTransfer.setData("text/plain", l.key); e.dataTransfer.effectAllowed = "copy"; } : undefined}
                       style={active ? { backgroundColor: accent, color: accentText } : undefined}
                       className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
                         active ? "" : "text-[var(--muted)] hover:bg-white hover:text-[var(--text)]"

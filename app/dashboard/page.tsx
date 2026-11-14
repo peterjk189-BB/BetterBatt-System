@@ -3,7 +3,8 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/server";
 import { ALL_TABS, GROUP_ACCENTS } from "@/lib/tabs";
 import { resolveTabsForRequest } from "@/lib/preview";
-import TabIcon from "@/lib/TabIcon";
+import HomeTiles from "./HomeTiles";
+import { parseLayout } from "@/lib/homeLayout";
 import { getInstallerScope } from "@/lib/installerScope";
 
 function fmtCurrency(n: number) {
@@ -33,7 +34,7 @@ export default async function DashboardHome() {
     .eq("id", user!.id)
     .single();
 
-  const { tabs: myTabs } = await resolveTabsForRequest(profile?.role, profile?.allowed_tabs ?? null, user!.id);
+  const { tabs: myTabs, previewing } = await resolveTabsForRequest(profile?.role, profile?.allowed_tabs ?? null, user!.id);
   const tiles = ALL_TABS.filter(
     (t) => myTabs.includes(t.key) && t.key !== "users" && t.key !== "audit-log" && t.key !== "settings"
   );
@@ -49,6 +50,13 @@ export default async function DashboardHome() {
       </div>
     );
   }
+
+  // Office/admin can arrange their tiles (needs migration 0095; falls back to the default order if the column is missing).
+  const canArrange = (profile?.role === "admin" || profile?.role === "office") && !previewing;
+  const { data: layRow, error: layErr } = canArrange
+    ? await supabase.from("profiles").select("home_layout").eq("id", user!.id).single()
+    : { data: null, error: null as any };
+  const layout = parseLayout(layErr ? null : (layRow as any)?.home_layout);
 
   const showQuotesKpi = myTabs.includes("quotes");
   const showWorkOrdersKpi = myTabs.includes("work-orders");
@@ -183,27 +191,11 @@ export default async function DashboardHome() {
         </div>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <a
-            key={t.href}
-            href={t.href}
-            style={{ borderLeftColor: GROUP_ACCENTS[t.group] ?? "var(--border)" }}
-            className="flex items-start gap-3 rounded-xl border border-l-4 border-[var(--border)] bg-[var(--surface)] p-4 transition-colors hover:bg-[var(--bg)]"
-          >
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]"
-              style={{ backgroundColor: (ICON_TILE[t.group] ?? ICON_TILE.Admin)[0] }}
-            >
-              <TabIcon tabKey={t.key} color={(ICON_TILE[t.group] ?? ICON_TILE.Admin)[1]} size={24} />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-semibold">{t.label}</span>
-              <span className="mt-1 block text-xs text-[var(--muted)]">{t.desc}</span>
-            </span>
-          </a>
-        ))}
-      </div>
+      <HomeTiles
+        tiles={tiles.map((t) => ({ key: t.key, href: t.href, label: t.label, desc: t.desc, group: t.group }))}
+        layout={layout}
+        canArrange={canArrange}
+      />
     </div>
   );
 }
