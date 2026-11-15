@@ -7,12 +7,6 @@ import { applyOrder, type HomeLayout } from "@/lib/homeLayout";
 
 type Tile = { key: string; href: string; label: string; desc: string; group: string };
 
-const ICON_TILE: Record<string, [string, string]> = {
-  Sales: ["#fff3d1", "#a87500"],
-  Operations: ["#f4ead2", "#b1841f"],
-  Insights: ["#dbe7fd", "#2563eb"],
-  Admin: ["#e8e8e6", "#5f6062"],
-};
 
 /** The home page tiles. Office and admin can press Arrange to drag (or use the arrows to) reorder and hide tiles. */
 export default function HomeTiles({ tiles, layout, canArrange }: { tiles: Tile[]; layout: HomeLayout; canArrange: boolean }) {
@@ -88,9 +82,7 @@ export default function HomeTiles({ tiles, layout, canArrange }: { tiles: Tile[]
           const t = byKey[k];
           const inner = (
             <>
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px]" style={{ backgroundColor: (ICON_TILE[t.group] ?? ICON_TILE.Admin)[0] }}>
-                <TabIcon tabKey={t.key} color={(ICON_TILE[t.group] ?? ICON_TILE.Admin)[1]} size={24} />
-              </span>
+              <TabIcon tabKey={t.key} size={46} className="shrink-0" />
               <span className="min-w-0">
                 <span className="block font-semibold">{t.label}</span>
                 <span className="mt-1 block text-xs text-[var(--muted)]">{t.desc}</span>
