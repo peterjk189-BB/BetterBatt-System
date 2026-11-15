@@ -1,3 +1,5 @@
+import { useId } from "react";
+
 // App-style tab icons: a white glyph on a rounded, gradient tile (iPhone look).
 // Glyphs are Phosphor Icons "Fill" (MIT licence, https://phosphoricons.com). Tile colours are Better Batt's own.
 
@@ -50,10 +52,11 @@ const COLORS: Record<string, [string, string]> = {
 };
 
 export default function TabIcon({ tabKey, size = 24, className }: { tabKey: string; color?: string; className?: string; size?: number }) {
+  const uid = useId();
   const glyph = GLYPHS[tabKey];
   if (!glyph) return null;
   const [top, bottom] = COLORS[tabKey] ?? ["#9aa3b2", "#5c6678"];
-  const id = `ti-${tabKey}`;
+  const id = `ti-${tabKey}-${uid.replace(/[^a-zA-Z0-9]/g, "")}`;
   return (
     <svg viewBox="0 0 256 256" width={size} height={size} aria-hidden="true" className={className} style={{ flex: "none" }}>
       <defs>
