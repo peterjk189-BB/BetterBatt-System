@@ -1093,7 +1093,7 @@ export default function QuoteEditor({
             <div className="rounded-xl border border-[var(--border)] p-5 text-sm">
               <p className="font-medium">No site visit is linked to this quote.</p>
               <p className="mt-1 text-[var(--muted)]">If a visit was done for this job, open it in Site visits and link it to this quote. Or book a new one.</p>
-              <a href="/dashboard/site-visits/new" className="mt-3 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">Book a site visit</a>
+              <a href={`/dashboard/site-visits/new?project_id=${project!.id}`} className="mt-3 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">Book a site visit</a>
             </div>
           ) : (
             siteVisits.map((v) => {

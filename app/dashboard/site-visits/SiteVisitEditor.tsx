@@ -75,6 +75,7 @@ export default function SiteVisitEditor({
   staff,
   isAdmin,
   crmEnabled = false,
+  fromQuote = null,
 }: {
   visit: (SiteVisit & { projects?: { quote_number: number } | null }) | null;
   photos: VisitPhoto[];
@@ -82,6 +83,8 @@ export default function SiteVisitEditor({
   staff: Staff[];
   isAdmin: boolean;
   crmEnabled?: boolean;
+  /** Started from a quote: carries its customer, address and contact over and links the new visit to it. */
+  fromQuote?: { project_id: string; quote_number: number; customer_id: string; customer_name: string; phone: string; email: string; address: string; suburb: string } | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // Warn if the person this visit is assigned to has time away booked on the visit date.
@@ -95,12 +98,12 @@ export default function SiteVisitEditor({
     visit_time: visit?.visit_time?.slice(0, 5) || "",
     status: visit?.status || "Booked",
     visit_type: visit?.visit_type || "Retro fit",
-    customer_id: visit?.customer_id || "",
-    customer_name: visit?.customer_name || "",
-    phone: visit?.phone || "",
-    email: visit?.email || "",
-    address: visit?.address || "",
-    suburb: visit?.suburb || "",
+    customer_id: visit?.customer_id || fromQuote?.customer_id || "",
+    customer_name: visit?.customer_name || fromQuote?.customer_name || "",
+    phone: visit?.phone || fromQuote?.phone || "",
+    email: visit?.email || fromQuote?.email || "",
+    address: visit?.address || fromQuote?.address || "",
+    suburb: visit?.suburb || fromQuote?.suburb || "",
     notes: visit?.notes || "",
     assigned_to: visit?.assigned_to || "",
   });
@@ -111,7 +114,11 @@ export default function SiteVisitEditor({
   const [tab, setTab] = useState<"details" | "crm">("details");
   // Which quote this visit is linked to (can be changed to a different quote by number).
   const [linked, setLinked] = useState<{ id: string; number: number } | null>(
-    visit?.project_id && visit?.projects?.quote_number ? { id: visit.project_id, number: visit.projects.quote_number } : null
+    visit?.project_id && visit?.projects?.quote_number
+      ? { id: visit.project_id, number: visit.projects.quote_number }
+      : !visit && fromQuote
+        ? { id: fromQuote.project_id, number: fromQuote.quote_number }
+        : null
   );
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkNo, setLinkNo] = useState("");
@@ -222,7 +229,7 @@ export default function SiteVisitEditor({
       } = await supabase.auth.getUser();
       const { data, error: insErr } = await supabase
         .from("site_visits")
-        .insert({ ...payload(), created_by: user?.id ?? null })
+        .insert({ ...payload(), created_by: user?.id ?? null, ...(fromQuote ? { project_id: fromQuote.project_id } : {}) })
         .select("id, visit_number, customer_name")
         .single();
       if (insErr || !data) {
