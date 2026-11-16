@@ -5,7 +5,7 @@ import SubcontractorDetail from "./SubcontractorDetail";
 
 export default async function SubcontractorDetailPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
-  const [{ data: subcontractor }, { data: attachments }, role] = await Promise.all([
+  const [{ data: subcontractor }, { data: attachments }, role, { data: others }] = await Promise.all([
     supabase.from("subcontractors").select("*").eq("id", params.id).single(),
     supabase
       .from("attachments")
@@ -13,11 +13,12 @@ export default async function SubcontractorDetailPage({ params }: { params: { id
       .eq("subcontractor_id", params.id)
       .order("created_at", { ascending: false }),
     getEffectiveRole(),
+    supabase.from("subcontractors").select("id, name").eq("archived", false).neq("id", params.id).order("name"),
   ]);
 
   if (!subcontractor) notFound();
 
   return (
-    <SubcontractorDetail subcontractor={subcontractor as any} attachments={attachments ?? []} isAdmin={role === "admin"} />
+    <SubcontractorDetail subcontractor={subcontractor as any} attachments={attachments ?? []} isAdmin={role === "admin"} others={(others ?? []) as any} />
   );
 }
