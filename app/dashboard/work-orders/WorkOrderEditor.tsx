@@ -620,7 +620,7 @@ export default function WorkOrderEditor({
   return (
     <div>
       {!isNew && authColumn && !authorisedAt && !workOrder!.archived && (
-        <div className="mb-4 rounded-lg border-2 border-[#b91c1c] bg-[#fdecec] px-4 py-3 text-sm font-semibold text-[#7f1d1d]">
+        <div style={{ background: "#fdecec", color: "#7f1d1d" }} className="mb-4 rounded-lg border-2 border-[#b91c1c] px-4 py-3 text-sm font-semibold">
           ⚠ Not authorised yet. The contractor can&apos;t see this job on their calendar and hasn&apos;t been emailed. Use &quot;Authorise &amp; email contractor&quot; below when it&apos;s ready.
         </div>
       )}

@@ -193,11 +193,11 @@ export default async function DashboardHome() {
       )}
 
       {unauthorised.length > 0 && (
-        <div className="mt-6 rounded-xl border-2 border-[#b91c1c] bg-[#fdecec] p-4 text-[#7f1d1d] shadow-sm">
+        <div style={{ background: "#fdecec", color: "#7f1d1d" }} className="mt-6 rounded-xl border-2 border-[#b91c1c] p-4 shadow-sm">
           <p className="text-sm font-bold">⚠ {unauthorised.length} work order{unauthorised.length === 1 ? "" : "s"} due in the next 7 days not authorised, so the contractor can&apos;t see {unauthorised.length === 1 ? "it" : "them"}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {unauthorised.map((u) => (
-              <a key={u.id} href={`/dashboard/work-orders/${u.id}`} className="rounded-lg border border-[#b91c1c] bg-white px-3 py-1 text-sm font-medium hover:underline">
+              <a key={u.id} href={`/dashboard/work-orders/${u.id}`} style={{ background: "#ffffff", color: "#7f1d1d", borderColor: "#b91c1c" }} className="rounded-lg border px-3 py-1 text-sm font-semibold hover:underline">
                 {u.wo} · {u.who} · {new Date(u.date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
               </a>
             ))}
