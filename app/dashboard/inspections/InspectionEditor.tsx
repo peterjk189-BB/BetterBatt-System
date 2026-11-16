@@ -61,7 +61,7 @@ export default function InspectionEditor({
   /** Office/admin only: may move this inspection to a different work order. */
   canRelink?: boolean;
   /** The subcontractor list the installer is picked from. */
-  subcontractors?: { id: string; name: string }[];
+  subcontractors?: { id: string; name: string; email?: string | null }[];
   /** For a saved inspection: the FAILed one it re-inspects, and any re-inspections of it. */
   related?: { parent: { id: string; inspection_number: number } | null; children: { id: string; inspection_number: number; result: string | null }[] };
 }) {
@@ -348,6 +348,35 @@ export default function InspectionEditor({
       ? "All changes saved"
       : "Not saved yet";
 
+  // Email this report to the installer with notes.
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailTo, setMailTo] = useState("");
+  const [mailNotes, setMailNotes] = useState("");
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailMsg, setMailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const installerRec = subcontractors.find((c) => c.name === form.installer_name);
+  function openMail() {
+    setMailOpen(true);
+    setMailMsg(null);
+    if (!mailTo && installerRec?.email) setMailTo(installerRec.email);
+  }
+  async function sendMail() {
+    if (!id) return;
+    setMailBusy(true);
+    setMailMsg(null);
+    const res = await fetch("/api/inspections/email-installer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inspection_id: id, to: mailTo, notes: mailNotes, installer_name: form.installer_name }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setMailBusy(false);
+    if (res.ok && j.ok) {
+      setMailMsg({ ok: true, text: `Sent to ${mailTo}.` });
+      setMailNotes("");
+    } else setMailMsg({ ok: false, text: j.error || "Could not send the email." });
+  }
+
   return (
     <div className="mx-auto max-w-4xl pb-24">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -385,6 +414,11 @@ export default function InspectionEditor({
                 Insulation certificate
               </Link>
             )}
+            {(isAdmin || canRelink) && (
+              <button onClick={openMail} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]">
+                Email installer
+              </button>
+            )}
             <Link
               href={`/dashboard/inspections/${id}/print`}
               className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
@@ -404,6 +438,51 @@ export default function InspectionEditor({
           </div>
         )}
       </div>
+
+      {mailOpen && id && (
+        <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="text-sm font-semibold">Email INS{number} to the installer</div>
+          <p className="mt-1 text-sm text-[var(--muted)]">They get a link to this report plus your notes.</p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm">
+              Installer
+              <select
+                className="rounded-lg border border-[var(--border)] px-3 py-2"
+                value={subcontractors.find((c) => c.email === mailTo)?.id || ""}
+                onChange={(e) => {
+                  const c = subcontractors.find((x) => x.id === e.target.value);
+                  if (c) setMailTo(c.email || "");
+                }}
+              >
+                <option value="">Choose installer…</option>
+                {subcontractors.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.email ? "" : " (no email saved)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Send to email
+              <input type="email" className="rounded-lg border border-[var(--border)] px-3 py-2" value={mailTo} onChange={(e) => setMailTo(e.target.value)} placeholder="installer@email.com" />
+            </label>
+            <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+              Notes for the installer
+              <textarea rows={4} className="rounded-lg border border-[var(--border)] px-3 py-2" value={mailNotes} onChange={(e) => setMailNotes(e.target.value)} placeholder="e.g. Please fix the gaps in the ceiling batts at the garage and send a photo when done." />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button onClick={sendMail} disabled={mailBusy || !mailTo} className="rounded-lg bg-[var(--brand-gold)] px-4 py-2 text-sm font-semibold text-[#201f1c] disabled:opacity-60">
+              {mailBusy ? "Sending…" : "Send email"}
+            </button>
+            <button onClick={() => setMailOpen(false)} className="px-2 text-sm text-[var(--muted)] hover:underline">
+              Close
+            </button>
+            {mailMsg && <span className={`text-sm font-medium ${mailMsg.ok ? "text-[#1b7a3a]" : "text-[#b91c1c]"}`}>{mailMsg.text}</span>}
+          </div>
+        </div>
+      )}
 
       {moveOpen && (
         <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
