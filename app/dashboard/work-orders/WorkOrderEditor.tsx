@@ -619,6 +619,11 @@ export default function WorkOrderEditor({
 
   return (
     <div>
+      {!isNew && authColumn && !authorisedAt && !workOrder!.archived && (
+        <div className="mb-4 rounded-lg border-2 border-[#b91c1c] bg-[#fdecec] px-4 py-3 text-sm font-semibold text-[#7f1d1d]">
+          ⚠ Not authorised yet. The contractor can&apos;t see this job on their calendar and hasn&apos;t been emailed. Use &quot;Authorise &amp; email contractor&quot; below when it&apos;s ready.
+        </div>
+      )}
       {isNew && dupOpen && dupes.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="alertdialog" aria-label="Duplicate work order">
           <div className="w-full max-w-md overflow-hidden rounded-xl border-2 border-[#c1272d] bg-[var(--surface)] shadow-2xl">

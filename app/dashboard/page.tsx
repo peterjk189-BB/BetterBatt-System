@@ -63,6 +63,32 @@ export default async function DashboardHome() {
   const showPurchaseOrdersKpi = myTabs.includes("purchase-orders");
   const showContractorPaymentsKpi = myTabs.includes("contractor-payments");
 
+  // Office warning: jobs due in the next 7 days whose work order has not been authorised (the contractor can't see or be emailed about them).
+  let unauthorised: { id: string; wo: string; who: string; date: string }[] = [];
+  if (canArrange && showWorkOrdersKpi) {
+    const from = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+    const to = new Date(Date.now() + 7 * 86400000).toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
+    const { data: ul, error: ulErr } = await supabase
+      .from("work_order_lines")
+      .select("task_date, work_orders!inner(id, wo_number, authorised_at, archived, subcontractors(name))")
+      .gte("task_date", from)
+      .lte("task_date", to)
+      .is("work_orders.authorised_at", null)
+      .eq("work_orders.archived", false)
+      .order("task_date");
+    if (!ulErr) {
+      const seen = new Set<string>();
+      for (const r of (ul ?? []) as any[]) {
+        const w = Array.isArray(r.work_orders) ? r.work_orders[0] : r.work_orders;
+        if (!w || seen.has(w.id)) continue;
+        seen.add(w.id);
+        const sc = Array.isArray(w.subcontractors) ? w.subcontractors[0] : w.subcontractors;
+        unauthorised.push({ id: w.id, wo: String(w.wo_number), who: sc?.name || "No contractor", date: r.task_date });
+      }
+    }
+  }
+
+
   // A contractor (or "Preview as" one) only counts their own authorised, non-archived jobs.
   const scope = await getInstallerScope(supabase);
   const [openQuotesRes, activeWorkOrdersRes, posAwaitingRes, unpaidLinesRes] = await Promise.all([
@@ -163,6 +189,19 @@ export default async function DashboardHome() {
               <p className="mt-1 text-2xl font-bold">{k.value}</p>
             </a>
           ))}
+        </div>
+      )}
+
+      {unauthorised.length > 0 && (
+        <div className="mt-6 rounded-xl border-2 border-[#b91c1c] bg-[#fdecec] p-4 text-[#7f1d1d] shadow-sm">
+          <p className="text-sm font-bold">⚠ {unauthorised.length} work order{unauthorised.length === 1 ? "" : "s"} due in the next 7 days not authorised, so the contractor can&apos;t see {unauthorised.length === 1 ? "it" : "them"}</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {unauthorised.map((u) => (
+              <a key={u.id} href={`/dashboard/work-orders/${u.id}`} className="rounded-lg border border-[#b91c1c] bg-white px-3 py-1 text-sm font-medium hover:underline">
+                {u.wo} · {u.who} · {new Date(u.date + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
