@@ -4,6 +4,7 @@ import { insuranceStatus, TONE_STYLES } from "@/lib/subInsurance";
 import { Fragment, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import MergeBox from "./MergeBox";
 import SubcontractorPanel, { type Attachment } from "./SubcontractorPanel";
 import OnboardingInvites, { type Invite } from "./OnboardingInvites";
 
@@ -285,6 +286,9 @@ export default function SubcontractorsTable({
               {expandedId === s.id && (
                 <tr className="border-t border-[var(--border)] bg-[#faf9f7]">
                   <td colSpan={9} className="px-4 py-5">
+                    {isAdmin && (
+                      <MergeBox keepId={s.id} keepName={s.name} others={subs.filter((x) => x.id !== s.id && !x.archived).map((x) => ({ id: x.id, name: x.name }))} />
+                    )}
                     <SubcontractorPanel
                       subcontractor={s}
                       attachments={attachmentsBySub[s.id] ?? []}
