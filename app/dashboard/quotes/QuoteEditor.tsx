@@ -450,6 +450,48 @@ export default function QuoteEditor({
   // Every customer can carry a standing discount % on their record — this was being
   // captured but never actually applied to the quote math. Now it comes straight off
   // the line items, on top of (and separate from) any manual discount/markup below.
+  // Contacts used before for this customer (past quotes + the customer's own contact), so they can be picked instead of retyped.
+  type SavedContact = { name: string; phone: string; email: string };
+  const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!form.customer_id) {
+      setSavedContacts([]);
+      return;
+    }
+    supabase
+      .from("projects")
+      .select("contact_name, contact_phone, contact_email, created_at")
+      .eq("customer_id", form.customer_id)
+      .order("created_at", { ascending: false })
+      .limit(60)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const seen = new Set<string>();
+        const list: SavedContact[] = [];
+        const add = (name?: string | null, phone?: string | null, email?: string | null) => {
+          const c = { name: (name || "").trim(), phone: (phone || "").trim(), email: (email || "").trim() };
+          if (!c.name && !c.phone && !c.email) return;
+          const key = `${c.name}|${c.phone}|${c.email}`.toLowerCase();
+          if (seen.has(key)) return;
+          seen.add(key);
+          list.push(c);
+        };
+        ((data ?? []) as any[]).forEach((r) => add(r.contact_name, r.contact_phone, r.contact_email));
+        const cust = customerList.find((x) => x.id === form.customer_id) as any;
+        add(cust?.contact_name, cust?.contact_phone, cust?.contact_email);
+        setSavedContacts(list);
+        // New quote with nothing typed yet: start with the most recently used contact.
+        if (!project && list.length > 0) {
+          setForm((f) => (f.contact_name || f.contact_phone || f.contact_email ? f : { ...f, contact_name: list[0].name, contact_phone: list[0].phone, contact_email: list[0].email }));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.customer_id]);
+
   const selectedCustomer = customerList.find((c) => c.id === form.customer_id);
   const customerDiscountPct = selectedCustomer?.discount_pct || 0;
 
@@ -1250,6 +1292,26 @@ export default function QuoteEditor({
         <p className="text-xs font-medium uppercase text-[var(--muted)] sm:col-span-3">
           Contact for this quote (not the customer's standing contact)
         </p>
+        {savedContacts.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm sm:col-span-3">
+            Pick a saved contact
+            <select
+              className="rounded-lg border border-[var(--border)] px-3 py-2"
+              value=""
+              onChange={(e) => {
+                const c = savedContacts[Number(e.target.value)];
+                if (c) setForm((f) => ({ ...f, contact_name: c.name, contact_phone: c.phone, contact_email: c.email }));
+              }}
+            >
+              <option value="">Choose from this customer&apos;s previous contacts…</option>
+              {savedContacts.map((c, i) => (
+                <option key={i} value={i}>
+                  {[c.name || "(no name)", c.phone, c.email].filter(Boolean).join(" · ")}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           Contact name
           <input
