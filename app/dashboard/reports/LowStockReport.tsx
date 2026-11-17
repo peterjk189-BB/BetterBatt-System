@@ -63,7 +63,7 @@ export default function LowStockReport() {
       }
 
       // Packs on purchase orders that are Ordered but not received yet.
-      const poSel = "part_id, qty_pks, received_multi, received_pks, work_orders(wo_number, supplier_delivery, projects(customers(name))), purchase_orders!inner(id, po_number, status, archived, order_date, delivery_date, suppliers(name))";
+      const poSel = "part_id, qty_pks, received_multi, received_pks, work_orders(wo_number, supplier_delivery, projects(customers(name))), purchase_orders!inner(id, po_number, status, archived, site_delivery, order_date, delivery_date, suppliers(name))";
       let po: any = await supabase.from("purchase_order_lines").select(poSel).eq("purchase_orders.status", "Ordered").eq("purchase_orders.archived", false);
       if (po.error) {
         // Fall back to the plain query if the job link can't be loaded.
@@ -81,6 +81,9 @@ export default function LowStockReport() {
         // so they are not stock on order.
         const woRow = Array.isArray(l.work_orders) ? l.work_orders[0] : l.work_orders;
         if (woRow?.supplier_delivery) continue;
+        // A PO ticked "Delivered straight to a job site" never goes on our shelf either.
+        const poRow = Array.isArray(l.purchase_orders) ? l.purchase_orders[0] : l.purchase_orders;
+        if (poRow?.site_delivery) continue;
         const part = partsData.find((p) => p.id === l.part_id);
         const got = (Number(l.received_multi) || 0) * (Number(part?.pack_per_multi) || 0) + (Number(l.received_pks) || 0);
         const left = Math.max(0, (Number(l.qty_pks) || 0) - got);
