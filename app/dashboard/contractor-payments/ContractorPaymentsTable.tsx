@@ -77,6 +77,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [dateTo, setDateTo] = useState("");
   // Optional custom end date for the summary PDF (blank = the Sunday of that week). With it set, the summary runs exactly weekDay to rangeEnd.
   const [rangeEnd, setRangeEnd] = useState("");
+  // Contractors left out of the summary (e.g. already reported in an earlier summary).
+  const [skipSubs, setSkipSubs] = useState<string[]>([]);
   // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
   const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
   const sumStart = rangeEnd && rangeEnd >= weekDay ? weekDay : mondayOfDay(weekDay);
@@ -227,7 +229,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   }
 
   // One page for the whole week (Mon–Sun by work date): every contractor paid for the week, regardless of the filters above.
-  function weekPdfRows(start: string, end: string) {
+  function weekPdfRows(start: string, end: string, applySkips = true) {
     const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
       if (!l.contractorId || !l.paid || !l.task_date || l.task_date < start || l.task_date > end) continue;
@@ -237,10 +239,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       map.set(l.contractorId, e);
     }
     return subs
-      .filter((s) => map.has(s.id))
+      .filter((s) => map.has(s.id) && (!applySkips || !skipSubs.includes(s.id)))
       .map((s) => {
         const e = map.get(s.id)!;
         return {
+          id: s.id,
           name: s.name,
           company: s.company_name || s.trading_name || "",
           abn: s.abn || "",
@@ -253,6 +256,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         };
       });
   }
+  const sumCandidates = weekPdfRows(sumStart, sumEnd, false) as any[];
   async function exportWeekPdf() {
     try {
       await downloadWeekSummaryPdf(sumStart, weekPdfRows(sumStart, sumEnd), sumEnd);
@@ -415,6 +419,26 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
               </button>
             )}
           </label>
+          <details className="relative text-xs text-[var(--muted)]">
+            <summary className="cursor-pointer list-none rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)] hover:border-accent">
+              Contractors in summary ({sumCandidates.length - sumCandidates.filter((c) => skipSubs.includes(c.id)).length}/{sumCandidates.length})
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
+              {sumCandidates.length === 0 && <div className="p-1">No paid lines in this period.</div>}
+              {sumCandidates.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 p-1 text-sm text-[var(--text)]">
+                  <input
+                    type="checkbox"
+                    checked={!skipSubs.includes(c.id)}
+                    onChange={(e) => setSkipSubs((prev) => (e.target.checked ? prev.filter((x) => x !== c.id) : [...prev, c.id]))}
+                  />
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  <span className="tabular-nums text-xs text-[var(--muted)]">${Math.round(c.exGst).toLocaleString("en-AU")}</span>
+                </label>
+              ))}
+              <div className="mt-1 border-t border-[var(--border)] p-1 text-[11px]">Untick anyone already reported in an earlier summary.</div>
+            </div>
+          </details>
           <button
             onClick={exportWeekPdf}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
