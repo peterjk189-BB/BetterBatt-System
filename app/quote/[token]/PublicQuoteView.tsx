@@ -148,7 +148,20 @@ export default function PublicQuoteView({
 
   return (
     <div className="min-h-screen bg-[#f2f0ec] px-4 py-8">
-      <div className="mx-auto max-w-3xl rounded-xl border border-[#e4e1da] bg-white p-6 text-[#201f1c] sm:p-10">
+      <style>{`
+        /* Printing: keep the dark header bar, grey boxes and white header text even when the browser's
+           "Background graphics" option is off (otherwise the white text vanishes and the header looks blank). */
+        @media print {
+          @page { size: A4; margin: 10mm; }
+          html, body { background: #fff !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+          .min-h-screen { min-height: 0 !important; background: #fff !important; padding: 0 !important; }
+          .quote-paper { border: none !important; border-radius: 0 !important; max-width: none !important; padding: 0 !important; box-shadow: none !important; }
+          .quote-paper tr, .quote-paper .rounded-lg { break-inside: avoid; page-break-inside: avoid; }
+          .quote-paper button, .quote-paper input { display: none !important; }
+        }
+      `}</style>
+      <div className="quote-paper mx-auto max-w-3xl rounded-xl border border-[#e4e1da] bg-white p-6 text-[#201f1c] sm:p-10">
         <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#141413] px-6 py-5">
           <div className="flex items-center gap-3.5">
             <div className="flex items-center rounded-lg bg-white px-2.5 py-1.5">
@@ -298,7 +311,7 @@ export default function PublicQuoteView({
         )}
 
         {/* Acceptance */}
-        <div className="mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-5">
+        <div className={`mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-5${accepted ? "" : " print:hidden"}`}>
           {accepted ? (
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">✓</div>
