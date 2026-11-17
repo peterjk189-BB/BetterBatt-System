@@ -75,8 +75,12 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [contractorFilter, setContractorFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Optional custom end date for the summary PDF (blank = the Sunday of that week). With it set, the summary runs exactly weekDay to rangeEnd.
+  const [rangeEnd, setRangeEnd] = useState("");
   // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
   const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
+  const sumStart = rangeEnd && rangeEnd >= weekDay ? weekDay : mondayOfDay(weekDay);
+  const sumEnd = rangeEnd && rangeEnd >= weekDay ? rangeEnd : addDays(sumStart, 6);
 
   // Remember where this person left off (view, filters, search, week) in this browser.
   const [restored, setRestored] = useState(false);
@@ -93,6 +97,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         if (typeof v.dateTo === "string") setDateTo(v.dateTo);
         if (typeof v.search === "string") setSearch(v.search);
         if (typeof v.weekDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.weekDay)) setWeekDay(v.weekDay);
+        if (typeof v.rangeEnd === "string" && (v.rangeEnd === "" || /^\d{4}-\d{2}-\d{2}$/.test(v.rangeEnd))) setRangeEnd(v.rangeEnd);
       }
     } catch {
       /* storage unavailable: use the defaults */
@@ -103,11 +108,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   useEffect(() => {
     if (!restored) return;
     try {
-      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay }));
+      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, rangeEnd }));
     } catch {
       /* ignore */
     }
-  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay]);
+  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, rangeEnd]);
 
   const computed = useMemo(
     () =>
@@ -222,8 +227,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   }
 
   // One page for the whole week (Mon–Sun by work date): every contractor paid for the week, regardless of the filters above.
-  function weekPdfRows(start: string) {
-    const end = addDays(start, 6);
+  function weekPdfRows(start: string, end: string) {
     const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
       if (!l.contractorId || !l.paid || !l.task_date || l.task_date < start || l.task_date > end) continue;
@@ -251,8 +255,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   }
   async function exportWeekPdf() {
     try {
-      const start = mondayOfDay(weekDay);
-      await downloadWeekSummaryPdf(start, weekPdfRows(start));
+      await downloadWeekSummaryPdf(sumStart, weekPdfRows(sumStart, sumEnd), sumEnd);
     } catch (e: any) {
       alert(`Couldn't create the PDF: ${e?.message || e}`);
     }
@@ -261,23 +264,23 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const ACCOUNTS_EMAIL = "kradford@regencyplaster.com.au";
   const [emailing, setEmailing] = useState(false);
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ start: string; pdf: string; url: string; contractors: number; exGst: number } | null>(null);
+  const [preview, setPreview] = useState<{ start: string; end: string; pdf: string; url: string; contractors: number; exGst: number } | null>(null);
   // Step 1: build the PDF and show it for checking. Nothing is sent yet.
   async function previewWeekPdf() {
-    const start = mondayOfDay(weekDay);
-    const rows = weekPdfRows(start);
+    const start = sumStart;
+    const rows = weekPdfRows(start, sumEnd);
     setEmailMsg(null);
     if (rows.length === 0) {
-      setEmailMsg("Nothing paid for that week, so there is nothing to send.");
+      setEmailMsg("Nothing paid in that period, so there is nothing to send.");
       return;
     }
     try {
-      const pdf = await weekSummaryPdfBase64(start, rows);
+      const pdf = await weekSummaryPdfBase64(start, rows, sumEnd);
       const bin = atob(pdf);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-      setPreview({ start, pdf, url, contractors: rows.length, exGst: rows.reduce((t, r) => t + r.exGst, 0) });
+      setPreview({ start, end: sumEnd, pdf, url, contractors: rows.length, exGst: rows.reduce((t, r) => t + r.exGst, 0) });
     } catch (e: any) {
       setEmailMsg(`Couldn't create the PDF: ${e?.message || e}`);
     }
@@ -294,7 +297,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const res = await fetch("/api/contractor-payments/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStart: preview.start, to: ACCOUNTS_EMAIL, pdf: preview.pdf, contractors: preview.contractors, exGst: preview.exGst }),
+        body: JSON.stringify({ weekStart: preview.start, weekEnd: preview.end, to: ACCOUNTS_EMAIL, pdf: preview.pdf, contractors: preview.contractors, exGst: preview.exGst }),
       });
       const j = await res.json().catch(() => ({}));
       setEmailMsg(res.ok ? `Sent to ${ACCOUNTS_EMAIL}.` : `Not sent: ${j.error || res.status}`);
@@ -400,13 +403,22 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         <h1 className="text-2xl font-bold">Contractor Payments</h1>
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-            Week of
+            Summary from
             <input type="date" value={weekDay} onChange={(e) => e.target.value && setWeekDay(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" />
+          </label>
+          <label className="flex items-center gap-2 text-xs text-[var(--muted)]" title="Leave blank for a normal Mon–Sun week. Set it to cover any period, e.g. Thu 5 Nov to Wed 11 Nov.">
+            to
+            <input type="date" value={rangeEnd} min={weekDay} onChange={(e) => setRangeEnd(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" />
+            {rangeEnd && (
+              <button type="button" onClick={() => setRangeEnd("")} className="hover:underline">
+                Clear
+              </button>
+            )}
           </label>
           <button
             onClick={exportWeekPdf}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-            title="One PDF for the whole week (Mon–Sun by work date): every contractor paid"
+            title="One PDF for the period shown (a Mon–Sun week unless you set an end date), by work date: every contractor paid"
           >
             Weekly summary PDF
           </button>
@@ -431,7 +443,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           <div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold">Preview: contractor payments, week from {fmtDate(preview.start)}</div>
+                <div className="text-lg font-semibold">Preview: contractor payments, {fmtDate(preview.start)} to {fmtDate(preview.end)}</div>
                 <div className="text-sm text-[var(--muted)]">
                   To: {ACCOUNTS_EMAIL} · {preview.contractors} contractor{preview.contractors === 1 ? "" : "s"} · {fmtCurrency(preview.exGst)} ex GST. This PDF is attached to the email.
                 </div>

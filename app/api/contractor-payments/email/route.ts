@@ -26,19 +26,19 @@ export async function POST(req: Request) {
   const { good, bad } = cleanEmailList(String(body.to || ""));
   if (!good.length || bad.length) return NextResponse.json({ error: "No valid email address" }, { status: 400 });
 
-  const end = addDays(weekStart, 6);
+  const end = /^\d{4}-\d{2}-\d{2}$/.test(String(body.weekEnd || "")) ? String(body.weekEnd) : addDays(weekStart, 6);
   const exGst = Number(body.exGst) || 0;
   const n = Number(body.contractors) || 0;
   const res = await sendEmail({
     kind: "invoices",
     sender: await getEmailSender(ctx.supabase, ctx.user),
     to: good,
-    subject: `Contractor payments – week ${dmy(weekStart)} to ${dmy(end)}`,
+    subject: `Contractor payments – ${dmy(weekStart)} to ${dmy(end)}`,
     html: brandedEmailHtml({
       heading: "Contractor payments",
-      bodyHtml: `<p>Hi,</p><p>Please find attached the contractor payments summary for the week ${dmy(weekStart)} to ${dmy(end)}.</p><p><b>${n}</b> contractor${n === 1 ? "" : "s"} · <b>${money(exGst)}</b> ex GST (GST is added at 10% for GST-registered contractors).</p>`,
+      bodyHtml: `<p>Hi,</p><p>Please find attached the contractor payments summary for ${dmy(weekStart)} to ${dmy(end)}.</p><p><b>${n}</b> contractor${n === 1 ? "" : "s"} · <b>${money(exGst)}</b> ex GST (GST is added at 10% for GST-registered contractors).</p>`,
     }),
-    attachments: [{ filename: `Contractor-Payments-Week-${weekStart}.pdf`, content: pdf }],
+    attachments: [{ filename: `Contractor-Payments-${weekStart}-to-${end}.pdf`, content: pdf }],
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
   try {
