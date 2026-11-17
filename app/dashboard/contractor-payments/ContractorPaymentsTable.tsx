@@ -1,7 +1,7 @@
 "use client";
 
 import { PhoneLink } from "../CallLink";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { lineRate } from "@/lib/woRate";
 import { createClient } from "@/lib/supabase/client";
@@ -77,6 +77,37 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [dateTo, setDateTo] = useState("");
   // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
   const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
+
+  // Remember where this person left off (view, filters, search, week) in this browser.
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("bb-contractor-payments-state");
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (v.view === "contractor" || v.view === "weekly") setView(v.view);
+        if (typeof v.wkStatus === "string") setWkStatus(v.wkStatus);
+        if (typeof v.status === "string") setStatus(v.status);
+        if (typeof v.contractorFilter === "string" && (v.contractorFilter === "" || subs.some((x) => x.id === v.contractorFilter))) setContractorFilter(v.contractorFilter);
+        if (typeof v.dateFrom === "string") setDateFrom(v.dateFrom);
+        if (typeof v.dateTo === "string") setDateTo(v.dateTo);
+        if (typeof v.search === "string") setSearch(v.search);
+        if (typeof v.weekDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.weekDay)) setWeekDay(v.weekDay);
+      }
+    } catch {
+      /* storage unavailable: use the defaults */
+    }
+    setRestored(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay }));
+    } catch {
+      /* ignore */
+    }
+  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay]);
 
   const computed = useMemo(
     () =>
