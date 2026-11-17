@@ -30,6 +30,7 @@ type Line = {
   allocated_at: string | null;
   picked: boolean;
   picked_at: string | null;
+  pick_note?: string | null;
   multi_picked: number | null;
   packs_picked: number | null;
   multi_returned: number;
@@ -171,8 +172,16 @@ export default function PickingSlip({
     run(l.id, "Allocated from stock", async () => await supabase.rpc("allocate_wo_line", { p_line_id: l.id }));
   const deallocate = (l: Line) =>
     run(l.id, "Released allocation", async () => await supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
+  // The pick note lives in its own column (migration 0096); if it isn't there yet the update just fails quietly.
+  const setPickNote = async (lineId: string, note: string | null) => {
+    await supabase.from("work_order_lines").update({ pick_note: note }).eq("id", lineId);
+  };
   const unpick = (l: Line) =>
-    run(l.id, "Undid pick", async () => await supabase.rpc("unpick_wo_line", { p_line_id: l.id }));
+    run(l.id, "Undid pick", async () => {
+      const r = await supabase.rpc("unpick_wo_line", { p_line_id: l.id });
+      if (!r.error && l.pick_note) await setPickNote(l.id, null);
+      return r;
+    });
   /** One click: add this shortfall to the open draft PO for the supplier (or start one), without leaving the slip. */
   async function orderShortfall(l: Line, shortfall: number) {
     setBusyId(l.id);
@@ -304,12 +313,19 @@ export default function PickingSlip({
   const unreturn = (l: Line) =>
     run(l.id, "Undid return", async () => await supabase.rpc("unreturn_wo_line", { p_line_id: l.id }));
   // Whole multis out, spare packs straight back: e.g. 14 packs needed, 5 per multi -> pick 3 multis, put 1 pack back on the shelf.
-  const pickWholeMultis = (l: Line, multis: number, spare: number) =>
-    run(l.id, `Picked ${multis} multi${multis === 1 ? "" : "s"}, ${spare} back to stock`, async () => {
-      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multis, p_pks: 0 });
-      if (r.error || spare <= 0) return r;
-      return await supabase.rpc("return_wo_line", { p_line_id: l.id, p_multi: 0, p_pks: spare });
+  const pickWholeMultis = (l: Line, multis: number, spare: number) => {
+    const ppm = Number(l.parts?.pack_per_multi) || 0;
+    // Recorded as one pick of exactly what the job takes (e.g. 15 packs = 1 multi + 7 packs); the split is just a note,
+    // not a stock return, so "Returned" only ever shows packs that really came back from the job.
+    const multi = spare > 0 && ppm > spare ? multis - 1 : multis;
+    const pks = spare > 0 && ppm > spare ? ppm - spare : 0;
+    const note = `Taken as ${multis} multi${multis === 1 ? "" : "s"}, ${spare} pack${spare === 1 ? "" : "s"} put back on shelf`;
+    return run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () => {
+      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+      if (!r.error) await setPickNote(l.id, note);
+      return r;
     });
+  };
   const pick = (l: Line) => {
     const multi = Math.round(Number(pickMulti[l.id] || 0)) || 0;
     const pks = Math.round(Number(pickPks[l.id] || 0)) || 0;
@@ -317,9 +333,11 @@ export default function PickingSlip({
       setError("Enter how many multis and/or packs you're picking.");
       return;
     }
-    return run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () =>
-      await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks })
-    );
+    return run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () => {
+      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+      if (!r.error && l.pick_note) await setPickNote(l.id, null);
+      return r;
+    });
   };
 
   const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -618,6 +636,7 @@ export default function PickingSlip({
                         {fmtSplit(l.multi_picked || 0, l.packs_picked || 0)} · {fmtDateTime(l.picked_at)}
                       </div>
                     )}
+                    {status === "picked" && l.pick_note && <div className="mt-1 text-xs text-[var(--muted)]">{l.pick_note}</div>}
                     {status === "picked" && (l.multi_returned > 0 || l.packs_returned > 0) && (
                       <div className="mt-1 text-xs text-[#1f6b35]">
                         Returned {fmtSplit(l.multi_returned, l.packs_returned)}
@@ -685,7 +704,7 @@ export default function PickingSlip({
                                 className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:border-accent disabled:opacity-60"
                                 title={`${needed} packs needed, ${ppm} per multi`}
                               >
-                                Pick {multis} multi{multis === 1 ? "" : "s"}, {spare} back to stock
+                                Take {multis} multi{multis === 1 ? "" : "s"}, put {spare} pack{spare === 1 ? "" : "s"} back
                               </button>
                             );
                           })()}

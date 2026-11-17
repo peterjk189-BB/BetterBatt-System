@@ -48,10 +48,15 @@ export default async function PickingSlipPage({ params }: { params: { id: string
     .eq("work_order_id", params.id);
   const leftoverById: Record<string, any> = {};
   for (const r of (leftovers ?? []) as any[]) leftoverById[r.id] = r;
+  // Pick note column comes from migration 0096; same approach.
+  const { data: pickNotes } = await supabase.from("work_order_lines").select("id, pick_note").eq("work_order_id", params.id);
+  const pickNoteById: Record<string, string | null> = {};
+  for (const r of (pickNotes ?? []) as any[]) pickNoteById[r.id] = r.pick_note ?? null;
   const materialLines = (lines ?? [])
     .filter((l: any) => l.part_id && l.parts?.is_stock_item !== false)
     .map((l: any) => ({
       ...l,
+      pick_note: pickNoteById[l.id] ?? null,
       multi_returned: Number(returnById[l.id]?.multi_returned) || 0,
       packs_returned: Number(returnById[l.id]?.packs_returned) || 0,
       returned_at: returnById[l.id]?.returned_at ?? null,
