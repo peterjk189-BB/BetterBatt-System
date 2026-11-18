@@ -16,6 +16,8 @@ type Part = {
   pack_cost_ex_gst: number;
   supplier_id: string | null;
   stock_on_hand: number;
+  multi?: number | null;
+  pks?: number | null;
   pack_per_multi: number;
   pack_unit?: string | null;
   multi_unit?: string | null;
@@ -692,6 +694,26 @@ export default function PickingSlip({
                               Confirm pick
                             </button>
                           </div>
+                          {(() => {
+                            // Exact pick: use the loose packs on the shelf first, then whole multis for the rest.
+                            const ppm = Number(l.parts.pack_per_multi) || 0;
+                            if (!unitsOf(l.parts).hasBulk || ppm <= 1 || needed <= 0) return null;
+                            const loose = Math.max(0, Number(l.parts.pks) || 0);
+                            const fromLoose = Math.min(loose, needed);
+                            const rem = needed - fromLoose;
+                            const m = Math.floor(rem / ppm);
+                            const pk = fromLoose + (rem - m * ppm);
+                            return (
+                              <button
+                                onClick={() => run(l.id, `Picked ${fmtSplit(m, pk)}`, async () => await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: m, p_pks: pk }))}
+                                disabled={busy}
+                                className="rounded-lg border border-accent px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                                title={`${needed} packs needed. Shelf: ${Number(l.parts.multi) || 0} multis + ${loose} loose packs`}
+                              >
+                                Pick exactly {needed} packs ({fmtSplit(m, pk)}) · shelf has {loose} loose
+                              </button>
+                            );
+                          })()}
                           {(() => {
                             const ppm = Number(l.parts.pack_per_multi) || 0;
                             if (!unitsOf(l.parts).hasBulk || ppm <= 1 || needed <= 0 || needed % ppm === 0) return null;
