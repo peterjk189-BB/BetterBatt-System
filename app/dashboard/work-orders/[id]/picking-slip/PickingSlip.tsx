@@ -55,7 +55,7 @@ export default function PickingSlip({
   reservedByPart,
   onDraft = {},
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; contactName?: string | null; contactPhone?: string | null; quoteNumber: number | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; contactName?: string | null; contactPhone?: string | null; quoteNumber: string | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
   /** Shortfalls already on a draft purchase order for this job, by part. */
