@@ -159,8 +159,18 @@ export default function PublicQuoteView({
           .quote-paper { border: none !important; border-radius: 0 !important; max-width: none !important; padding: 0 !important; box-shadow: none !important; }
           .quote-paper tr, .quote-paper .rounded-lg { break-inside: avoid; page-break-inside: avoid; }
           .quote-paper button, .quote-paper input { display: none !important; }
+          .print\\:hidden { display: none !important; }
         }
       `}</style>
+      <div className="mx-auto mb-3 flex max-w-3xl justify-end print:hidden">
+        <button
+          type="button"
+          onClick={() => window.print()}
+          className="rounded-lg border border-[#d8d4ca] bg-white px-4 py-2 text-sm font-semibold text-[#201f1c] shadow-sm hover:border-[#e8a50c]"
+        >
+          Print / Save as PDF
+        </button>
+      </div>
       <div className="quote-paper mx-auto max-w-3xl rounded-xl border border-[#e4e1da] bg-white p-6 text-[#201f1c] sm:p-10">
         <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#141413] px-6 py-5">
           <div className="flex items-center gap-3.5">
