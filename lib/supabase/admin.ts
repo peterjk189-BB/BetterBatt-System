@@ -11,6 +11,11 @@ export function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
+    {
+      auth: { autoRefreshToken: false, persistSession: false },
+      // Next.js caches fetch() responses by default, which made pages built from this client (e.g. the customer quote link)
+      // keep showing old data after an edit. Always read fresh.
+      global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
+    }
   );
 }

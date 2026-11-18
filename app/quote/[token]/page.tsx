@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import PublicQuoteView from "./PublicQuoteView";
 import { recordQuoteView } from "@/lib/quoteViews";
 
+// Always rebuild from the latest quote: a revised price must show on the customer's link straight away.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function PublicQuotePage({ params }: { params: { token: string } }) {
   const admin = createAdminClient();
 
