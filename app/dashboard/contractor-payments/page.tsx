@@ -14,7 +14,7 @@ export default async function ContractorPaymentsPage() {
     supabase
       .from("work_order_lines")
       .select(
-        "*, parts(name, installer_rate_per_m2), work_orders(wo_number, contractor_id, archived, projects(quote_number, address, suburb, customers(name))), labour_items(code, description, contractor_rate)"
+        "*, parts(name, installer_rate_per_m2), work_orders(wo_number, contractor_id, archived, projects(quote_number, revision_letter, address, suburb, customers(name))), labour_items(code, description, contractor_rate)"
       )
       .order("task_date", { ascending: false }),
     // Contractor-added items awaiting approval (empty until migration 0050 is run).

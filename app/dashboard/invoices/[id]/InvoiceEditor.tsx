@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import CallLink from "../../CallLink";
 import { useState } from "react";
@@ -275,7 +276,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
 
   async function save(patch: Partial<Invoice>, note?: string) {
     setBusy("save");
-    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, lot_no, address, suburb, contact_email, contact_name, contact_phone)").single();
+    const { data, error } = await supabase.from("invoices").update(patch).eq("id", inv.id).select("*, customers(*), projects(id, quote_number, revision_letter, lot_no, address, suburb, contact_email, contact_name, contact_phone)").single();
     setBusy("");
     if (error || !data) return setMsg({ ok: false, text: error?.message || "Could not save" });
     // keep any delivery details typed but not yet saved (they have their own Save button)
@@ -443,7 +444,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         {inv.projects && (
           <>
             {" · "}
-            <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">Q{inv.projects.quote_number}</Link>
+            <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">{quoteLabel(inv.projects)}</Link>
             {siteAddress(inv.projects) ? ` · ${siteAddress(inv.projects)}` : ""}
           </>
         )}
@@ -519,7 +520,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           )}
           {inv.projects && (
             <p className="text-[var(--muted)]">
-              <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">Q{inv.projects.quote_number}</Link>
+              <Link href={`/dashboard/quotes/${inv.projects.id}`} className="text-accent hover:underline">{quoteLabel(inv.projects)}</Link>
               {siteAddress(inv.projects) ? ` · ${siteAddress(inv.projects)}` : ""}
             </p>
           )}

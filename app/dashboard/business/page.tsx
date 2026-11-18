@@ -21,7 +21,7 @@ export default async function BusinessPage() {
   ] = await Promise.all([
     supabase
       .from("projects")
-      .select("id, quote_number, job_type, outcome, entry_date, quote_markup, price_tier, archived, customers(name, discount_pct, category)"),
+      .select("id, quote_number, revision_letter, job_type, outcome, entry_date, quote_markup, price_tier, archived, customers(name, discount_pct, category)"),
     supabase
       .from("project_lines")
       .select(

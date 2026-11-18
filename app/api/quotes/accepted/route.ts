@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,12 +14,12 @@ export async function POST(req: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  const { data: proj } = await supabase.from("projects").select("id, quote_number, outcome").eq("id", id).single();
+  const { data: proj } = await supabase.from("projects").select("id, quote_number, revision_letter, outcome").eq("id", id).single();
   if (!proj || (proj as any).outcome !== "Accepted") return NextResponse.json({ ok: false }, { status: 404 });
   const { data: me } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
   await notifyQuoteAccepted(createAdminClient(), {
     projectId: id,
-    quoteNumber: (proj as any).quote_number,
+    quoteNumber: quoteLabel(proj as any),
     by: (me as any)?.full_name || user.email || "A staff member",
   });
   return NextResponse.json({ ok: true });

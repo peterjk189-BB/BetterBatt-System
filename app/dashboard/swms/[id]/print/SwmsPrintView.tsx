@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import Link from "next/link";
 import {
@@ -84,7 +85,7 @@ export default function SwmsPrintView({
             <div className="font-mono text-xs text-[#6b6862]">
               SWMS{record.swms_number}
               {record.work_orders?.wo_number ? ` · WO ${record.work_orders.wo_number}` : ""}
-              {record.projects?.quote_number ? ` · Quote Q${record.projects.quote_number}` : ""}
+              {record.projects?.quote_number ? ` · Quote ${quoteLabel(record.projects)}` : ""}
             </div>
             <div className="mt-1">
               Job date: <strong>{fmtDate(record.job_date)}</strong>

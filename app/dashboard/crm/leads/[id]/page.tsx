@@ -13,7 +13,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
     await Promise.all([
       supabase
         .from("crm_leads")
-        .select("*, customers(name), projects(quote_number, outcome), site_visits(visit_number, status)")
+        .select("*, customers(name), projects(quote_number, revision_letter, outcome), site_visits(visit_number, status)")
         .eq("id", params.id)
         .single(),
       supabase.from("crm_tasks").select("*").eq("lead_id", params.id).order("due_date"),
@@ -22,7 +22,7 @@ export default async function LeadPage({ params }: { params: { id: string } }) {
       supabase.from("customers").select("id, name").eq("archived", false).order("name"),
       supabase
         .from("projects")
-        .select("id, quote_number, address, suburb, outcome, customers(name)")
+        .select("id, quote_number, revision_letter, address, suburb, outcome, customers(name)")
         .eq("archived", false)
         .order("quote_number", { ascending: false })
         .limit(150),

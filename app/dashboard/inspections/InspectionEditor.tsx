@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -74,14 +75,14 @@ export default function InspectionEditor({
   const [moveTo, setMoveTo] = useState("");
   const [moving, setMoving] = useState(false);
   const [moveErr, setMoveErr] = useState<string | null>(null);
-  const [linkedNums, setLinkedNums] = useState<{ wo?: string | null; q?: number | null } | null>(null);
+  const [linkedNums, setLinkedNums] = useState<{ wo?: string | null; q?: string | null } | null>(null);
   async function openMove() {
     setMoveOpen(true);
     setMoveErr(null);
     if (moveOptions.length) return;
     const { data } = await supabase
       .from("work_orders")
-      .select("id, wo_number, project_id, po_number, projects(address, suburb, quote_number, customers(name)), subcontractors(name, company_name)")
+      .select("id, wo_number, project_id, po_number, projects(address, suburb, quote_number, revision_letter, customers(name)), subcontractors(name, company_name)")
       .eq("archived", false)
       .order("wo_number", { ascending: false })
       .limit(400);
@@ -104,7 +105,7 @@ export default function InspectionEditor({
       contractor: sub?.company_name || sub?.name || f.contractor,
       sales_order: wo.po_number || wo.wo_number || "",
     }));
-    setLinkedNums({ wo: wo.wo_number, q: pr?.quote_number ?? null });
+    setLinkedNums({ wo: wo.wo_number, q: pr?.quote_number ? quoteLabel(pr as any) : null });
     setMoveOpen(false);
     setMoveTo("");
     setMoving(false);
@@ -332,7 +333,7 @@ export default function InspectionEditor({
 
   const included = SECTIONS.filter((s) => form[s.includeField]);
   const woNumber = linkedNums ? linkedNums.wo : record?.work_orders?.wo_number;
-  const quoteNumber = linkedNums ? linkedNums.q : record?.projects?.quote_number;
+  const quoteNumber = linkedNums ? linkedNums.q : record?.projects?.quote_number ? quoteLabel(record.projects) : null;
   const statusLine =
     saveState === "saving"
       ? "Saving…"
@@ -432,7 +433,7 @@ export default function InspectionEditor({
             )}
             {quoteNumber && (
               <Link href={`/dashboard/quotes/${form.project_id}`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">
-                Open quote Q{quoteNumber}
+                Open quote {quoteNumber}
               </Link>
             )}
           </div>

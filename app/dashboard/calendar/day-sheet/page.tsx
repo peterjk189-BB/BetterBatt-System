@@ -18,7 +18,7 @@ export default async function DaySheetPage({ searchParams }: { searchParams: { d
     supabase
       .from("work_order_lines")
       .select(
-        "*, parts(name, is_stock_item), labour_items(code, description), subcontractors(id, name, phone), work_orders(id, wo_number, archived, notes, subcontractors(id, name, phone), projects(quote_number, lot_no, address, suburb, contact_name, contact_phone, customers(name)))"
+        "*, parts(name, is_stock_item), labour_items(code, description), subcontractors(id, name, phone), work_orders(id, wo_number, archived, notes, subcontractors(id, name, phone), projects(quote_number, revision_letter, lot_no, address, suburb, contact_name, contact_phone, customers(name)))"
       )
       .eq("task_date", date),
     supabase.from("subcontractors").select("id, name").order("name"),

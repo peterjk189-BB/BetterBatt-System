@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { createClient } from "@/lib/supabase/server";
 import { siteAddress } from "@/lib/siteAddress";
 import { paidTotal, type Invoice, type Payment } from "@/lib/invoices";
@@ -21,7 +22,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
   const [{ data: payments }, { data: customer }, { data: project }, { data: settings }, { data: lines }] = await Promise.all([
     supabase.from("invoice_payments").select("*").eq("invoice_id", id),
     inv.customer_id ? supabase.from("customers").select("name, contact_email").eq("id", inv.customer_id).single() : Promise.resolve({ data: null }),
-    inv.project_id ? supabase.from("projects").select("quote_number, lot_no, address, suburb, contact_email").eq("id", inv.project_id).single() : Promise.resolve({ data: null }),
+    inv.project_id ? supabase.from("projects").select("quote_number, revision_letter, lot_no, address, suburb, contact_email").eq("id", inv.project_id).single() : Promise.resolve({ data: null }),
     supabase.from("company_settings").select("abn, company_phone, invoice_bank_details, invoice_footer").eq("id", true).maybeSingle(),
     supabase.from("invoice_lines").select("description, qty, unit_price, line_ex").eq("invoice_id", id).order("sort_order"),
   ]);
@@ -31,7 +32,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     customerEmail: customer?.contact_email || project?.contact_email || null,
     deliveryAddress: inv.delivery_address ?? null,
     siteAddress: inv.site_address || (project ? siteAddress(project as any) : null),
-    quoteNumber: project?.quote_number ?? null,
+    quoteNumber: project?.quote_number ? quoteLabel(project as any) : null,
     paid: paidTotal((payments ?? []) as Payment[]),
     lines: (lines ?? []) as any,
     company: { abn: settings?.abn, phone: settings?.company_phone, bankDetails: settings?.invoice_bank_details, footer: settings?.invoice_footer },

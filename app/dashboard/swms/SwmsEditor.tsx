@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -349,7 +350,7 @@ export default function SwmsEditor({
   }
 
   const woNumber = record?.work_orders?.wo_number;
-  const quoteNumber = record?.projects?.quote_number;
+  const quoteNumber = record?.projects?.quote_number ? quoteLabel(record.projects) : null;
   const statusLine =
     saveState === "saving"
       ? "Saving…"
@@ -417,7 +418,7 @@ export default function SwmsEditor({
             )}
             {quoteNumber && (
               <Link href={`/dashboard/quotes/${form.project_id}`} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">
-                Open quote Q{quoteNumber}
+                Open quote {quoteNumber}
               </Link>
             )}
           </div>

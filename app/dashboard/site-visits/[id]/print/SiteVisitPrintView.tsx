@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -182,7 +183,7 @@ export default function SiteVisitPrintView({
             <h1 className="mt-3 text-2xl font-bold" style={{ color: INK }}>
               Site visit SV{visit.visit_number}
             </h1>
-            {visit.projects?.quote_number ? <div className="text-xs text-[#6b6862]">Quote Q{visit.projects.quote_number}</div> : null}
+            {visit.projects?.quote_number ? <div className="text-xs text-[#6b6862]">Quote {quoteLabel(visit.projects)}</div> : null}
           </div>
           {builder && (
             <div className="pt-1 text-[11px] text-[#6b6862]">

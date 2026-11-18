@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -261,7 +262,7 @@ export default function AccountView({
           <List title="Quotes" empty="None">
             {quotes.map((q) => (
               <Link key={q.id} href={`/dashboard/quotes/${q.id}`} className="flex items-center justify-between gap-2 py-1.5 text-sm hover:underline">
-                <span className="min-w-0 truncate">Q{q.quote_number}{q.suburb ? ` · ${q.suburb}` : ""}</span>
+                <span className="min-w-0 truncate">{quoteLabel(q)}{q.suburb ? ` · ${q.suburb}` : ""}</span>
                 <span className="shrink-0 text-xs text-[var(--muted)]">{q.outcome}</span>
               </Link>
             ))}

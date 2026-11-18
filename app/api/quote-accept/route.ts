@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   });
 
   // Best-effort: let all admin and office users know (email + app notification).
-  await notifyQuoteAccepted(admin, { projectId: project.id, quoteNumber: project.quote_number, by: `${name} (customer)`, options: validOptions });
+  await notifyQuoteAccepted(admin, { projectId: project.id, quoteNumber: quoteLabel(project as any), by: `${name} (customer)`, options: validOptions });
 
   return NextResponse.json({ ok: true, already: false, accepted_at: acceptedAt });
 }

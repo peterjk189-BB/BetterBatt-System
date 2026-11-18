@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 // "Day sheet": every authorised job a contractor has on one date, as ONE PDF (cover summary + a page per work order).
 import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 import { lineRate } from "@/lib/woRate";
@@ -7,7 +8,7 @@ export type DayLine = { time: string; product: string; note: string; qty: number
 export type DayJob = {
   woId: string;
   woNumber: string;
-  quoteNumber: number | null;
+  quoteNumber: string | null;
   customer: string;
   site: string;
   notes: string;
@@ -46,7 +47,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
   const { data: rows } = await supabase
     .from("work_order_lines")
     .select(
-      "*, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item), labour_items(code, description, contractor_rate), work_orders(*, projects(quote_number, lot_no, address, suburb, customers(name)))"
+      "*, parts(name, installer_rate_per_m2, coverage_m2, is_stock_item), labour_items(code, description, contractor_rate), work_orders(*, projects(quote_number, revision_letter, lot_no, address, suburb, customers(name)))"
     )
     .eq("task_date", date)
     .order("sort_order");
@@ -71,7 +72,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
       job = {
         woId: wo.id,
         woNumber: String(wo.wo_number),
-        quoteNumber: p?.quote_number ?? null,
+        quoteNumber: p?.quote_number ? quoteLabel(p) : null,
         customer: p?.customers?.name || "",
         site: [lot, p?.address, p?.suburb].filter(Boolean).join(", "),
         notes: (wo.notes || "").trim(),

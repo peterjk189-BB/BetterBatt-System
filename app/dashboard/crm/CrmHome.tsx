@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -241,7 +242,7 @@ function Pipeline({
                       </Link>
                       <div className="mt-0.5 text-xs text-[var(--muted)]">
                         {[l.suburb, l.source].filter(Boolean).join(" · ")}
-                        {l.projects ? ` · Q${l.projects.quote_number}` : ""}
+                        {l.projects ? ` · ${quoteLabel(l.projects)}` : ""}
                       </div>
                       {l.enquiry_note && <div className="mt-1 line-clamp-2 text-xs">{l.enquiry_note}</div>}
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-1 text-xs text-[var(--muted)]">

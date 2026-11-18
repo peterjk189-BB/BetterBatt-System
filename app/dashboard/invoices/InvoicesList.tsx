@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -211,7 +212,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                     return b && b !== c ? `${c} — ${b}` : c;
                   })()}
                 </td>
-                <td className="px-3 py-2 text-[var(--muted)]">{inv.projects ? `Q${inv.projects.quote_number} · ${siteAddress(inv.projects)}` : "—"}</td>
+                <td className="px-3 py-2 text-[var(--muted)]">{inv.projects ? `${quoteLabel(inv.projects)} · ${siteAddress(inv.projects)}` : "—"}</td>
                 <td className="px-3 py-2">{inv.kind}</td>
                 <td className="px-3 py-2">{fmtDate(inv.invoice_date)}</td>
                 <td className="px-3 py-2">{fmtDate(inv.due_date)}</td>

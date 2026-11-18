@@ -375,7 +375,7 @@ export default function PickingSlip({
       <h1 className="mt-1 text-2xl font-bold">Picking slip — WO{workOrder.wo_number}</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">
         {[workOrder.customerName, workOrder.address].filter(Boolean).join(" — ") || "No address on file"}
-        {workOrder.quoteNumber ? ` · Q${workOrder.quoteNumber}` : ""}
+        {workOrder.quoteNumber ? ` · ${workOrder.quoteNumber}` : ""}
       </p>
       <p className="mt-1 text-sm">
         <span className="text-[var(--muted)]">Contact name:</span> <b>{workOrder.contactName || "—"}</b>

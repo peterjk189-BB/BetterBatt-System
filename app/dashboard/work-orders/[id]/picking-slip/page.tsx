@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { packsNeeded } from "@/lib/picking";
@@ -10,7 +11,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
   const [{ data: workOrder }, linesRes] = await Promise.all([
     supabase
       .from("work_orders")
-      .select("id, wo_number, stock_delivery_date, projects(quote_number, lot_no, address, suburb, contact_name, contact_phone, customers(name))")
+      .select("id, wo_number, stock_delivery_date, projects(quote_number, revision_letter, lot_no, address, suburb, contact_name, contact_phone, customers(name))")
       .eq("id", params.id)
       .single(),
     supabase
@@ -122,7 +123,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
         customerName: project?.customers?.name ?? null,
         contactName: project?.contact_name ?? null,
         contactPhone: project?.contact_phone ?? null,
-        quoteNumber: project?.quote_number ?? null,
+        quoteNumber: project?.quote_number ? quoteLabel(project as any) : null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
         supplierDelivery,
         materialsDeliveredAt: (md as any)?.materials_delivered_at ?? null,

@@ -12,7 +12,7 @@ function esc(s: string) {
  */
 export async function notifyQuoteAccepted(
   admin: any,
-  q: { projectId: string; quoteNumber: number; by: string; options?: string[] }
+  q: { projectId: string; quoteNumber: string; by: string; options?: string[] }
 ) {
   try {
     const { data: staff } = await admin.from("profiles").select("id, role, full_name").in("role", ["admin", "office"]);
@@ -37,7 +37,7 @@ export async function notifyQuoteAccepted(
     // Also save it in the Alerts inbox (the pop-up/push alone leaves no record there).
     await recordAlert(admin, {
       kind: "quote_accepted",
-      title: `Quote Q${q.quoteNumber} accepted${customer ? " — " + customer : ""}`,
+      title: `Quote ${q.quoteNumber} accepted${customer ? " — " + customer : ""}`,
       body: [`${q.by} accepted it${opts}`, site].filter(Boolean).join(" · "),
       path: `/dashboard/quotes/${q.projectId}`,
       dedupeKey: `quote-accepted:${q.projectId}:${(q.options ?? []).join("")}`,
@@ -47,10 +47,10 @@ export async function notifyQuoteAccepted(
       Array.from(emails).map((to) =>
         sendEmail({
           to,
-          subject: `Quote Q${q.quoteNumber} accepted${customer ? " — " + customer : ""}`,
+          subject: `Quote ${q.quoteNumber} accepted${customer ? " — " + customer : ""}`,
           html: brandedEmailHtml({
-            previewText: `${q.by} accepted Q${q.quoteNumber}`,
-            heading: `Q${q.quoteNumber} accepted`,
+            previewText: `${q.by} accepted ${q.quoteNumber}`,
+            heading: `${q.quoteNumber} accepted`,
             bodyHtml: `<p style="margin:0 0 8px;">${esc(q.by)} accepted this quote${esc(opts)}.</p>${summary ? `<p style="margin:0;">${esc(summary)}</p>` : ""}`,
             buttonText: "Open quote",
             buttonUrl: link,
@@ -63,7 +63,7 @@ export async function notifyQuoteAccepted(
       await Promise.all(
         ((staff ?? []) as { id: string }[]).map((p) =>
           sendPushToUser(admin, p.id, {
-            title: `Quote Q${q.quoteNumber} accepted`,
+            title: `Quote ${q.quoteNumber} accepted`,
             body: `${summary || q.by}${opts}`,
             url: `/dashboard/quotes/${q.projectId}`,
             tag: `quote-accepted-${q.projectId}`,

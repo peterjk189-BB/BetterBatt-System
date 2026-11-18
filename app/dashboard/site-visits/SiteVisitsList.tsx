@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -132,7 +133,7 @@ export default function SiteVisitsList({ initial, photoCounts }: { initial: Row[
                 {v.profiles?.full_name && (
                   <span className="rounded bg-[#eef2ff] px-1.5 py-0.5 font-medium text-[#3b4ba8]">{v.profiles.full_name}</span>
                 )}
-                {v.projects && <span className="ml-auto font-mono text-[#1f6b35]">Q{v.projects.quote_number}</span>}
+                {v.projects && <span className="ml-auto font-mono text-[#1f6b35]">{quoteLabel(v.projects)}</span>}
               </div>
             </Link>
           );

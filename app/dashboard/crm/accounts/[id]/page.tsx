@@ -18,7 +18,7 @@ export default async function AccountPage({ params }: { params: { id: string } }
         .single(),
       supabase
         .from("projects")
-        .select("id, quote_number, address, suburb, outcome, entry_date")
+        .select("id, quote_number, revision_letter, address, suburb, outcome, entry_date")
         .eq("customer_id", params.id)
         .eq("archived", false)
         .order("quote_number", { ascending: false }),

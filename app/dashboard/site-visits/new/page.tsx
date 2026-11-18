@@ -14,7 +14,7 @@ export default async function NewSiteVisitPage({ searchParams }: { searchParams:
   if (searchParams.project_id) {
     const { data: p } = await supabase
       .from("projects")
-      .select("id, quote_number, customer_id, address, suburb, contact_name, contact_phone, contact_email, customers(name, contact_phone, contact_email)")
+      .select("id, quote_number, revision_letter, customer_id, address, suburb, contact_name, contact_phone, contact_email, customers(name, contact_phone, contact_email)")
       .eq("id", searchParams.project_id)
       .maybeSingle();
     if (p) {
@@ -22,6 +22,7 @@ export default async function NewSiteVisitPage({ searchParams }: { searchParams:
       fromQuote = {
         project_id: p.id,
         quote_number: p.quote_number,
+        revision_letter: p.revision_letter ?? null,
         customer_id: p.customer_id || "",
         customer_name: c?.name || "",
         phone: p.contact_phone || c?.contact_phone || "",

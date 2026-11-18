@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
 import { invNo } from "@/lib/invoices";
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
   out.push("!ENDTRNS");
   for (const i of list as any[]) {
     const name = clean(i.customers?.name) || "Unknown customer";
-    const memo = clean(i.description) || `${i.kind} invoice${i.projects?.quote_number ? ` - Q${i.projects.quote_number}` : ""}`;
+    const memo = clean(i.description) || `${i.kind} invoice${i.projects?.quote_number ? ` - ${quoteLabel(i.projects)}` : ""}`;
     const doc = invNo(i.invoice_number);
     out.push(["TRNS", "INVOICE", dmy(i.invoice_date), ar, name, amt(Number(i.total)), doc, i.due_date ? dmy(i.due_date) : "", clean(i.terms), memo].join(T));
     out.push(["SPL", "INVOICE", dmy(i.invoice_date), income, name, amt(-Number(i.amount_ex_gst)), doc, memo].join(T));

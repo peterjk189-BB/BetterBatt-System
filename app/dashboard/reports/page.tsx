@@ -36,7 +36,7 @@ export default async function ReportsPage() {
     supabase
       .from("projects")
       .select(
-        "id, quote_number, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, address, suburb, customers(name, discount_pct)"
+        "id, quote_number, revision_letter, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, address, suburb, customers(name, discount_pct)"
       )
       .order("entry_date", { ascending: false }),
     supabase
@@ -47,7 +47,7 @@ export default async function ReportsPage() {
     supabase
       .from("work_orders")
       .select(
-        "id, wo_number, project_id, completed_date, entry_date, archived, jsa_received, projects(quote_number, address, suburb, customers(name)), subcontractors(name)"
+        "id, wo_number, project_id, completed_date, entry_date, archived, jsa_received, projects(quote_number, revision_letter, address, suburb, customers(name)), subcontractors(name)"
       )
       .order("wo_number", { ascending: false }),
     supabase.from("swms").select("id, status, archived, swms_number, work_order_id").not("work_order_id", "is", null),
@@ -80,7 +80,7 @@ export default async function ReportsPage() {
 
   // Passed inspections = certificates to issue. certificate_sent_at exists only after migration 0092.
   const certSelect =
-    "id, inspection_number, inspection_date, builder_name, site_address, suburb, project_id, work_order_id, projects(quote_number, customers(name)), work_orders(wo_number, project_id, projects(quote_number, customers(name)))";
+    "id, inspection_number, inspection_date, builder_name, site_address, suburb, project_id, work_order_id, projects(quote_number, revision_letter, customers(name)), work_orders(wo_number, project_id, projects(quote_number, revision_letter, customers(name)))";
   let certRes: any = await supabase.from("inspections").select(`${certSelect}, certificate_sent_at`).eq("result", "PASS").eq("archived", false);
   const certSentColumn = !certRes.error;
   if (certRes.error) certRes = await supabase.from("inspections").select(certSelect).eq("result", "PASS").eq("archived", false);

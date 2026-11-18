@@ -7,7 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export default async function InspectionRecordPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const [{ data: record }, { data: photos }, { data: children }, role] = await Promise.all([
-    supabase.from("inspections").select("*, work_orders(wo_number), projects(quote_number)").eq("id", params.id).single(),
+    supabase.from("inspections").select("*, work_orders(wo_number), projects(quote_number, revision_letter)").eq("id", params.id).single(),
     supabase
       .from("attachments")
       .select("id, category, storage_path, file_name, caption, sort_order, created_at")

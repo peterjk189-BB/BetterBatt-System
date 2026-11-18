@@ -102,7 +102,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     supabase.from("work_order_lines").select("*").eq("work_order_id", params.id).order("sort_order"),
     supabase
       .from("projects")
-      .select("id, quote_number, address, suburb, job_type, quote_markup, customers(name)")
+      .select("id, quote_number, revision_letter, address, suburb, job_type, quote_markup, customers(name)")
       .eq("archived", false)
       .order("quote_number", { ascending: false }),
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),

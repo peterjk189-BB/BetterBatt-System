@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { lineRate } from "@/lib/woRate";
 import Link from "next/link";
@@ -305,7 +306,7 @@ export default function ProfitLossReport({
   function exportCsv() {
     const head = ["Quote", "Customer", "Site", "Quoted ex GST", "Invoiced ex GST", "Paid inc GST", "Materials (after returns)", "Returns credit", "Contractors", "Profit (after returns)", "Margin % (after)", "Margin % (before returns)", "Cost basis"];
     const body = visible.map((j) => [
-      `Q${j.p.quote_number}`, j.customer, j.site, j.quoted.toFixed(2), j.invoicedEx.toFixed(2), j.paid.toFixed(2),
+      `${quoteLabel(j.p)}`, j.customer, j.site, j.quoted.toFixed(2), j.invoicedEx.toFixed(2), j.paid.toFixed(2),
       j.materials.toFixed(2), j.returnsCredit.toFixed(2), j.contractors.toFixed(2), profit(j).toFixed(2),
       rev(j) > 0 ? ((profit(j) / rev(j)) * 100).toFixed(1) : "", rev(j) > 0 ? ((profitBefore(j) / rev(j)) * 100).toFixed(1) : "", j.actual ? "Actual" : "Estimate",
     ]);
@@ -419,7 +420,7 @@ export default function ProfitLossReport({
                 <tr className="cursor-pointer border-t border-[var(--border)] hover:bg-black/5" onClick={toggle}>
                   <td className="px-3 py-2 font-medium">
                     <span className="mr-1.5 inline-block w-3 text-[var(--muted)]">{isOpen ? "▾" : "▸"}</span>
-                    <Link href={`/dashboard/quotes/${j.p.id}`} onClick={(e) => e.stopPropagation()} className="text-accent hover:underline">Q{j.p.quote_number}</Link>
+                    <Link href={`/dashboard/quotes/${j.p.id}`} onClick={(e) => e.stopPropagation()} className="text-accent hover:underline">{quoteLabel(j.p)}</Link>
                   </td>
                   <td className="px-3 py-2">{j.customer}</td>
                   <td className="px-3 py-2">{j.site || "—"}</td>
@@ -484,7 +485,7 @@ export default function ProfitLossReport({
                           </tbody>
                         </table>
                       )}
-                      <div className="mt-2 text-xs"><Link href={`/dashboard/quotes/${j.p.id}`} className="text-accent hover:underline">Open quote Q{j.p.quote_number}</Link></div>
+                      <div className="mt-2 text-xs"><Link href={`/dashboard/quotes/${j.p.id}`} className="text-accent hover:underline">Open quote {quoteLabel(j.p)}</Link></div>
                     </td>
                   </tr>
                 )}

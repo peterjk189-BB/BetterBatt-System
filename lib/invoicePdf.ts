@@ -8,7 +8,7 @@ export type InvoicePdfInput = {
   customerEmail?: string | null;
   siteAddress?: string | null;
   deliveryAddress?: string | null;
-  quoteNumber?: number | null;
+  quoteNumber?: number | string | null;
   paid: number;
   lines?: { description: string; qty: number; unit_price: number; line_ex: number }[];
   company: { abn?: string | null; phone?: string | null; bankDetails?: string | null; footer?: string | null };
@@ -47,7 +47,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     ["Invoice date", fmtDate(inv.invoice_date)],
     ["Due date", fmtDate(inv.due_date)],
   ];
-  if (input.quoteNumber) meta.push(["Quote ref", `Q${input.quoteNumber}`]);
+  if (input.quoteNumber) meta.push(["Quote ref", typeof input.quoteNumber === "number" ? `Q${input.quoteNumber}` : String(input.quoteNumber)]);
   if (inv.customer_po) meta.push(["Your PO", inv.customer_po]);
   doc.setFontSize(9.5);
   for (const [k, v] of meta) {

@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export default async function SiteVisitPrintPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
   const [{ data: visit }, { data: photos }] = await Promise.all([
-    supabase.from("site_visits").select("*, projects(quote_number)").eq("id", params.id).single(),
+    supabase.from("site_visits").select("*, projects(quote_number, revision_letter)").eq("id", params.id).single(),
     supabase
       .from("attachments")
       .select("id, category, storage_path, file_name, caption, sort_order, created_at")

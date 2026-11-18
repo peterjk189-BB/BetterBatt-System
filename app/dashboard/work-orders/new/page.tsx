@@ -34,7 +34,7 @@ export default async function NewWorkOrderPage({
   const [{ data: projects }, { data: subs }, { data: labourItems }, { data: parts }, role] = await Promise.all([
     supabase
       .from("projects")
-      .select("id, quote_number, address, suburb, job_type, quote_markup, customers(name)")
+      .select("id, quote_number, revision_letter, address, suburb, job_type, quote_markup, customers(name)")
       .eq("archived", false)
       .order("quote_number", { ascending: false }),
     supabase.from("subcontractors").select("id, name, phone, email").eq("archived", false).order("name"),

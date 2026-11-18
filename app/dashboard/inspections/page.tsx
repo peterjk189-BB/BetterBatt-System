@@ -19,7 +19,7 @@ export default async function InspectionsPage() {
     supabase
       .from("inspections")
       .select(
-        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, created_by, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number)"
+        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, created_by, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number, revision_letter)"
       )
       .order("inspection_date", { ascending: false })
       .order("inspection_number", { ascending: false }),

@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -84,7 +85,7 @@ export default function SiteVisitEditor({
   isAdmin: boolean;
   crmEnabled?: boolean;
   /** Started from a quote: carries its customer, address and contact over and links the new visit to it. */
-  fromQuote?: { project_id: string; quote_number: number; customer_id: string; customer_name: string; phone: string; email: string; address: string; suburb: string } | null;
+  fromQuote?: { project_id: string; quote_number: number; revision_letter?: string | null; customer_id: string; customer_name: string; phone: string; email: string; address: string; suburb: string } | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   // Warn if the person this visit is assigned to has time away booked on the visit date.
@@ -113,11 +114,11 @@ export default function SiteVisitEditor({
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"details" | "crm">("details");
   // Which quote this visit is linked to (can be changed to a different quote by number).
-  const [linked, setLinked] = useState<{ id: string; number: number } | null>(
+  const [linked, setLinked] = useState<{ id: string; number: string } | null>(
     visit?.project_id && visit?.projects?.quote_number
-      ? { id: visit.project_id, number: visit.projects.quote_number }
+      ? { id: visit.project_id, number: quoteLabel(visit.projects) }
       : !visit && fromQuote
-        ? { id: fromQuote.project_id, number: fromQuote.quote_number }
+        ? { id: fromQuote.project_id, number: fromQuote.revision_letter ? `Q${fromQuote.quote_number}-${fromQuote.revision_letter}` : `Q${fromQuote.quote_number}` }
         : null
   );
   const [linkOpen, setLinkOpen] = useState(false);
@@ -459,7 +460,7 @@ export default function SiteVisitEditor({
       setLinkMsg("Type a quote number, e.g. 1041.");
       return;
     }
-    const { data: qs } = await supabase.from("projects").select("id, quote_number, archived, outcome").eq("quote_number", n);
+    const { data: qs } = await supabase.from("projects").select("id, quote_number, revision_letter, archived, outcome").eq("quote_number", n);
     const q = (qs ?? []).find((r: any) => r.outcome !== "Superseded") ?? (qs ?? [])[0];
     if (!q) {
       setLinkMsg(`No quote Q${n} found.`);
@@ -475,9 +476,9 @@ export default function SiteVisitEditor({
       entityType: "site visit",
       entityId: visitId,
       entityLabel: `SV${visitNumber}`,
-      details: `Linked to quote Q${q.quote_number}${linked ? ` (was Q${linked.number})` : ""}`,
+      details: `Linked to quote ${quoteLabel(q)}${linked ? ` (was ${linked.number})` : ""}`,
     });
-    setLinked({ id: q.id, number: q.quote_number });
+    setLinked({ id: q.id, number: quoteLabel(q) });
     setLinkOpen(false);
     setLinkNo("");
     setLinkMsg(null);
@@ -536,7 +537,7 @@ export default function SiteVisitEditor({
                 href={`/dashboard/quotes/${linked.id}`}
                 className="rounded-lg border border-[#b7dfc2] bg-[#e6f4ea] px-4 py-2 text-sm font-medium text-[#1f6b35]"
               >
-                Open quote Q{linked.number}
+                Open quote {linked.number}
               </Link>
             ) : (
               <button
@@ -570,7 +571,7 @@ export default function SiteVisitEditor({
           <button onClick={linkToQuote} className="rounded-lg bg-accent px-4 py-1.5 font-medium text-white">
             Link
           </button>
-          {linked && <span className="text-[var(--muted)]">Currently linked to Q{linked.number}; this replaces it.</span>}
+          {linked && <span className="text-[var(--muted)]">Currently linked to {linked.number}; this replaces it.</span>}
           {linkMsg && <span className="font-medium text-red-700">{linkMsg}</span>}
         </div>
       )}

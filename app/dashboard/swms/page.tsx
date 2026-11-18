@@ -9,7 +9,7 @@ export default async function SwmsPage() {
   const { data: records } = await supabase
     .from("swms")
     .select(
-      "id, swms_number, created_by, job_date, job_type, status, builder_name, site_address, suburb, work_order_id, project_id, archived, work_orders(wo_number), projects(quote_number)"
+      "id, swms_number, created_by, job_date, job_type, status, builder_name, site_address, suburb, work_order_id, project_id, archived, work_orders(wo_number), projects(quote_number, revision_letter)"
     )
     .order("job_date", { ascending: false })
     .order("swms_number", { ascending: false });

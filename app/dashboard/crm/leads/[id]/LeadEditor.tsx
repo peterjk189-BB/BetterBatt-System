@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import CallLink from "../../../CallLink";
 import { useMemo, useState } from "react";
@@ -338,7 +339,7 @@ export default function LeadEditor({
               <option value="">Not linked</option>
               {quotes.map((q) => (
                 <option key={q.id} value={q.id}>
-                  Q{q.quote_number} — {q.customers?.name || "?"}
+                  {quoteLabel(q)} — {q.customers?.name || "?"}
                   {q.suburb ? `, ${q.suburb}` : ""} ({q.outcome})
                 </option>
               ))}

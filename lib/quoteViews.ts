@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { recordAlert } from "@/lib/alerts";
@@ -43,7 +44,7 @@ export async function recordQuoteView(admin: any, project: any) {
       const site = [project.address, project.suburb].filter(Boolean).join(", ");
       await recordAlert(admin, {
         kind: "quote_viewed",
-        title: `Quote Q${project.quote_number} opened`,
+        title: `Quote ${quoteLabel(project)} opened`,
         body: [customer, site].filter(Boolean).join(" · ") || null,
         path: `/dashboard/quotes/${project.id}`,
         dedupeKey: `quote-viewed:${project.id}:${project.emailed_at || "x"}`,

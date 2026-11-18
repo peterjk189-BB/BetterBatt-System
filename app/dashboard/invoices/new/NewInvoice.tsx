@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import SearchSelect from "../../SearchSelect";
 import { useMemo, useState, type ReactNode } from "react";
@@ -129,9 +130,9 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
   const total = round2(ex + gst);
 
   const autoDesc = isItems
-    ? `Sale of materials${q ? ` - Quote Q${q.quote_number}` : ""}${siteAddress(q) || siteEdited ? `, ${siteEdited ?? siteAddress(q)}` : ""}`
+    ? `Sale of materials${q ? ` - Quote ${quoteLabel(q)}` : ""}${siteAddress(q) || siteEdited ? `, ${siteEdited ?? siteAddress(q)}` : ""}`
     : q
-    ? `${kind === "Deposit" ? "Deposit" : kind === "Balance" ? "Balance on completion" : kind === "Full" ? "Insulation supply and installation" : "Progress payment"} - Quote Q${q.quote_number}${siteAddress(q) ? `, ${siteAddress(q)}` : ""}`
+    ? `${kind === "Deposit" ? "Deposit" : kind === "Balance" ? "Balance on completion" : kind === "Full" ? "Insulation supply and installation" : "Progress payment"} - Quote ${quoteLabel(q)}${siteAddress(q) ? `, ${siteAddress(q)}` : ""}`
     : "";
   const description = descEdited ?? autoDesc;
   const siteAddr = siteEdited ?? (q ? siteAddress(q) : "");
@@ -195,7 +196,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
     }
     setSaving(false);
     if (error || !data) return setErr((error?.message || "Could not create the invoice") + " (has migration 0031 been run?)");
-    logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: data.id, entityLabel: `INV-${data.invoice_number}`, details: `${kind} ${isItems ? "item sale" : money(total)}${q ? ` for Q${q.quote_number}` : ""}` });
+    logAudit(supabase, { eventType: "create", entityType: "invoice", entityId: data.id, entityLabel: `INV-${data.invoice_number}`, details: `${kind} ${isItems ? "item sale" : money(total)}${q ? ` for ${quoteLabel(q)}` : ""}` });
     router.push(`/dashboard/invoices/${data.id}`);
   }
 
@@ -254,8 +255,8 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
             {alreadyInvoiced && q && (
               <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">
                 {remainingEx > 0.005
-                  ? `Q${q.quote_number} already has ${money(q.invoiced_ex)} (ex GST) invoiced, so this invoice is for the balance.`
-                  : `Q${q.quote_number} is already fully invoiced.`}
+                  ? `${quoteLabel(q)} already has ${money(q.invoiced_ex)} (ex GST) invoiced, so this invoice is for the balance.`
+                  : `${quoteLabel(q)} is already fully invoiced.`}
               </p>
             )}
             <div className="flex flex-wrap gap-2">
@@ -287,7 +288,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
                 emptyLabel={isItems ? "No quote (counter / item sale)" : "Choose..."}
                 placeholder="Type a quote number, customer or address..."
                 value={projectId}
-                options={quotes.map((x) => ({ id: x.id, label: `Q${x.quote_number} · ${x.customer_name || "No customer"} · ${siteAddress(x) || "no address"}` }))}
+                options={quotes.map((x) => ({ id: x.id, label: `${quoteLabel(x)} · ${x.customer_name || "No customer"} · ${siteAddress(x) || "no address"}` }))}
                 onChange={(id) => { const nq = quotes.find((x) => x.id === id); setProjectId(id); setDueTouched(false); setDescEdited(null); setSiteEdited(null); if (nq && nq.invoiced_ex > 0.005) chooseKind("Balance"); }}
               />
             </label>
@@ -363,7 +364,7 @@ export default function NewInvoice({ quotes, customers: customersProp, initialPr
             {q && !isItems && (
               <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[#fafbfc] p-3">
                 <div>
-                  <p className="text-sm font-semibold">Q{q.quote_number} · {q.customer_name || "No customer"}</p>
+                  <p className="text-sm font-semibold">{quoteLabel(q)} · {q.customer_name || "No customer"}</p>
                   <p className="text-xs text-[var(--muted)]">{siteAddress(q) || "No address"}{terms ? ` · Terms ${terms}` : ""}</p>
                 </div>
                 <div className="flex h-2 overflow-hidden rounded-full bg-gray-200" aria-hidden="true">

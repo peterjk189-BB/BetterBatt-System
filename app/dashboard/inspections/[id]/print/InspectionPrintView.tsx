@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import Link from "next/link";
 import {
@@ -180,7 +181,7 @@ export default function InspectionPrintView({
             <div className="font-mono text-xs text-[#6b6862]">
               INS{record.inspection_number}
               {record.work_orders?.wo_number ? ` · WO ${record.work_orders.wo_number}` : ""}
-              {record.projects?.quote_number ? ` · Quote Q${record.projects.quote_number}` : ""}
+              {record.projects?.quote_number ? ` · Quote ${quoteLabel(record.projects)}` : ""}
               {record.parent_inspection_id ? " · Re-inspection" : ""}
             </div>
           </div>

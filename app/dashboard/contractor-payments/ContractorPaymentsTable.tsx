@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { PhoneLink } from "../CallLink";
 import { Fragment, useEffect, useMemo, useState } from "react";
@@ -377,7 +378,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             csvCell(l.work_orders?.wo_number || "—"),
             csvCell(
               l.work_orders?.projects
-                ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
+                ? `${quoteLabel(l.work_orders.projects)} — ${l.work_orders.projects.customers?.name || "—"}`
                 : "—"
             ),
             csvCell(l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")),
@@ -567,7 +568,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                               <Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.first.work_orders?.wo_number || "—"}</Link>
                             </td>
                             <td className="px-4 py-2 text-[var(--muted)]">
-                              {p ? `Q${p.quote_number} — ${p.customers?.name || "—"}` : "—"}
+                              {p ? `${quoteLabel(p)} — ${p.customers?.name || "—"}` : "—"}
                               {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
                             </td>
                             <td className="px-4 py-2 text-[var(--muted)]">{j.days.map((d) => new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric" })).join(", ")}</td>
@@ -823,7 +824,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                             </td>
                             <td className="px-4 py-2 text-[var(--muted)]">
                               {l.work_orders?.projects
-                                ? `Q${l.work_orders.projects.quote_number} — ${l.work_orders.projects.customers?.name || "—"}`
+                                ? `${quoteLabel(l.work_orders.projects)} — ${l.work_orders.projects.customers?.name || "—"}`
                                 : "—"}
                             </td>
                             <td className="px-4 py-2">

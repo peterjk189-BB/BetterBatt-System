@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -729,7 +730,7 @@ export default function WorkOrderEditor({
             </Link>
             {form.project_id && (
               <Link href={`/dashboard/quotes/${form.project_id}`} className="text-sm font-medium text-accent hover:underline">
-                &larr; Back to quote{(() => { const q = projects.find((x) => x.id === form.project_id); return q ? ` Q${q.quote_number}` : ""; })()}
+                &larr; Back to quote{(() => { const q = projects.find((x) => x.id === form.project_id); return q ? ` ${quoteLabel(q)}` : ""; })()}
               </Link>
             )}
           </div>
@@ -904,7 +905,7 @@ export default function WorkOrderEditor({
             <option value="">Select job / quote...</option>
             {projects.map((p) => (
               <option key={p.id} value={p.id}>
-                Q{p.quote_number} — {p.customers?.name || "—"} — {p.address}
+                {quoteLabel(p)} — {p.customers?.name || "—"} — {p.address}
                 {p.suburb ? `, ${p.suburb}` : ""}
               </option>
             ))}

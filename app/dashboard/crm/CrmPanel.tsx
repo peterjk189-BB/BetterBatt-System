@@ -77,7 +77,7 @@ export default function CrmPanel({ seed, mode }: { seed: CrmSeed; mode: "record"
       conds.length
         ? supabase
             .from("crm_leads")
-            .select("*, projects(quote_number, outcome), site_visits(visit_number, status)")
+            .select("*, projects(quote_number, revision_letter, outcome), site_visits(visit_number, status)")
             .or(conds.join(","))
             .eq("archived", false)
             .order("created_at", { ascending: false })

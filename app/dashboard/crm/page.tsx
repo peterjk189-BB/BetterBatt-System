@@ -12,7 +12,7 @@ export default async function CrmPage({ searchParams }: { searchParams: { tab?: 
   const [{ data: leads }, { data: tasks }, { data: staff }, { data: customers }] = await Promise.all([
     supabase
       .from("crm_leads")
-      .select("*, customers(name), projects(quote_number, outcome), site_visits(visit_number, status)")
+      .select("*, customers(name), projects(quote_number, revision_letter, outcome), site_visits(visit_number, status)")
       .eq("archived", false)
       .order("created_at", { ascending: false }),
     supabase

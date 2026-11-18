@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
@@ -174,7 +175,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Job</div>
             <div className="mt-0.5 font-semibold">
-              {workOrder.projects ? `Q${workOrder.projects.quote_number} — ${workOrder.projects.customers?.name || "—"}` : "—"}
+              {workOrder.projects ? `${quoteLabel(workOrder.projects)} — ${workOrder.projects.customers?.name || "—"}` : "—"}
             </div>
             <div className="text-gray-600">{siteLine}</div>
           </div>

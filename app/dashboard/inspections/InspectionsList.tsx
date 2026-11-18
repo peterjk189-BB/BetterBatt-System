@@ -1,4 +1,5 @@
 "use client";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -211,7 +212,7 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
                   {r.suburb && <div className="text-xs text-[var(--muted)]">{r.suburb}</div>}
                 </td>
                 <td className="px-4 py-3 text-xs text-[var(--muted)]">
-                  {r.work_orders?.wo_number ? `WO ${r.work_orders.wo_number}` : r.projects?.quote_number ? `Q${r.projects.quote_number}` : "—"}
+                  {r.work_orders?.wo_number ? `WO ${r.work_orders.wo_number}` : r.projects?.quote_number ? `${quoteLabel(r.projects)}` : "—"}
                 </td>
                 <td className="px-4 py-3">
                   {r.result ? (
