@@ -26,6 +26,8 @@ type Line = {
 type Project = {
   id: string;
   quote_number: number;
+  revision_letter?: string | null;
+  outcome?: string | null;
   job_type: string;
   lot_no: string | null;
   address: string | null;
@@ -55,12 +57,15 @@ export default function PublicQuoteView({
   lines,
   termsAndConditions,
   token,
+  newerToken,
 }: {
   project: Project;
   lines: Line[];
   termsAndConditions?: string;
   token: string;
+  newerToken?: string | null;
 }) {
+  const superseded = project.outcome === "Superseded";
   const [name, setName] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -171,6 +176,18 @@ export default function PublicQuoteView({
           Print / Save as PDF
         </button>
       </div>
+      {superseded && (
+        <div className="mx-auto mb-3 max-w-3xl rounded-lg border px-4 py-3 text-sm print:hidden" style={{ background: "#fff4d6", borderColor: "#e8a50c", color: "#5a3d00" }}>
+          <strong>This quote has been updated.</strong> The prices below are no longer current.{" "}
+          {newerToken ? (
+            <a href={`/quote/${newerToken}`} style={{ color: "#5a3d00", fontWeight: 700, textDecoration: "underline" }}>
+              View the latest version
+            </a>
+          ) : (
+            "Please contact us for the latest version."
+          )}
+        </div>
+      )}
       <div className="quote-paper mx-auto max-w-3xl rounded-xl border border-[#e4e1da] bg-white p-6 text-[#201f1c] sm:p-10">
         <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#141413] px-6 py-5">
           <div className="flex items-center gap-3.5">
@@ -192,7 +209,7 @@ export default function PublicQuoteView({
           </div>
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-wider text-gray-300">Quote</div>
-            <div className="text-2xl font-extrabold text-white">Q{project.quote_number}</div>
+            <div className="text-2xl font-extrabold text-white">Q{project.quote_number}{project.revision_letter ? `-${project.revision_letter}` : ""}</div>
           </div>
         </div>
 
@@ -321,6 +338,7 @@ export default function PublicQuoteView({
         )}
 
         {/* Acceptance */}
+        {!superseded && (
         <div className={`mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-5${accepted ? "" : " print:hidden"}`}>
           {accepted ? (
             <div className="flex items-center gap-3">
@@ -367,6 +385,7 @@ export default function PublicQuoteView({
             </>
           )}
         </div>
+        )}
 
         <div className="mt-6 flex justify-between border-t border-gray-100 pt-3 text-[10px] text-[#9a968d]">
           <span>Better Batt Insulation</span>

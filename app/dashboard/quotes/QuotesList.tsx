@@ -4,14 +4,16 @@ import { supplyInstallCharge } from "@/lib/contractPricing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { siteAddress } from "@/lib/siteAddress";
+import { quoteLabel } from "@/lib/quoteLabel";
 
 type Project = {
   id: string;
   quote_number: number;
+  revision_letter?: string | null;
   customer_id: string | null;
   job_type: string;
   category: string | null;
-  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
+  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled" | "Superseded";
   lot_no?: string | null;
   address?: string | null;
   suburb: string | null;
@@ -40,6 +42,7 @@ const OUTCOME_COLORS: Record<string, string> = {
   Complete: "bg-emerald-200 text-emerald-900",
   Lost: "bg-red-100 text-red-800",
   Cancelled: "bg-gray-200 text-gray-700",
+  Superseded: "bg-amber-100 text-amber-800",
 };
 
 function fmtCurrency(n: number) {
@@ -78,13 +81,14 @@ export default function QuotesList({
 
   const visible = initial
     .filter((p) => p.archived === showArchived)
-    .filter((p) => outcomeFilter === "All" || p.outcome === outcomeFilter)
+    .filter((p) => (outcomeFilter === "All" ? p.outcome !== "Superseded" : p.outcome === outcomeFilter))
     .filter((p) => visitFilter === "All" || (visitFilter === "Has" ? !!visitsByProject[p.id] : !visitsByProject[p.id]))
     .filter((p) => {
       const q = search.toLowerCase();
       if (!q) return true;
       return (
-        String(p.quote_number).includes(q) ||
+        quoteLabel(p).toLowerCase().includes(q) ||
+        String(p.quote_number).includes(q.replace(/^q/, "")) ||
         (p.customers?.name || "").toLowerCase().includes(q) ||
         siteAddress(p).toLowerCase().includes(q)
       );
@@ -114,7 +118,7 @@ export default function QuotesList({
           onChange={(e) => setOutcomeFilter(e.target.value)}
           className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm"
         >
-          {["All", "Open", "Accepted", "Complete", "Lost", "Cancelled"].map((o) => (
+          {["All", "Open", "Accepted", "Complete", "Lost", "Cancelled", "Superseded"].map((o) => (
             <option key={o}>{o}</option>
           ))}
         </select>
@@ -156,7 +160,7 @@ export default function QuotesList({
               <tr key={p.id} className="border-t border-[var(--border)]">
                 <td className="px-4 py-2 font-mono font-medium">
                   <Link href={`/dashboard/quotes/${p.id}`} className="text-accent hover:underline">
-                    Q{p.quote_number}
+                    {quoteLabel(p)}
                   </Link>
                 </td>
                 <td className="px-4 py-2">{p.customers?.name || "—"}</td>

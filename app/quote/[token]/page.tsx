@@ -28,6 +28,16 @@ export default async function PublicQuotePage({ params }: { params: { token: str
   delete publicProject.last_viewed_at;
   delete publicProject.view_count;
 
+  let newerToken: string | null = null;
+  if ((project as any).outcome === "Superseded") {
+    const { data: sibs } = await admin
+      .from("projects")
+      .select("share_token, revision_letter, outcome")
+      .eq("quote_number", (project as any).quote_number);
+    const live = ((sibs ?? []) as any[]).filter((r) => r.outcome !== "Superseded").sort((a, b) => String(b.revision_letter || "").localeCompare(String(a.revision_letter || "")));
+    newerToken = live[0]?.share_token ?? null;
+  }
+
   const [{ data: lines }, { data: settings }] = await Promise.all([
     admin
       .from("project_lines")
@@ -43,6 +53,7 @@ export default async function PublicQuotePage({ params }: { params: { token: str
       lines={(lines ?? []) as any}
       termsAndConditions={settings?.terms_and_conditions ?? ""}
       token={params.token}
+      newerToken={newerToken}
     />
   );
 }

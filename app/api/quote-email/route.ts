@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getEmailSender } from "@/lib/emailSender";
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, quote_number, share_token, lot_no, address, suburb, customers(name)")
+    .select("*, customers(name)")
     .eq("id", projectId)
     .single();
 
@@ -59,14 +60,14 @@ export async function POST(req: Request) {
       kind: "quotes",
     sender: await getEmailSender(supabase, user),
     to: toList,
-    subject: `Your quote from Better Batt Insulation (Q${project.quote_number})`,
+    subject: `Your quote from Better Batt Insulation (${quoteLabel(project as any)})`,
     html: brandedEmailHtml({
-      previewText: `Your quote Q${project.quote_number} from Better Batt Insulation is ready to view and accept online.`,
+      previewText: `Your quote ${quoteLabel(project as any)} from Better Batt Insulation is ready to view and accept online.`,
       heading: `Your quote is ready`,
       bodyHtml: `${msgHtml}<p style="margin:0 0 14px;">Hi ${customerName || "there"},</p>
         <p style="margin:0;">Thank you for the opportunity to quote. Your quote from Better Batt Insulation is ready. Use the button below to review the details and accept it online. If you have any questions, just reply to this email.</p>`,
       rows: [
-        { label: "Quote number", value: `Q${project.quote_number}` },
+        { label: "Quote number", value: quoteLabel(project as any) },
         ...(siteAddress(project as any) ? [{ label: "Site address", value: siteAddress(project as any) }] : []),
       ],
       buttonText: "View & accept quote",
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
     eventType: "update",
     entityType: "quote",
     entityId: project.id,
-    entityLabel: `Q${project.quote_number}`,
+    entityLabel: quoteLabel(project as any),
     details: `Emailed quote link to ${toEmail}`,
   });
 

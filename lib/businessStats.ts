@@ -379,7 +379,7 @@ export function computeStats(data: BData, period: Period, now: Date) {
   const topCustomers = Array.from(byCust.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
 
   // ---- quote to cash ---------------------------------------------------------------
-  const inPeriodQuotes = data.projects.filter((p) => !p.archived && inR(p.entry_date, start, end));
+  const inPeriodQuotes = data.projects.filter((p) => !p.archived && p.outcome !== "Superseded" && inR(p.entry_date, start, end));
   const accepted = inPeriodQuotes.filter((p) => p.outcome === "Accepted" || p.outcome === "Complete");
   const lost = inPeriodQuotes.filter((p) => p.outcome === "Lost").length;
   const invoicedJobs = accepted.filter((p) => (invBy.get(p.id) ?? []).length > 0);

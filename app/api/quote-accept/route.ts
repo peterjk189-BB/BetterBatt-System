@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyQuoteAccepted } from "@/lib/notifyQuoteAccepted";
@@ -21,12 +22,16 @@ export async function POST(req: Request) {
   const admin = createAdminClient();
   const { data: project, error: findError } = await admin
     .from("projects")
-    .select("id, quote_number, accepted_at")
+    .select("*")
     .eq("share_token", token)
     .single();
 
   if (findError || !project) {
     return NextResponse.json({ error: "Quote not found" }, { status: 404 });
+  }
+
+  if ((project as any).outcome === "Superseded") {
+    return NextResponse.json({ error: "This quote has been updated. Please open the latest version from the newest email." }, { status: 409 });
   }
 
   if (project.accepted_at) {
@@ -68,7 +73,7 @@ export async function POST(req: Request) {
     event_type: "update",
     entity_type: "quote",
     entity_id: project.id,
-    entity_label: `Q${project.quote_number}`,
+    entity_label: quoteLabel(project as any),
     details: `Accepted online via customer link${validOptions.length ? ` (with option${validOptions.length > 1 ? "s" : ""} ${validOptions.join(", ")})` : ""}`,
   });
 

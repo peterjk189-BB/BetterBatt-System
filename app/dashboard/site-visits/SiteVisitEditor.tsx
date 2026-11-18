@@ -459,7 +459,8 @@ export default function SiteVisitEditor({
       setLinkMsg("Type a quote number, e.g. 1041.");
       return;
     }
-    const { data: q } = await supabase.from("projects").select("id, quote_number, archived").eq("quote_number", n).maybeSingle();
+    const { data: qs } = await supabase.from("projects").select("id, quote_number, archived, outcome").eq("quote_number", n);
+    const q = (qs ?? []).find((r: any) => r.outcome !== "Superseded") ?? (qs ?? [])[0];
     if (!q) {
       setLinkMsg(`No quote Q${n} found.`);
       return;

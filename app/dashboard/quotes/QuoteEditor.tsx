@@ -1,5 +1,6 @@
 "use client";
 
+import { quoteLabel } from "@/lib/quoteLabel";
 import CallLink from "../CallLink";
 import QuoteFiles from "./QuoteFiles";
 import PartPicker from "@/app/dashboard/PartPicker";
@@ -43,13 +44,14 @@ type Part = {
 type Project = {
   id: string;
   quote_number: number;
+  revision_letter?: string | null;
   customer_id: string | null;
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
   job_type: string;
   category: string | null;
-  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
+  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled" | "Superseded";
   lot_no: string | null;
   address: string | null;
   suburb: string | null;
@@ -222,6 +224,9 @@ export default function QuoteEditor({
   }, [parts, supplierNames]);
   const isNew = !project;
   const [tab, setTab] = useState<"details" | "crm" | "visit">("details");
+  const [unlocked, setUnlocked] = useState(false);
+  const [revising, setRevising] = useState(false);
+  const [versions, setVersions] = useState<{ id: string; revision_letter: string | null; outcome: string }[]>([]);
 
   // Local copy so a customer created on the fly (below) shows up in the dropdown right away.
   const [customerList, setCustomerList] = useState(customers);
@@ -772,15 +777,50 @@ export default function QuoteEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, isNew]);
 
+  const locked = !isNew && !unlocked && (!!emailedInfo || !!project?.accepted_at || project?.outcome === "Superseded");
+
+  useEffect(() => {
+    if (isNew || !project) return;
+    supabase
+      .from("projects")
+      .select("id, revision_letter, outcome")
+      .eq("quote_number", project.quote_number)
+      .then(({ data, error }) => {
+        if (!error && data) setVersions((data as any[]).sort((a, b) => String(a.revision_letter || "").localeCompare(String(b.revision_letter || ""))));
+      });
+  }, [isNew, project?.id]);
+
+  async function reviseQuote() {
+    if (!project) return;
+    if (dirty) await save();
+    if (!confirm(`Create a new version of ${quoteLabel(project)}? The old version stays as it was sent, and its link will point customers to the new one.`)) return;
+    setRevising(true);
+    setError("");
+    try {
+      const res = await fetch("/api/quotes/revise", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: project.id }) });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Could not create the revision");
+        return;
+      }
+      router.push(`/dashboard/quotes/${data.id}`);
+      router.refresh();
+    } catch {
+      setError("Could not create the revision");
+    } finally {
+      setRevising(false);
+    }
+  }
+
   async function toggleArchive() {
     if (!project) return;
-    if (!project.archived && !confirm(`Archive quote Q${project.quote_number}?`)) return;
+    if (!project.archived && !confirm(`Archive quote ${quoteLabel(project)}?`)) return;
     await supabase.from("projects").update({ archived: !project.archived }).eq("id", project.id);
     logAudit(supabase, {
       eventType: project.archived ? "update" : "delete",
       entityType: "quote",
       entityId: project.id,
-      entityLabel: `Q${project.quote_number}`,
+      entityLabel: quoteLabel(project),
       details: project.archived ? "Restored" : "Archived",
     });
     router.push("/dashboard/quotes");
@@ -955,7 +995,7 @@ export default function QuoteEditor({
             &larr; Quotes
           </Link>
           <h1 className="mt-1 text-2xl font-bold">
-            {isNew ? "New quote" : `Quote Q${project!.quote_number}`}
+            {isNew ? "New quote" : `Quote ${quoteLabel(project!)}`}
           </h1>
           {!isNew && (
             <p className={`mt-1 text-sm ${emailedInfo ? "text-green-700" : "text-[var(--muted)]"}`}>
@@ -974,6 +1014,15 @@ export default function QuoteEditor({
           )}
         </div>
         <div className="flex items-center gap-3">
+          {!isNew && project!.outcome !== "Superseded" && (
+            <button
+              onClick={reviseQuote}
+              disabled={revising}
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
+            >
+              {revising ? "Creating..." : "Revise quote"}
+            </button>
+          )}
           {!isNew && isAdmin && (
             <button onClick={toggleArchive} className="text-sm text-[var(--muted)] hover:underline">
               {project!.archived ? "Restore" : "Archive"}
@@ -1128,12 +1177,40 @@ export default function QuoteEditor({
             email: (selectedCustomer as any)?.contact_email || null,
             address: form.address,
             suburb: form.suburb,
-            from: `quote Q${project!.quote_number}`,
+            from: `quote ${quoteLabel(project!)}`,
           }}
         />
       )}
 
+      {!isNew && versions.length > 1 && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-[var(--muted)]">Versions:</span>
+          {versions.map((v) => (
+            <Link
+              key={v.id}
+              href={`/dashboard/quotes/${v.id}`}
+              className={`rounded-full border px-3 py-0.5 ${v.id === project!.id ? "border-accent bg-accent text-white" : "border-[var(--border)] hover:border-accent"}`}
+            >
+              {quoteLabel({ quote_number: project!.quote_number, revision_letter: v.revision_letter })}
+              {v.outcome === "Superseded" ? " (replaced)" : ""}
+            </Link>
+          ))}
+        </div>
+      )}
+      {locked && (
+        <div className="mt-3 rounded-lg px-4 py-3 text-sm" style={{ background: "#fff4d6", border: "1px solid #e8a50c", color: "#5a3d00" }}>
+          {project!.outcome === "Superseded"
+            ? "This version has been replaced by a newer one, so it is read-only. Open the latest version from the Versions bar above."
+            : "This quote has already gone to the customer, so it is locked to keep what they saw. To change products or prices, press Revise quote: that makes a new version with its own link."}
+          {isAdmin && project!.outcome !== "Superseded" && (
+            <button onClick={() => setUnlocked(true)} className="ml-3 underline">
+              Unlock for a small fix (admin)
+            </button>
+          )}
+        </div>
+      )}
       <div className={tab !== "details" ? "hidden" : ""}>
+      <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
           {error}
@@ -1830,6 +1907,7 @@ export default function QuoteEditor({
           </div>
         </div>
       </div>
+      </fieldset>
       </div>
 
       {newCustomerOpen && (
