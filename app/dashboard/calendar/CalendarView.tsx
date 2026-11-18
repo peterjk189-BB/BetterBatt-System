@@ -267,6 +267,7 @@ export default function CalendarView({
   timeAway = [],
   awayPeople = [],
   installerNote,
+  heldOrders = [],
 }: {
   woLines: WoLine[];
   pos: Po[];
@@ -284,6 +285,8 @@ export default function CalendarView({
   awayPeople?: AwayPerson[];
   /** Set for an installer (real or sample preview): a short note explaining the calendar is scoped to just their jobs, and hides the office-only "Add site visit" shortcut. */
   installerNote?: string | null;
+  /** Work orders on hold (office only): listed in a yellow bar, not on the calendar grid. */
+  heldOrders?: { id: string; woNumber: string; reason: string; heldAt: string | null; wasDate: string | null; customer: string; address: string; contractor: string }[];
 }) {
   const [centerWeekStart, setCenterWeekStart] = useState(() => mondayOf(new Date()));
   // Weekends are hidden by default; the choice is remembered on this device.
@@ -876,6 +879,30 @@ export default function CalendarView({
         </div>
       )}
       {moveError && <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">{moveError}</div>}
+
+      {heldOrders.length > 0 && (
+        <div className="mt-4 rounded-xl border-2 border-dashed border-[#d9b800] px-4 py-3" style={{ background: "#fff4c2", color: "#5c4d00" }}>
+          <div className="text-sm font-bold">On hold ({heldOrders.length})</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {heldOrders.map((h) => (
+              <Link
+                key={h.id}
+                href={`/dashboard/work-orders/${h.id}`}
+                className="rounded-lg border border-[#d9b800] px-3 py-1.5 text-sm hover:underline"
+                style={{ background: "#ffffff", color: "#1f1e1b" }}
+                title={[h.customer, h.address, h.contractor && `Contractor: ${h.contractor}`].filter(Boolean).join(" · ")}
+              >
+                <b>{h.woNumber}</b>
+                {h.customer ? ` · ${h.customer}` : ""}
+                {h.reason ? ` · ${h.reason}` : ""}
+                {h.wasDate ? ` · was ${new Date(h.wasDate + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}` : ""}
+                {h.heldAt ? ` · held ${Math.max(0, Math.round((Date.now() - new Date(h.heldAt).getTime()) / 86400000))}d` : ""}
+              </Link>
+            ))}
+          </div>
+          <div className="mt-2 text-xs">Click one to open it. Press Resume on the work order when it can go ahead, then give it a new date.</div>
+        </div>
+      )}
 
       <div className="mt-4 flex flex-col gap-4">
         {weekStarts.map((weekStart) => {

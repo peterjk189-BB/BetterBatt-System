@@ -38,6 +38,8 @@ type WorkOrder = {
   jsa_received: boolean;
   notes: string | null;
   archived: boolean;
+  on_hold?: boolean;
+  hold_reason?: string | null;
   authorised_at?: string | null;
 };
 
@@ -245,6 +247,34 @@ export default function WorkOrderEditor({
   const [authorisedAt, setAuthorisedAt] = useState<string | null>(workOrder?.authorised_at ?? null);
   // Before migration 0046 the column does not exist: treat the work order as authorised so nothing changes.
   const authColumn = !!workOrder && "authorised_at" in workOrder;
+  // On hold (migration 0097): the job leaves the calendar grid and the contractor's view until resumed.
+  const holdColumn = !!workOrder && "on_hold" in workOrder;
+  const [onHold, setOnHold] = useState(!!workOrder?.on_hold);
+  const [holdOpen, setHoldOpen] = useState(false);
+  const [holdReason, setHoldReason] = useState("");
+  const [holdBusy, setHoldBusy] = useState(false);
+  async function setHold(on: boolean) {
+    if (!workOrder) return;
+    setHoldBusy(true);
+    const patch = on ? { on_hold: true, hold_reason: holdReason.trim() || null, held_at: new Date().toISOString() } : { on_hold: false, hold_reason: null, held_at: null };
+    const { error: err } = await supabase.from("work_orders").update(patch).eq("id", workOrder.id);
+    setHoldBusy(false);
+    if (err) {
+      setError(err.message?.includes("on_hold") ? "Couldn't save: run migration 0097 in Supabase first." : err.message);
+      return;
+    }
+    setOnHold(on);
+    setHoldOpen(false);
+    setHoldReason("");
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work_order",
+      entityId: workOrder.id,
+      entityLabel: workOrder.wo_number,
+      details: on ? `Put on hold${holdReason.trim() ? `: ${holdReason.trim()}` : ""}` : "Resumed from hold",
+    });
+    router.refresh();
+  }
   const [authorising, setAuthorising] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendNote, setResendNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -619,6 +649,35 @@ export default function WorkOrderEditor({
 
   return (
     <div>
+      {!isNew && onHold && (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border-2 border-dashed border-[#d9b800] px-4 py-3 text-sm font-semibold" style={{ background: "#fff4c2", color: "#5c4d00" }}>
+          <span>⏸ ON HOLD{workOrder!.hold_reason ? `: ${workOrder!.hold_reason}` : ""}. It is off the calendar and the contractor can&apos;t see it.</span>
+          <button onClick={() => setHold(false)} disabled={holdBusy} className="rounded-lg px-3 py-1 text-sm font-semibold disabled:opacity-60" style={{ background: "#1f1e1b", color: "#fff" }}>
+            {holdBusy ? "Saving…" : "Resume"}
+          </button>
+        </div>
+      )}
+      {!isNew && holdColumn && !onHold && holdOpen && (
+        <div className="mb-4 rounded-lg border-2 border-dashed border-[#d9b800] p-3 text-sm" style={{ background: "#fff4c2", color: "#5c4d00" }}>
+          <div className="font-semibold">Put {workOrder!.wo_number} on hold?</div>
+          <div className="mt-1">It comes off the calendar and the contractor can&apos;t see it until you resume it.</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input
+              className="min-w-[240px] flex-1 rounded-lg border border-[#d9b800] px-3 py-2"
+              style={{ background: "#fff", color: "#1f1e1b" }}
+              placeholder="Reason, e.g. waiting on plans / wet slab / builder delay"
+              value={holdReason}
+              onChange={(e) => setHoldReason(e.target.value)}
+            />
+            <button onClick={() => setHold(true)} disabled={holdBusy} className="rounded-lg px-4 py-2 font-semibold disabled:opacity-60" style={{ background: "#1f1e1b", color: "#fff" }}>
+              {holdBusy ? "Saving…" : "Put on hold"}
+            </button>
+            <button onClick={() => setHoldOpen(false)} className="px-2 hover:underline">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {!isNew && authColumn && !authorisedAt && !workOrder!.archived && (
         <div style={{ background: "#fdecec", color: "#7f1d1d" }} className="mb-4 rounded-lg border-2 border-[#b91c1c] px-4 py-3 text-sm font-semibold">
           ⚠ Not authorised yet. The contractor can&apos;t see this job on their calendar and hasn&apos;t been emailed. Use &quot;Authorise &amp; email contractor&quot; below when it&apos;s ready.
@@ -699,6 +758,11 @@ export default function WorkOrderEditor({
             >
               Purchase order
             </Link>
+          )}
+          {!isNew && holdColumn && !onHold && !workOrder!.archived && (
+            <button onClick={() => setHoldOpen(true)} className="rounded-lg border border-[#d9b800] px-4 py-2 text-sm font-medium hover:bg-[#fff4c2] hover:text-[#5c4d00]">
+              Put on hold
+            </button>
           )}
           {!isNew && (
             <Link

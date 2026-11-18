@@ -20,9 +20,43 @@ async function withTimes(supabase: Awaited<ReturnType<typeof createClient>>, lin
   return list.map((l) => ({ ...l, task_time: t.get(l.id) ?? null }));
 }
 
+// Work orders on hold (migration 0097): kept off the calendar grid and listed in the "On hold" bar for staff.
+async function loadHeld() {
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from("work_orders")
+      .select("id, wo_number, hold_reason, held_at, projects(address, suburb, customers(name)), subcontractors(name), work_order_lines(task_date)")
+      .eq("on_hold", true)
+      .eq("archived", false)
+      .order("held_at", { ascending: false });
+    if (error) return [] as any[];
+    return ((data ?? []) as any[]).map((w) => {
+      const proj = Array.isArray(w.projects) ? w.projects[0] : w.projects;
+      const cust = Array.isArray(proj?.customers) ? proj.customers[0] : proj?.customers;
+      const sub = Array.isArray(w.subcontractors) ? w.subcontractors[0] : w.subcontractors;
+      const dates = ((w.work_order_lines ?? []) as any[]).map((l) => l.task_date).filter(Boolean).sort();
+      return {
+        id: w.id as string,
+        woNumber: String(w.wo_number ?? ""),
+        reason: (w.hold_reason as string) || "",
+        heldAt: (w.held_at as string) || null,
+        wasDate: (dates[0] as string) || null,
+        customer: cust?.name || "",
+        address: [proj?.address, proj?.suburb].filter(Boolean).join(", "),
+        contractor: sub?.name || "",
+      };
+    });
+  } catch {
+    return [] as any[];
+  }
+}
+
 export default async function CalendarPage() {
   const supabase = await createClient();
   const role = await getEffectiveRole();
+  const heldOrders = await loadHeld();
+  const heldIds = new Set(heldOrders.map((h) => h.id));
 
   // Installers (real accounts, and the no-login sample installer preview)
   // only ever see their own scheduled work — no other installers' jobs, no
@@ -50,9 +84,10 @@ export default async function CalendarPage() {
 
     // Only authorised, non-archived jobs reach a contractor (mirrors the database rule, so "Preview as" matches too).
     const scope = await getInstallerScope(supabase);
-    const { data: woLines } = subId
+    const { data: woLinesRaw } = subId
       ? await supabase.from("work_order_lines").select(WO_LINE_SELECT).eq("subcontractor_id", subId).not("task_date", "is", null).order("task_date")
       : { data: [] };
+    const woLines = ((woLinesRaw ?? []) as any[]).filter((l) => !heldIds.has(l.work_order_id));
 
     // Today's jobs (Melbourne time) get a "Start SWMS" button at the top of the schedule.
     const today = new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
@@ -141,7 +176,7 @@ export default async function CalendarPage() {
   const poDelivered = new Map(((poDel.data ?? []) as any[]).map((r) => [r.id as string, r.delivered_at as string | null]));
   const woDelivered = new Map(((woDel.data ?? []) as any[]).map((r) => [r.id as string, r.materials_delivered_at as string | null]));
 
-  const [{ data: woLines }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }, invoiceDeliveries] = await Promise.all([
+  const [{ data: woLinesAll }, { data: pos }, { data: visits }, { data: inspections }, { data: stockDeliveries }, invoiceDeliveries] = await Promise.all([
     supabase.from("work_order_lines").select(WO_LINE_SELECT).not("task_date", "is", null).order("task_date"),
     supabase
       .from("purchase_orders")
@@ -176,7 +211,8 @@ export default async function CalendarPage() {
     <>
     <LiveRefresh />
     <CalendarView
-      woLines={(await withTimes(supabase, woLines as any)) as any}
+      woLines={(await withTimes(supabase, ((woLinesAll ?? []) as any[]).filter((l) => !heldIds.has(l.work_order_id)) as any)) as any}
+      heldOrders={heldOrders}
       pos={((pos ?? []) as any[]).map((p) => ({ ...p, delivered_at: poDelivered.get(p.id) ?? null })) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
