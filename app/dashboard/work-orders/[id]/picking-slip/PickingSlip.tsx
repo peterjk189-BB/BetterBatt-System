@@ -695,14 +695,13 @@ export default function PickingSlip({
                             </button>
                           </div>
                           {(() => {
-                            // Exact pick: use the loose packs on the shelf first, then whole multis for the rest.
+                            // Exact pick: whole multis first, then only the leftover as loose packs (e.g. 17 packs, 5 per multi = 3 multis + 2 packs).
                             const ppm = Number(l.parts.pack_per_multi) || 0;
                             if (!unitsOf(l.parts).hasBulk || ppm <= 1 || needed <= 0) return null;
                             const loose = Math.max(0, Number(l.parts.pks) || 0);
-                            const fromLoose = Math.min(loose, needed);
-                            const rem = needed - fromLoose;
-                            const m = Math.floor(rem / ppm);
-                            const pk = fromLoose + (rem - m * ppm);
+                            const shelfMulti = Math.max(0, Number(l.parts.multi) || 0);
+                            const m = Math.min(Math.floor(needed / ppm), shelfMulti);
+                            const pk = needed - m * ppm;
                             return (
                               <button
                                 onClick={() => run(l.id, `Picked ${fmtSplit(m, pk)}`, async () => await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: m, p_pks: pk }))}
