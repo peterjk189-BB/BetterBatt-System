@@ -61,6 +61,7 @@ type Project = {
   internal_notes?: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
+  show_prices_on_quote?: boolean;
   price_tier?: string | null;
   archived: boolean;
   share_token?: string | null;
@@ -306,6 +307,7 @@ export default function QuoteEditor({
     quote_markup:
       Math.round(((project?.quote_markup ?? 0) - (project?.travel_allowance ?? []).reduce((a, t) => a + (Number(t.amount) || 0), 0) - (Number(project?.non_compliance_fee?.amount) || 0)) * 100) / 100,
     show_qty_on_quote: project?.show_qty_on_quote ?? false,
+    show_prices_on_quote: project?.show_prices_on_quote ?? false,
     price_tier: project ? project.price_tier || "" : prefill?.price_tier || "retail", // new supply-only quotes price from Retail by default
   });
 
@@ -639,6 +641,8 @@ export default function QuoteEditor({
       ...(form.internal_notes.trim() || project?.internal_notes !== undefined ? { internal_notes: form.internal_notes.trim() || null } : {}),
       quote_markup: Math.round((adjustmentAmount + travelTotal + ncTotal) * 100) / 100,
       show_qty_on_quote: form.show_qty_on_quote,
+      // Needs migration 0099; only sent when ticked (or already present) so saving works before it is run.
+      ...(form.show_prices_on_quote || project?.show_prices_on_quote !== undefined ? { show_prices_on_quote: form.show_prices_on_quote } : {}),
       price_tier: form.job_type === "SUPPLY ONLY" && form.price_tier ? form.price_tier : null,
       // Only sent when options are in use, so quotes still save before the option columns exist.
       ...(optionKeys.length > 0 || project?.option_titles || project?.option_accepted?.length
@@ -1424,6 +1428,15 @@ export default function QuoteEditor({
           <span className="text-xs font-normal text-[var(--muted)]">
             (off by default — hides exact measurements so the quote can&apos;t be easily shopped around)
           </span>
+        </div>
+        <div className="flex items-center gap-2 text-sm sm:col-span-3">
+          <input
+            type="checkbox"
+            checked={form.show_prices_on_quote}
+            onChange={(e) => setForm({ ...form, show_prices_on_quote: e.target.checked })}
+          />
+          <span>Show the price of each line to the customer on the quote link</span>
+          <span className="text-xs font-normal text-[var(--muted)]">(off by default — customer sees the totals only)</span>
         </div>
 
         <label className="flex flex-col gap-1 text-sm sm:col-span-3">

@@ -36,6 +36,7 @@ type Project = {
   notes: string | null;
   quote_markup: number;
   show_qty_on_quote: boolean;
+  show_prices_on_quote?: boolean;
   price_tier?: string | null;
   contact_name: string | null;
   contact_phone: string | null;
@@ -66,6 +67,8 @@ export default function PublicQuoteView({
   newerToken?: string | null;
 }) {
   const superseded = project.outcome === "Superseded";
+  const showPrices = !!project.show_prices_on_quote;
+  const colCount = 1 + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
   const [name, setName] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -107,10 +110,11 @@ export default function PublicQuoteView({
         <tr className={l.note ? "" : "border-b border-gray-300"}>
           <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
           {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
+          {showPrices && <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>}
         </tr>
         {l.note && (
           <tr className="border-b border-gray-300">
-            <td colSpan={project.show_qty_on_quote ? 2 : 1} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
+            <td colSpan={colCount} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
               {l.note}
             </td>
           </tr>
@@ -240,15 +244,16 @@ export default function PublicQuoteView({
           <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
-                <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${project.show_qty_on_quote ? "" : "rounded-r-lg"}`}>Product</th>
-                {project.show_qty_on_quote && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Qty</th>}
+                <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${project.show_qty_on_quote || showPrices ? "" : "rounded-r-lg"}`}>Product</th>
+                {project.show_qty_on_quote && <th className={`px-2.5 py-2 text-right font-semibold ${showPrices ? "" : "rounded-r-lg"}`}>Qty</th>}
+                {showPrices && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>}
               </tr>
             </thead>
             <tbody>
               {renderRows(mainComputed)}
               {mainComputed.length === 0 && (
                 <tr>
-                  <td colSpan={project.show_qty_on_quote ? 2 : 1} className="py-6 text-center text-gray-500">
+                  <td colSpan={colCount} className="py-6 text-center text-gray-500">
                     No line items.
                   </td>
                 </tr>
