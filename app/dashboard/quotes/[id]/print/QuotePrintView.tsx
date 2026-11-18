@@ -1,5 +1,6 @@
 "use client";
 
+import { quoteLabel } from "@/lib/quoteLabel";
 import { supplyInstallCharge, lineLabel } from "@/lib/contractPricing";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { Fragment, useRef, useState, useEffect } from "react";
@@ -28,6 +29,7 @@ type Line = {
 type Project = {
   id: string;
   quote_number: number;
+  revision_letter?: string | null;
   job_type: string;
   lot_no: string | null;
   address: string | null;
@@ -67,7 +69,7 @@ export default function QuotePrintView({
   // The browser's Print / Save as PDF uses the page title as the file name.
   useEffect(() => {
     const prev = document.title;
-    document.title = pdfFileName(`Quote Q${project.quote_number}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")).replace(/\.pdf$/, "");
+    document.title = pdfFileName(`Quote ${quoteLabel(project)}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")).replace(/\.pdf$/, "");
     return () => {
       document.title = prev;
     };
@@ -78,7 +80,7 @@ export default function QuotePrintView({
     if (!printableRef.current) return;
     setDownloading(true);
     try {
-      await elementToPdf(printableRef.current, pdfFileName(`Quote Q${project.quote_number}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")), "portrait");
+      await elementToPdf(printableRef.current, pdfFileName(`Quote ${quoteLabel(project)}`, project.customers?.name, [project.address, project.suburb].filter(Boolean).join(", ")), "portrait");
     } finally {
       setDownloading(false);
     }
@@ -248,7 +250,7 @@ export default function QuotePrintView({
           </div>
           <div className="text-right">
             <div className="text-[10px] uppercase tracking-wider text-gray-300">Quote</div>
-            <div className="text-2xl font-extrabold text-white">Q{project.quote_number}</div>
+            <div className="text-2xl font-extrabold text-white">{quoteLabel(project)}</div>
           </div>
         </div>
 
