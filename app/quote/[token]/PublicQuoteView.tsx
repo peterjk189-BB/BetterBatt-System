@@ -107,11 +107,10 @@ export default function PublicQuoteView({
         <tr className={l.note ? "" : "border-b border-gray-300"}>
           <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
           {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-          <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
         </tr>
         {l.note && (
           <tr className="border-b border-gray-300">
-            <td colSpan={project.show_qty_on_quote ? 3 : 2} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
+            <td colSpan={project.show_qty_on_quote ? 2 : 1} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
               {l.note}
             </td>
           </tr>
@@ -241,16 +240,15 @@ export default function PublicQuoteView({
           <table className="w-full min-w-[480px] text-sm">
             <thead>
               <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
-                <th className="rounded-l-lg px-2.5 py-2 font-semibold">Product</th>
-                {project.show_qty_on_quote && <th className="px-2.5 py-2 text-right font-semibold">Qty</th>}
-                <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>
+                <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${project.show_qty_on_quote ? "" : "rounded-r-lg"}`}>Product</th>
+                {project.show_qty_on_quote && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Qty</th>}
               </tr>
             </thead>
             <tbody>
               {renderRows(mainComputed)}
               {mainComputed.length === 0 && (
                 <tr>
-                  <td colSpan={project.show_qty_on_quote ? 3 : 2} className="py-6 text-center text-gray-500">
+                  <td colSpan={project.show_qty_on_quote ? 2 : 1} className="py-6 text-center text-gray-500">
                     No line items.
                   </td>
                 </tr>
