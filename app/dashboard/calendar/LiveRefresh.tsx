@@ -40,7 +40,7 @@ export default function LiveRefresh() {
     window.addEventListener("focus", onVisible);
     const poll = setInterval(() => {
       if (document.visibilityState === "visible") router.refresh();
-    }, 60000);
+    }, 300000); // safety net only: live changes already arrive through the realtime channel above
 
     return () => {
       if (timer.current) clearTimeout(timer.current);
