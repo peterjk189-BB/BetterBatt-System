@@ -565,9 +565,6 @@ export default function PickingSlip({
                 <tr key={l.id} className="border-t border-[var(--border)] align-top">
                   <td className="px-3 py-2">
                     <div className="font-medium">{l.parts.name}</div>
-                    {grp.map((x) => x.note).filter(Boolean).map((n, i) => (
-                      <div key={i} className="text-xs text-[var(--muted)]">{n}</div>
-                    ))}
                     {grp.length > 1 && <div className="text-xs text-[var(--muted)]">{grp.length} lines combined</div>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
