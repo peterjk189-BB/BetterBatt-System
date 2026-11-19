@@ -363,7 +363,7 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
 
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-xl bg-[var(--surface)]">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-xl bg-[var(--surface)]">
             <div className="border-b border-[var(--border)] px-6 py-4">
               <h2 className="text-lg font-bold">{editing ? "Edit customer" : "Add customer"}</h2>
               {crmEnabled && editing && (

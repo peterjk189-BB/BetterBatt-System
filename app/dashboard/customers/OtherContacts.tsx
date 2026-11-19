@@ -67,7 +67,7 @@ export default function OtherContacts({ customerId }: { customerId: string }) {
           <datalist id="contact-roles">{ROLES.map((r) => <option key={r} value={r} />)}</datalist>
           <div className="space-y-2">
             {rows.map((c) => (
-              <div key={c.id} className="grid grid-cols-[1fr_1fr_1fr_1.4fr_auto] items-center gap-2">
+              <div key={c.id} className="grid grid-cols-1 gap-2 rounded-lg border border-[var(--border)] p-2 sm:grid-cols-2">
                 {(["name", "role", "phone", "email"] as const).map((f) => (
                   <input
                     key={f}
@@ -79,18 +79,18 @@ export default function OtherContacts({ customerId }: { customerId: string }) {
                     onBlur={(e) => saveField(c.id, { [f]: f === "name" ? e.target.value.trim() : e.target.value.trim() || null })}
                   />
                 ))}
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-between gap-2 sm:col-span-2">
                   <CallLink phone={c.phone} />
-                  <button type="button" onClick={() => remove(c.id)} className="text-sm text-red-600" title="Remove">✕</button>
+                  <button type="button" onClick={() => remove(c.id)} className="text-sm text-red-600">Remove ✕</button>
                 </span>
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_1fr_1fr_1.4fr_auto] items-center gap-2">
+            <div className="grid grid-cols-1 gap-2 rounded-lg border border-dashed border-[var(--border)] p-2 sm:grid-cols-2">
               <input placeholder="Name" className={inp} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               <input placeholder="Role e.g. Supervisor" list="contact-roles" className={inp} value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} />
               <input placeholder="Phone" className={inp} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
               <input placeholder="Email" type="email" className={inp} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
-              <button type="button" onClick={add} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60">Add</button>
+              <button type="button" onClick={add} disabled={busy} className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60 sm:col-span-2">Add contact</button>
             </div>
           </div>
         </>
