@@ -19,6 +19,9 @@ export default async function PurchaseOrderPrintPage({ params }: { params: { id:
       break;
     }
   }
+  // Pickup flag (migration 0100) fetched separately so the page still works before it is run.
+  const pickRes: any = await supabase.from("purchase_orders").select("pickup").eq("id", params.id).single();
+  if (purchaseOrder) purchaseOrder = { ...purchaseOrder, pickup: !!pickRes.data?.pickup };
   const [{ data: lines }] = await Promise.all([
     supabase
       .from("purchase_order_lines")

@@ -36,6 +36,7 @@ type Po = {
   delivery_address: string | null;
   archived: boolean;
   delivered_at?: string | null;
+  pickup?: boolean;
   suppliers: { name: string } | null;
 };
 
@@ -66,6 +67,8 @@ type PoEvent = {
   status: Po["status"];
   /** Stock receipted in, or delivered straight to site. */
   delivered: boolean;
+  /** We collect it from the supplier instead of it being delivered. */
+  pickup?: boolean;
 };
 
 type Visit = {
@@ -485,6 +488,7 @@ export default function CalendarView({
         supplierName: p.suppliers?.name || "—",
         status: p.status,
         delivered: p.status === "Received" || !!p.delivered_at,
+        pickup: !!p.pickup,
       });
     }
 
@@ -1049,10 +1053,10 @@ export default function CalendarView({
                               <Link
                                 key={`po-${ev.id}`}
                                 href={`/dashboard/purchase-orders/${ev.poId}`}
-                                title={`PO ${ev.poNumber} — ${ev.supplierName} (${ev.delivered ? "Delivered" : ev.status})`}
+                                title={`${ev.pickup ? "PICKUP " : ""}PO ${ev.poNumber} — ${ev.supplierName} (${ev.delivered ? (ev.pickup ? "Picked up" : "Delivered") : ev.status})`}
                                 className={`block truncate rounded px-1.5 py-0.5 text-[11px] ${ev.delivered ? "bg-green-100 text-green-900 hover:bg-green-200" : "bg-blue-100 text-blue-900 hover:bg-blue-200"}`}
                               >
-                                {ev.delivered ? "✓ Delivered · " : ""}PO {ev.poNumber} · {ev.supplierName}
+                                {ev.delivered ? (ev.pickup ? "✓ Picked up · " : "✓ Delivered · ") : ev.pickup ? "Pickup · " : ""}PO {ev.poNumber} · {ev.supplierName}
                               </Link>
                             );
                           }

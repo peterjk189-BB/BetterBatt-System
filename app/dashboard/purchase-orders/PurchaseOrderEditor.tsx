@@ -41,6 +41,7 @@ type PurchaseOrder = {
   fuel_levy_type?: string | null;
   fuel_levy_value?: number | null;
   site_delivery?: boolean;
+  pickup?: boolean;
   delivered_at?: string | null;
   archived: boolean;
 };
@@ -90,6 +91,7 @@ export default function PurchaseOrderEditor({
 
   // Delivered straight to a job site: no stock goes into inventory, we just tick it delivered.
   const [siteDelivery, setSiteDelivery] = useState(!!purchaseOrder?.site_delivery);
+  const [pickup, setPickup] = useState(!!purchaseOrder?.pickup);
   const [deliveredAt, setDeliveredAt] = useState<string | null>(purchaseOrder?.delivered_at ?? null);
   const [delivering, setDelivering] = useState(false);
 
@@ -269,6 +271,8 @@ export default function PurchaseOrderEditor({
       notes: form.notes || null,
       // Site-delivery flag needs migration 0073; only sent when used (or already present).
       ...(siteDelivery || purchaseOrder?.site_delivery !== undefined ? { site_delivery: siteDelivery } : {}),
+      // Needs migration 0100; only sent when used (or already present) so saving works before it is run.
+      ...(pickup || purchaseOrder?.pickup !== undefined ? { pickup } : {}),
       // Only sent when used (or already set), so saving still works before migration 0058 is run.
       ...(Number(form.fuel_levy_value) > 0 || purchaseOrder?.fuel_levy_type !== undefined
         ? { fuel_levy_type: form.fuel_levy_type, fuel_levy_value: Number(form.fuel_levy_value) || 0 }
@@ -549,7 +553,7 @@ export default function PurchaseOrderEditor({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Deliver to (address)
+          {pickup ? "Pick up from (address)" : "Deliver to (address)"}
           {addresses.length > 0 && (
             <select
               className="rounded-lg border border-[var(--border)] px-3 py-2"
@@ -633,8 +637,27 @@ export default function PurchaseOrderEditor({
             onChange={(e) => setForm({ ...form, site_contact_phone: e.target.value })}
           />
         </label>
+        <div className="flex flex-col gap-1 text-sm sm:col-span-2">
+          How does the stock get to us?
+          <div className="flex w-fit overflow-hidden rounded-lg border border-[var(--border)] text-sm">
+            <button
+              type="button"
+              onClick={() => setPickup(false)}
+              className={`px-4 py-2 ${!pickup ? "bg-accent font-medium text-white" : "hover:bg-black/5"}`}
+            >
+              Delivery
+            </button>
+            <button
+              type="button"
+              onClick={() => setPickup(true)}
+              className={`px-4 py-2 ${pickup ? "bg-accent font-medium text-white" : "hover:bg-black/5"}`}
+            >
+              Pickup
+            </button>
+          </div>
+        </div>
         <label className="flex flex-col gap-1 text-sm">
-          Delivery date
+          {pickup ? "Pickup date" : "Delivery date"}
           <input
             type="date"
             className="rounded-lg border border-[var(--border)] px-3 py-2"
@@ -643,7 +666,7 @@ export default function PurchaseOrderEditor({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Delivery time
+          {pickup ? "Pickup time" : "Delivery time"}
           <input
             type="time"
             className="rounded-lg border border-[var(--border)] px-3 py-2"

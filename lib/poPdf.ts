@@ -8,6 +8,7 @@ export type PoPdfInput = {
     po_number: string | null;
     order_date: string | null;
     delivery_date: string | null;
+    pickup?: boolean | null;
     delivery_time: string | null;
     delivery_address: string | null;
     site_contact_name: string | null;
@@ -128,7 +129,7 @@ export async function buildPoPdf(input: PoPdfInput): Promise<Uint8Array> {
   const h1 = Math.max(15, 9.6 + Math.max(supName.length * 4.6 + supAddr.length * 3.9, deliv.length * 4.6, orderD.length * 4.6) + 2.5);
   box(M, y, w3, "Supplier", supName, h1, false, supAddr);
   box(M + w3 + gap, y, w3, "Order date", orderD, h1, false);
-  box(M + 2 * (w3 + gap), y, w3, "Delivery", deliv, h1, false);
+  box(M + 2 * (w3 + gap), y, w3, po.pickup ? "Pickup" : "Delivery", deliv, h1, false);
   y += h1 + 3;
 
   // row 2: deliver to / site contact
@@ -136,7 +137,7 @@ export async function buildPoPdf(input: PoPdfInput): Promise<Uint8Array> {
   const to = doc.splitTextToSize(po.delivery_address || "—", w2 - 6) as string[];
   const contact = doc.splitTextToSize([po.site_contact_name, po.site_contact_phone].filter(Boolean).join(" · ") || "—", w2 - 6) as string[];
   const h2 = Math.max(15, 9.6 + Math.max(to.length, contact.length) * 4.6 + 2.5);
-  box(M, y, w2, "Deliver to", to, h2, true);
+  box(M, y, w2, po.pickup ? "Pick up from" : "Deliver to", to, h2, true);
   box(M + w2 + gap, y, w2, "Site contact", contact, h2, true);
   y += h2 + 6;
 

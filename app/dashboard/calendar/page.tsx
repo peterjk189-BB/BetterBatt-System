@@ -173,6 +173,8 @@ export default async function CalendarPage() {
     supabase.from("purchase_orders").select("id, delivered_at"),
     supabase.from("work_orders").select("id, materials_delivered_at"),
   ]);
+  const poPickRes: any = await supabase.from("purchase_orders").select("id, pickup");
+  const poPickup = new Map(((poPickRes.data ?? []) as any[]).map((r) => [r.id as string, !!r.pickup]));
   const poDelivered = new Map(((poDel.data ?? []) as any[]).map((r) => [r.id as string, r.delivered_at as string | null]));
   const woDelivered = new Map(((woDel.data ?? []) as any[]).map((r) => [r.id as string, r.materials_delivered_at as string | null]));
 
@@ -213,7 +215,7 @@ export default async function CalendarPage() {
     <CalendarView
       woLines={(await withTimes(supabase, ((woLinesAll ?? []) as any[]).filter((l) => !heldIds.has(l.work_order_id)) as any)) as any}
       heldOrders={heldOrders}
-      pos={((pos ?? []) as any[]).map((p) => ({ ...p, delivered_at: poDelivered.get(p.id) ?? null })) as any}
+      pos={((pos ?? []) as any[]).map((p) => ({ ...p, delivered_at: poDelivered.get(p.id) ?? null, pickup: poPickup.get(p.id) ?? false })) as any}
       visits={(visits ?? []) as any}
       inspections={(inspections ?? []) as any}
       crmTasks={crmTasks as any}

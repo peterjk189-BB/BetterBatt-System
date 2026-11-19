@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     subject: `Purchase Order ${no} from Better Batt Insulation`,
     html: brandedEmailHtml({
       heading: `Purchase Order ${esc(no)}`,
-      bodyHtml: `<p>Hi ${esc(out.supplierName || "there")},</p><p>Please find our purchase order attached.</p>${note ? `<p>${esc(note).replace(/\n/g, "<br/>")}</p>` : ""}<p><b>PO number:</b> ${esc(no)}<br/>${when ? `<b>Delivery:</b> ${esc(when)}<br/>` : ""}${po.delivery_address ? `<b>Deliver to:</b> ${esc(po.delivery_address)}<br/>` : ""}<b>Total:</b> ${t.total.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} (inc GST)</p><p>Please quote ${esc(no)} on your delivery docket and invoice. Thanks!</p>`,
+      bodyHtml: `<p>Hi ${esc(out.supplierName || "there")},</p><p>Please find our purchase order attached.</p>${note ? `<p>${esc(note).replace(/\n/g, "<br/>")}</p>` : ""}<p><b>PO number:</b> ${esc(no)}<br/>${when ? `<b>${po.pickup ? "Pickup" : "Delivery"}:</b> ${esc(when)}<br/>` : ""}${po.delivery_address ? `<b>${po.pickup ? "Pick up from" : "Deliver to"}:</b> ${esc(po.delivery_address)}<br/>` : ""}<b>Total:</b> ${t.total.toLocaleString("en-AU", { style: "currency", currency: "AUD" })} (inc GST)</p><p>Please quote ${esc(no)} on your ${po.pickup ? "pickup docket" : "delivery docket"} and invoice. Thanks!</p>`,
     }),
     attachments: [{ filename: `Purchase Order ${no}.pdf`, content: Buffer.from(out.bytes).toString("base64") }],
   });

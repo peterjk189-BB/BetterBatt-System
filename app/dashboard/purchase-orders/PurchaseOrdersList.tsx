@@ -13,6 +13,7 @@ type PO = {
   order_date: string | null;
   delivery_address: string | null;
   delivery_date: string | null;
+  pickup?: boolean;
   delivery_time: string | null;
   archived: boolean;
   suppliers: { name: string } | null;
@@ -107,7 +108,7 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
               <th className="px-4 py-2">P/O #</th>
               <th className="px-4 py-2">Supplier</th>
               <th className="px-4 py-2">Order date</th>
-              <th className="px-4 py-2">Delivery date</th>
+              <th className="px-4 py-2">Delivery / pickup date</th>
               <th className="px-4 py-2">Delivery address</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2 text-right">Total (inc GST)</th>
@@ -125,7 +126,7 @@ export default function PurchaseOrdersList({ initial, lines, parts }: { initial:
                   </td>
                   <td className="px-4 py-2">{po.suppliers?.name || "—"}</td>
                   <td className="px-4 py-2 text-[var(--muted)]">{po.order_date || "—"}</td>
-                  <td className="px-4 py-2 text-[var(--muted)]">{po.delivery_date ? deliveryWhen : "—"}</td>
+                  <td className="px-4 py-2 text-[var(--muted)]">{po.delivery_date ? `${po.pickup ? "Pickup: " : ""}${deliveryWhen}` : po.pickup ? "Pickup (no date yet)" : "—"}</td>
                   <td className="max-w-xs whitespace-normal break-words px-4 py-2 text-[var(--muted)]">
                     {po.delivery_address || "—"}
                   </td>

@@ -7,7 +7,10 @@ export default async function PurchaseOrdersPage() {
   // fuel levy columns exist only after migration 0058 — fall back without them.
   let posRes: any = await supabase.from("purchase_orders").select(cols + ", fuel_levy_type, fuel_levy_value").order("created_at", { ascending: false });
   if (posRes.error) posRes = await supabase.from("purchase_orders").select(cols).order("created_at", { ascending: false });
-  const pos = posRes.data;
+  // Pickup flag (migration 0100) is fetched on its own so the list still loads before it is run.
+  const pickRes: any = await supabase.from("purchase_orders").select("id, pickup");
+  const pickupIds = new Set(((pickRes.data ?? []) as any[]).filter((r) => r.pickup).map((r) => r.id as string));
+  const pos = ((posRes.data ?? []) as any[]).map((p) => ({ ...p, pickup: pickupIds.has(p.id) }));
   const [{ data: lines }, { data: parts }] = await Promise.all([
     supabase.from("purchase_order_lines").select("purchase_order_id, part_id, qty_multi, qty_pks, unit_cost"),
     supabase.from("parts").select("id, pack_per_multi"),

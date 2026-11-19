@@ -20,6 +20,7 @@ type PurchaseOrder = {
   site_contact_name: string | null;
   site_contact_phone: string | null;
   delivery_date: string | null;
+  pickup?: boolean;
   delivery_time: string | null;
   notes: string | null;
   fuel_levy_type?: string | null;
@@ -121,14 +122,14 @@ export default function PurchaseOrderPrintView({
             <div className="mt-0.5 font-semibold">{fmtDate(purchaseOrder.order_date)}</div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Delivery</div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">{purchaseOrder.pickup ? "Pickup" : "Delivery"}</div>
             <div className="mt-0.5 font-semibold">{deliveryWhen || "—"}</div>
           </div>
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border border-gray-200 px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wide text-gray-500">Deliver to</div>
+            <div className="text-[10px] uppercase tracking-wide text-gray-500">{purchaseOrder.pickup ? "Pick up from" : "Deliver to"}</div>
             <div className="mt-0.5 font-semibold">{purchaseOrder.delivery_address || "—"}</div>
           </div>
           <div className="rounded-lg border border-gray-200 px-3 py-2">
