@@ -133,8 +133,21 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => {
-              const needed = packsNeeded(Number(l.qty) || 0, Number(l.parts.coverage_m2) || 0);
+            {(() => {
+              // Same product on more than one line: one row, packs added together.
+              const rows: { l: Line; needed: number; picked: boolean; mp: number; pp: number }[] = [];
+              for (const x of lines) {
+                const n = packsNeeded(Number(x.qty) || 0, Number(x.parts.coverage_m2) || 0);
+                const hit = rows.find((r) => r.l.part_id === x.part_id);
+                if (hit) {
+                  hit.needed += n;
+                  hit.picked = hit.picked && x.picked;
+                  hit.mp += Number(x.multi_picked) || 0;
+                  hit.pp += Number(x.packs_picked) || 0;
+                } else rows.push({ l: x, needed: n, picked: x.picked, mp: Number(x.multi_picked) || 0, pp: Number(x.packs_picked) || 0 });
+              }
+              return rows;
+            })().map(({ l, needed, picked, mp, pp }) => {
               const packPerMulti = Number(l.parts.pack_per_multi) || 0;
               return (
                 <tr key={l.id} className="border-b border-gray-100">
@@ -152,8 +165,8 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
                   <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
                   <td className="whitespace-nowrap px-2 py-2 text-gray-400">______</td>
                   <td className="px-2 py-2">
-                    {l.picked ? (
-                      <span className="font-semibold">{fmtSplit(l.multi_picked || 0, l.packs_picked || 0)}</span>
+                    {picked ? (
+                      <span className="font-semibold">{fmtSplit(mp, pp)}</span>
                     ) : (
                       <span className="whitespace-nowrap text-gray-400">
                         Multi: ______ &nbsp; Pks: ______
