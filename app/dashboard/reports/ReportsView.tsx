@@ -6,6 +6,7 @@ import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
 import LowStockReport from "./LowStockReport";
 import ContractMarginReport from "./ContractMarginReport";
+import ContractorScheduleReport from "./ContractorScheduleReport";
 import CertificatesReport, { type CertInspection } from "./CertificatesReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
 import { supplyPackPrice } from "@/lib/priceTiers";
@@ -766,7 +767,7 @@ function QuotesReport({ projects, projectLines }: { projects: Project[]; project
 // Top-level tabs
 // ---------------------------------------------------------------------------
 
-type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly" | "certs" | "lowstock" | "contractmargin";
+type Tab = "inventory" | "quotes" | "customers" | "suppliers" | "jobs" | "pnl" | "sales" | "weekly" | "certs" | "lowstock" | "contractmargin" | "schedule";
 
 export default function ReportsView({
   parts,
@@ -833,6 +834,7 @@ export default function ReportsView({
         {tabBtn("weekly", "Daily / weekly / monthly")}
         {tabBtn("pnl", "Profit & loss")}
         {tabBtn("jobs", "Jobs & SWMS")}
+        {tabBtn("schedule", "Contractor schedule")}
         {tabBtn("certs", "Certificates")}
         {tabBtn("lowstock", "Low stock")}
         {tabBtn("contractmargin", "Contract margins")}
@@ -847,6 +849,7 @@ export default function ReportsView({
       {tab === "pnl" && <ProfitLossReport {...pl} />}
       {tab === "certs" && <CertificatesReport inspections={certInspections} invoices={pl.invoices} payments={pl.payments} sentColumn={certSentColumn} />}
       {tab === "lowstock" && <LowStockReport />}
+      {tab === "schedule" && <ContractorScheduleReport />}
       {tab === "contractmargin" && <ContractMarginReport />}
       {tab === "jobs" && <JobsSwmsReport workOrders={jobWorkOrders} swms={jobSwms} inspections={jobInspections} lines={jobLines} />}
     </div>
