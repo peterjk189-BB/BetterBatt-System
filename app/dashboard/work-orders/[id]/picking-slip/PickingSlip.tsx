@@ -93,6 +93,22 @@ export default function PickingSlip({
   }
   const [orderingAll, setOrderingAll] = useState(false);
 
+  // The same product on more than one line (and all in the same state) is shown as ONE row with the packs added together.
+  // The first line carries the real pick; the others are marked picked/allocated with nothing extra so stock is only taken once.
+  const sibsOf: Record<string, Line[]> = {};
+  const hiddenIds = new Set<string>();
+  if (!supplierMode) {
+    const byPart: Record<string, Line[]> = {};
+    for (const l of lines) (byPart[l.part_id] ||= []).push(l);
+    for (const grp of Object.values(byPart)) {
+      if (grp.length < 2) continue;
+      const st = lineStatus(grp[0]);
+      if (!grp.every((x) => lineStatus(x) === st)) continue;
+      sibsOf[grp[0].id] = grp.slice(1);
+      grp.slice(1).forEach((x) => hiddenIds.add(x.id));
+    }
+  }
+
   async function setSupplierDelivery(on: boolean) {
     setError(null);
     const { error: err } = await supabase.from("work_orders").update({ supplier_delivery: on }).eq("id", workOrder.id);
@@ -171,18 +187,33 @@ export default function PickingSlip({
   }
 
   const allocate = (l: Line) =>
-    run(l.id, "Allocated from stock", async () => await supabase.rpc("allocate_wo_line", { p_line_id: l.id }));
+    run(l.id, "Allocated from stock", async () => {
+      for (const x of [l, ...(sibsOf[l.id] ?? [])]) {
+        const r = await supabase.rpc("allocate_wo_line", { p_line_id: x.id });
+        if (r.error) return r;
+      }
+      return { error: null };
+    });
   const deallocate = (l: Line) =>
-    run(l.id, "Released allocation", async () => await supabase.rpc("deallocate_wo_line", { p_line_id: l.id }));
+    run(l.id, "Released allocation", async () => {
+      for (const x of [l, ...(sibsOf[l.id] ?? [])]) {
+        const r = await supabase.rpc("deallocate_wo_line", { p_line_id: x.id });
+        if (r.error) return r;
+      }
+      return { error: null };
+    });
   // The pick note lives in its own column (migration 0096); if it isn't there yet the update just fails quietly.
   const setPickNote = async (lineId: string, note: string | null) => {
     await supabase.from("work_order_lines").update({ pick_note: note }).eq("id", lineId);
   };
   const unpick = (l: Line) =>
     run(l.id, "Undid pick", async () => {
-      const r = await supabase.rpc("unpick_wo_line", { p_line_id: l.id });
-      if (!r.error && l.pick_note) await setPickNote(l.id, null);
-      return r;
+      for (const x of [l, ...(sibsOf[l.id] ?? [])]) {
+        const r = await supabase.rpc("unpick_wo_line", { p_line_id: x.id });
+        if (r.error) return r;
+        if (x.pick_note) await setPickNote(x.id, null);
+      }
+      return { error: null };
     });
   /** One click: add this shortfall to the open draft PO for the supplier (or start one), without leaving the slip. */
   async function orderShortfall(l: Line, shortfall: number) {
@@ -314,6 +345,18 @@ export default function PickingSlip({
   };
   const unreturn = (l: Line) =>
     run(l.id, "Undid return", async () => await supabase.rpc("unreturn_wo_line", { p_line_id: l.id }));
+  // One pick for the whole row: the first line takes the stock, any combined lines are just marked picked.
+  const pickGroup = (l: Line, multi: number, pks: number) =>
+    run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () => {
+      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
+      if (r.error) return r;
+      if (l.pick_note) await setPickNote(l.id, null);
+      for (const x of sibsOf[l.id] ?? []) {
+        const rs = await supabase.rpc("pick_wo_line", { p_line_id: x.id, p_multi: 0, p_pks: 0 });
+        if (rs.error) return rs;
+      }
+      return { error: null };
+    });
   const pick = (l: Line) => {
     const multi = Math.round(Number(pickMulti[l.id] || 0)) || 0;
     const pks = Math.round(Number(pickPks[l.id] || 0)) || 0;
@@ -321,11 +364,7 @@ export default function PickingSlip({
       setError("Enter how many multis and/or packs you're picking.");
       return;
     }
-    return run(l.id, `Picked ${fmtSplit(multi, pks)}`, async () => {
-      const r = await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: multi, p_pks: pks });
-      if (!r.error && l.pick_note) await setPickNote(l.id, null);
-      return r;
-    });
+    return pickGroup(l, multi, pks);
   };
 
   const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
@@ -508,10 +547,12 @@ export default function PickingSlip({
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => {
-              const qty = Number(l.qty) || 0;
+            {lines.filter((x) => !hiddenIds.has(x.id)).map((l) => {
+              const grp = [l, ...(sibsOf[l.id] ?? [])];
+              const qty = grp.reduce((t, x) => t + (Number(x.qty) || 0), 0);
               const stockOnHand = Number(l.parts.stock_on_hand) || 0;
-              const needed = packsNeeded(qty, Number(l.parts.coverage_m2) || 0);
+              const needed = grp.reduce((t, x) => t + packsNeeded(Number(x.qty) || 0, Number(x.parts.coverage_m2) || 0), 0);
+              const sumOf = (k: "multi_picked" | "packs_picked" | "multi_returned" | "packs_returned") => grp.reduce((t, x) => t + (Number((x as any)[k]) || 0), 0);
               const reserved = reservedByPart[l.part_id] || 0;
               const available = stockOnHand - reserved;
               const shortfall = Math.max(0, Math.ceil((partOpen[l.part_id] || 0) - available - 1e-9));
@@ -524,7 +565,10 @@ export default function PickingSlip({
                 <tr key={l.id} className="border-t border-[var(--border)] align-top">
                   <td className="px-3 py-2">
                     <div className="font-medium">{l.parts.name}</div>
-                    {l.note && <div className="text-xs text-[var(--muted)]">{l.note}</div>}
+                    {grp.map((x) => x.note).filter(Boolean).map((n, i) => (
+                      <div key={i} className="text-xs text-[var(--muted)]">{n}</div>
+                    ))}
+                    {grp.length > 1 && <div className="text-xs text-[var(--muted)]">{grp.length} lines combined</div>}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums">{qty}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{needed || "—"}</td>
@@ -621,13 +665,13 @@ export default function PickingSlip({
                     </span>
                     {status === "picked" && l.picked_at && (
                       <div className="mt-1 text-xs text-[var(--muted)]">
-                        {fmtSplit(l.multi_picked || 0, l.packs_picked || 0)} · {fmtDateTime(l.picked_at)}
+                        {fmtSplit(sumOf("multi_picked"), sumOf("packs_picked"))} · {fmtDateTime(l.picked_at)}
                       </div>
                     )}
                     {status === "picked" && l.pick_note && <div className="mt-1 text-xs text-[var(--muted)]">{l.pick_note}</div>}
                     {status === "picked" && (l.multi_returned > 0 || l.packs_returned > 0) && (
                       <div className="mt-1 text-xs text-[#1f6b35]">
-                        Returned {fmtSplit(l.multi_returned, l.packs_returned)}
+                        Returned {fmtSplit(sumOf("multi_returned"), sumOf("packs_returned"))}
                         {l.returned_at ? ` · ${fmtDateTime(l.returned_at)}` : ""}
                       </div>
                     )}
@@ -690,7 +734,7 @@ export default function PickingSlip({
                             const pk = needed - m * ppm;
                             return (
                               <button
-                                onClick={() => run(l.id, `Picked ${fmtSplit(m, pk)}`, async () => await supabase.rpc("pick_wo_line", { p_line_id: l.id, p_multi: m, p_pks: pk }))}
+                                onClick={() => pickGroup(l, m, pk)}
                                 disabled={busy}
                                 className="rounded-lg border border-accent px-3 py-1.5 text-xs font-medium disabled:opacity-60"
                                 title={`${needed} packs needed. Shelf: ${Number(l.parts.multi) || 0} multis + ${loose} loose packs`}
