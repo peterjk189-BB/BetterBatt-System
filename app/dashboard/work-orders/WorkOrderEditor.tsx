@@ -125,10 +125,17 @@ export default function WorkOrderEditor({
     if (!isNew || !form.project_id) return;
     let alive = true;
     (async () => {
+      // A revised quote (Q1105-A) is a separate record from the original (Q1105), so look across every version of the quote.
+      const proj = projects.find((x) => x.id === form.project_id) as any;
+      let ids: string[] = [form.project_id];
+      if (proj?.quote_number) {
+        const { data: sibs } = await supabase.from("projects").select("id").eq("quote_number", proj.quote_number);
+        if (sibs && sibs.length > 0) ids = Array.from(new Set([form.project_id, ...(sibs as any[]).map((x) => x.id)]));
+      }
       const { data } = await supabase
         .from("work_orders")
         .select("id, wo_number, archived, entry_date, po_value, subcontractors(name)")
-        .eq("project_id", form.project_id)
+        .in("project_id", ids)
         .order("wo_number");
       if (!alive) return;
       setDupes(data ?? []);
