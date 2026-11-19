@@ -101,9 +101,21 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [pickBusy, setPickBusy] = useState("");
 
   // A negative quantity is a return from the customer: the packs go back into inventory (and Undo takes them out again).
+  // Default pick: whole multis first, leftover as loose packs (e.g. 7 packs, 5 per multi -> 1 multi + 2 loose packs).
+  function defaultEntry(l: InvoiceLine) {
+    const qty = Math.abs(Number(l.qty)) || 0;
+    const ppm = unitsOf(parts.find((p) => p.id === l.part_id)).perBulk;
+    const hasBulk = unitsOf(parts.find((p) => p.id === l.part_id)).hasBulk;
+    if (Number(l.qty) > 0 && hasBulk && ppm > 1) {
+      const m = Math.floor(qty / ppm);
+      return { multi: m > 0 ? String(m) : "", pks: String(qty - m * ppm) };
+    }
+    return { multi: "", pks: String(qty) };
+  }
+
   async function pickLine(l: InvoiceLine) {
     const ret = Number(l.qty) < 0;
-    const e = pickEntry[l.id] ?? { multi: "", pks: String(Math.abs(Number(l.qty))) };
+    const e = pickEntry[l.id] ?? defaultEntry(l);
     const multi = Number(e.multi) || 0;
     const pks = Number(e.pks) || 0;
     if (multi <= 0 && pks <= 0) return setFulfilMsg({ ok: false, text: ret ? "Enter how many came back." : "Enter how many you picked." });
@@ -922,7 +934,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
                     const u = unitsOf(part);
                     const ppm = u.perBulk;
                     const isRet = Number(l.qty) < 0;
-                    const e = pickEntry[l.id] ?? { multi: "", pks: String(Math.abs(Number(l.qty))) };
+                    const e = pickEntry[l.id] ?? defaultEntry(l);
                     const box = "w-16 rounded border border-[var(--border)] bg-white px-2 py-1 text-sm text-black";
                     return (
                       <li key={l.id} className="py-2.5">
