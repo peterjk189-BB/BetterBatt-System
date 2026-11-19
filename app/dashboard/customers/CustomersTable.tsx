@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import CustomerRating, { GradeBadge } from "./CustomerRating";
 import type { Grade } from "@/lib/builderRating";
 import { logAudit } from "@/lib/audit";
+import OtherContacts from "./OtherContacts";
 
 type Customer = {
   id: string;
@@ -558,6 +559,11 @@ export default function CustomersTable({ initial, isAdmin, crmEnabled = false, g
                   Account holder – send monthly statements
                 </label>
               </div>
+              {editing ? (
+                <OtherContacts customerId={editing.id} />
+              ) : (
+                <p className="mt-2 border-t border-[var(--border)] pt-4 text-xs text-[var(--muted)]">Save the customer first, then you can add other contacts (supervisor etc).</p>
+              )}
             </div>
             <div className="flex justify-end gap-3 border-t border-[var(--border)] px-6 py-4">
               <button onClick={() => setModalOpen(false)} className="rounded-lg px-4 py-2 text-sm">

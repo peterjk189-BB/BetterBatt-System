@@ -466,13 +466,15 @@ export default function QuoteEditor({
       setSavedContacts([]);
       return;
     }
-    supabase
-      .from("projects")
-      .select("contact_name, contact_phone, contact_email, created_at")
-      .eq("customer_id", form.customer_id)
-      .order("created_at", { ascending: false })
-      .limit(60)
-      .then(({ data }) => {
+    Promise.all([
+      supabase
+        .from("projects")
+        .select("contact_name, contact_phone, contact_email, created_at")
+        .eq("customer_id", form.customer_id)
+        .order("created_at", { ascending: false })
+        .limit(60),
+      supabase.from("customer_contacts").select("name, phone, email").eq("customer_id", form.customer_id),
+    ]).then(([{ data }, oc]: any[]) => {
         if (cancelled) return;
         const seen = new Set<string>();
         const list: SavedContact[] = [];
@@ -487,6 +489,7 @@ export default function QuoteEditor({
         ((data ?? []) as any[]).forEach((r) => add(r.contact_name, r.contact_phone, r.contact_email));
         const cust = customerList.find((x) => x.id === form.customer_id) as any;
         add(cust?.contact_name, cust?.contact_phone, cust?.contact_email);
+        ((oc?.error ? [] : oc?.data ?? []) as any[]).forEach((r) => add(r.name, r.phone, r.email));
         setSavedContacts(list);
         // New quote with nothing typed yet: start with the most recently used contact.
         if (!project && list.length > 0) {
