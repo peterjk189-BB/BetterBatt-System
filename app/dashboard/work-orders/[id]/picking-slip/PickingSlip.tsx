@@ -92,9 +92,8 @@ export default function PickingSlip({
     }
   }
   const [orderingAll, setOrderingAll] = useState(false);
-  // Supplier delivery still checks our warehouse first: only what the shelf can't cover is ordered.
-  const supplierQty = (l: Line) =>
-    Math.max(0, Math.ceil((partAll[l.part_id] || 0) - ((Number(l.parts.stock_on_hand) || 0) - (reservedByPart[l.part_id] || 0)) - 1e-9));
+  // Supplier delivery orders the full quantity needed; warehouse stock is not considered.
+  const supplierQty = (l: Line) => partAll[l.part_id] || 0;
 
   // The same product on more than one line (and all in the same state) is shown as ONE row with the packs added together.
   // The first line carries the real pick; the others are marked picked/allocated with nothing extra so stock is only taken once.
@@ -604,7 +603,7 @@ export default function PickingSlip({
                           disabled={busy}
                           className="mt-1 block text-xs font-medium text-accent hover:underline disabled:opacity-60"
                         >
-                          Add to purchase order ({fmtPacks(supplierQty(l))}{supplierQty(l) < (partAll[l.part_id] || 0) ? ` after warehouse stock` : ""}{dupCount > 1 ? `, ${dupCount} lines combined` : ""})
+                          Add to purchase order ({fmtPacks(supplierQty(l))}{dupCount > 1 ? `, ${dupCount} lines combined` : ""})
                         </button>
                       )}
                     </td>
