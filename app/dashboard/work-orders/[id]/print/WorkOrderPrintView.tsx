@@ -110,7 +110,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-3 print:hidden">
+      <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden sm:mb-6 sm:gap-3">
         <Link
           href={`/dashboard/work-orders/${workOrder.id}`}
           className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent"
@@ -145,10 +145,10 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
 
       <div
         ref={printableRef}
-        className="mx-auto max-w-5xl paper-sheet rounded-xl border border-[var(--border)] bg-white p-10 text-black print:border-none print:p-0"
+        className="mx-auto w-full min-w-0 max-w-5xl paper-sheet rounded-xl border border-[var(--border)] bg-white p-4 text-black print:border-none print:p-0 sm:p-10"
       >
         <div className="flex flex-col gap-5 rounded-xl bg-[#141413] px-6 py-5 text-white">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -171,7 +171,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Job</div>
             <div className="mt-0.5 font-semibold">
@@ -182,13 +182,31 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
           <div className="rounded-lg bg-gray-50 px-3 py-2">
             <div className="text-[10px] uppercase tracking-wide text-gray-500">Contractor</div>
             <div className="mt-0.5 font-semibold">{workOrder.subcontractors?.name || "—"}</div>
-            <div className="text-gray-600">
+            <div className="break-words text-gray-600">
               {[workOrder.subcontractors?.phone, workOrder.subcontractors?.email].filter(Boolean).join(" · ") || "—"}
             </div>
           </div>
         </div>
 
-        <table className="mt-5 w-full text-sm">
+        <div className="mt-5 space-y-2 sm:hidden">
+          {computed.map((l, i) => (
+            <div key={i} className="rounded-lg border border-gray-200 p-3 text-sm">
+              <div className="flex justify-between gap-3 text-xs text-gray-500">
+                <span>{fmtDate(l.task_date)}</span>
+                <span className="font-semibold text-black">{fmtCurrency(l.cost)}</span>
+              </div>
+              <div className="mt-1 font-semibold">{l.parts?.name || "—"}</div>
+              {l.note && <div className="mt-1 text-gray-700">{l.note}</div>}
+              <div className="mt-1 text-xs text-gray-500">
+                Qty {l.qty}
+                {woLinePacks(l.qty, l.parts) != null ? ` · ${woLinePacks(l.qty, l.parts)} packs` : ""}
+              </div>
+            </div>
+          ))}
+          {computed.length === 0 && <div className="py-6 text-center text-gray-400">No task lines.</div>}
+        </div>
+
+        <table className="mt-5 hidden w-full text-sm sm:table">
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
               <th className="rounded-l-lg px-2 py-1.5">Date</th>
@@ -223,7 +241,7 @@ export default function WorkOrderPrintView({ workOrder, lines }: { workOrder: Wo
         {workOrder.notes && <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm">{workOrder.notes}</div>}
 
         <div className="mt-5 flex justify-end">
-          <div className="w-64 rounded-lg bg-gray-50 p-3 text-sm">
+          <div className="w-full rounded-lg bg-gray-50 p-3 text-sm sm:w-64">
             <div className="flex justify-between text-base font-bold">
               <span>Contractor total</span>
               <span>{fmtCurrency(contractorTotal)}</span>
