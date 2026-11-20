@@ -226,6 +226,32 @@ export default function QuoteEditor({
   const isNew = !project;
   const [tab, setTab] = useState<"details" | "crm" | "visit">("details");
   const [unlocked, setUnlocked] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualHow, setManualHow] = useState("Phone");
+  const [manualBusy, setManualBusy] = useState(false);
+  async function markAcceptedManually() {
+    if (!project) return;
+    const who = manualName.trim();
+    if (!who) return alert("Enter who accepted (the customer's name).");
+    setManualBusy(true);
+    const { error } = await supabase
+      .from("projects")
+      .update({ accepted_at: new Date().toISOString(), accepted_name: `${who} (${manualHow.toLowerCase()}, entered by staff)`, outcome: "Accepted" })
+      .eq("id", project.id);
+    setManualBusy(false);
+    if (error) return alert(error.message);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "quote",
+      entityId: project.id,
+      entityLabel: quoteLabel(project as any),
+      details: `Marked accepted manually (${manualHow.toLowerCase()}) — accepted by ${who}`,
+    });
+    fetch("/api/quotes/accepted", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: project.id }) }).catch(() => {});
+    router.refresh();
+    window.location.reload();
+  }
   const [revising, setRevising] = useState(false);
   const [versions, setVersions] = useState<{ id: string; revision_letter: string | null; outcome: string }[]>([]);
 
@@ -1214,6 +1240,26 @@ export default function QuoteEditor({
               Unlock for a small fix (admin)
             </button>
           )}
+          {project!.outcome !== "Superseded" && !project!.accepted_at && (
+            <div className="mt-2">
+              {!manualOpen ? (
+                <button onClick={() => setManualOpen(true)} className="font-semibold underline">
+                  Customer accepted another way? Mark as accepted
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select value={manualHow} onChange={(e) => setManualHow(e.target.value)} className="rounded border px-2 py-1" style={{ color: "#201f1c" }}>
+                    {["Phone", "Email", "In person", "Text message"].map((h) => <option key={h}>{h}</option>)}
+                  </select>
+                  <input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Who accepted (customer name)" className="rounded border px-2 py-1" style={{ color: "#201f1c" }} />
+                  <button onClick={markAcceptedManually} disabled={manualBusy} className="rounded px-3 py-1 font-semibold text-white" style={{ background: "#2b7a3d" }}>
+                    {manualBusy ? "Saving..." : "Confirm accepted"}
+                  </button>
+                  <button onClick={() => setManualOpen(false)} className="underline">Cancel</button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div className={tab !== "details" ? "hidden" : ""}>
@@ -1246,7 +1292,7 @@ export default function QuoteEditor({
         <div className="mt-4 flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900">
           <span>✓</span>
           <span>
-            Accepted online by <strong>{project!.accepted_name}</strong> on{" "}
+            Accepted {/(entered by staff)/.test(project!.accepted_name || "") ? "by" : "online by"} <strong>{project!.accepted_name}</strong> on{" "}
             {new Date(project!.accepted_at).toLocaleString("en-AU")}
           </span>
         </div>
