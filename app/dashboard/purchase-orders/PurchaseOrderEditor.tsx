@@ -1,5 +1,7 @@
 "use client";
 
+import { quoteLabel } from "@/lib/quoteLabel";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -233,7 +235,7 @@ export default function PurchaseOrderEditor({
     (async () => {
       const { data } = await supabase
         .from("work_orders")
-        .select("id, wo_number, projects(address, suburb, customers(name))")
+        .select("id, wo_number, projects(quote_number, revision_letter, address, suburb, customers(name))")
         .eq("archived", false)
         .order("created_at", { ascending: false })
         .limit(250);
@@ -241,7 +243,7 @@ export default function PurchaseOrderEditor({
         ((data ?? []) as any[]).map((w) => {
           const pr = Array.isArray(w.projects) ? w.projects[0] : w.projects;
           const cu = Array.isArray(pr?.customers) ? pr.customers[0] : pr?.customers;
-          return { id: w.id, label: [w.wo_number, cu?.name, [pr?.address, pr?.suburb].filter(Boolean).join(", ")].filter(Boolean).join(" · ") };
+          return { id: w.id, label: [pr?.revision_letter ? `${w.wo_number} (${quoteLabel(pr)})` : w.wo_number, cu?.name, [pr?.address, pr?.suburb].filter(Boolean).join(", ")].filter(Boolean).join(" · ") };
         })
       );
     })();

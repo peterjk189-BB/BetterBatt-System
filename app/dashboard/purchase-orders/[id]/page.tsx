@@ -1,3 +1,4 @@
+import { quoteLabel } from "@/lib/quoteLabel";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getEffectiveRole } from "@/lib/currentUser";
@@ -17,8 +18,11 @@ export default async function PurchaseOrderPage({ params }: { params: { id: stri
 
   // Which job each line is for (only present once lines have been drafted from a work order).
   const jobIds = Array.from(new Set((lines ?? []).map((l: any) => l.work_order_id).filter(Boolean))) as string[];
-  const { data: jobs } = jobIds.length > 0 ? await supabase.from("work_orders").select("id, wo_number").in("id", jobIds) : { data: [] as any[] };
-  const woNumbers: Record<string, string> = Object.fromEntries((jobs ?? []).map((j: any) => [j.id, j.wo_number]));
+  const { data: jobs } = jobIds.length > 0 ? await supabase.from("work_orders").select("id, wo_number, projects(quote_number, revision_letter)").in("id", jobIds) : { data: [] as any[] };
+  const woNumbers: Record<string, string> = Object.fromEntries((jobs ?? []).map((j: any) => {
+    const pr = Array.isArray(j.projects) ? j.projects[0] : j.projects;
+    return [j.id, pr?.revision_letter ? `${j.wo_number} (${quoteLabel(pr)})` : j.wo_number];
+  }));
 
   return (
     <PurchaseOrderEditor

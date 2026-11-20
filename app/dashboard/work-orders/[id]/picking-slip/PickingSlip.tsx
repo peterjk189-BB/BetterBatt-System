@@ -92,6 +92,9 @@ export default function PickingSlip({
     }
   }
   const [orderingAll, setOrderingAll] = useState(false);
+  // Supplier delivery still checks our warehouse first: only what the shelf can't cover is ordered.
+  const supplierQty = (l: Line) =>
+    Math.max(0, Math.ceil((partAll[l.part_id] || 0) - ((Number(l.parts.stock_on_hand) || 0) - (reservedByPart[l.part_id] || 0)) - 1e-9));
 
   // The same product on more than one line (and all in the same state) is shown as ONE row with the packs added together.
   // The first line carries the real pick; the others are marked picked/allocated with nothing extra so stock is only taken once.
@@ -134,7 +137,7 @@ export default function PickingSlip({
     let n = 0;
     for (const l of lines) {
       if (firstAll[l.part_id] !== l.id) continue; // one order line per product
-      const needed = partAll[l.part_id] || 0;
+      const needed = supplierQty(l);
       if (needed > 0 && drafts[l.part_id]?.qty !== needed) {
         await orderShortfall(l, needed);
         n++;
@@ -223,7 +226,8 @@ export default function PickingSlip({
     try {
       const supplierId = l.parts.supplier_id || null;
       const cost = Number(l.parts.pack_cost_ex_gst) || 0;
-      const jobNote = `Shortfall for WO${workOrder.wo_number}${workOrder.customerName ? " — " + workOrder.customerName : ""}`;
+      // Supplier-delivery jobs don't carry a "Shortfall for WO…" note onto the PO (the line is already tied to the job).
+      const jobNote = supplierMode ? "" : `Shortfall for WO${workOrder.wo_number}${workOrder.customerName ? " — " + workOrder.customerName : ""}`;
 
       // The draft this job already has for this part, otherwise the newest open draft for the supplier.
       let poId = drafts[l.part_id]?.poId ?? null;
@@ -242,14 +246,14 @@ export default function PickingSlip({
           if (!(existing.delivery_address || "").trim() && workOrder.address) {
             await supabase.from("purchase_orders").update({ delivery_address: workOrder.address }).eq("id", existing.id);
           }
-          if (!(existing.notes || "").includes(`WO${workOrder.wo_number}`)) {
+          if (jobNote && !(existing.notes || "").includes(`WO${workOrder.wo_number}`)) {
             await supabase
               .from("purchase_orders")
               .update({ notes: [existing.notes, jobNote].filter(Boolean).join("\n") })
               .eq("id", existing.id);
           }
         } else {
-          const poRow = { supplier_id: supplierId, status: "Draft", delivery_address: workOrder.address || null, notes: jobNote };
+          const poRow = { supplier_id: supplierId, status: "Draft", delivery_address: workOrder.address || null, notes: jobNote || null };
           // From a job: delivered straight to site, so no stock receipt (flag needs migration 0073).
           let ins = await supabase.from("purchase_orders").insert({ ...poRow, site_delivery: true }).select("id, po_number").single();
           if (ins.error && /site_delivery/.test(ins.error.message)) ins = await supabase.from("purchase_orders").insert(poRow).select("id, po_number").single();
@@ -580,25 +584,27 @@ export default function PickingSlip({
                           <Link href={`/dashboard/purchase-orders/${drafts[l.part_id].poId}`} className="text-accent hover:underline">
                             On draft {drafts[l.part_id].poNumber} · {fmtPacks(drafts[l.part_id].qty)}
                           </Link>
-                          {drafts[l.part_id].qty !== (partAll[l.part_id] || 0) && (
+                          {drafts[l.part_id].qty !== supplierQty(l) && supplierQty(l) > 0 && (
                             <button
-                              onClick={() => orderShortfall(l, partAll[l.part_id] || 0)}
+                              onClick={() => orderShortfall(l, supplierQty(l))}
                               disabled={busy}
                               className="mt-1 block font-medium text-red-700 hover:underline disabled:opacity-60"
                             >
-                              Update draft to {fmtPacks(partAll[l.part_id] || 0)}
+                              Update draft to {fmtPacks(supplierQty(l))}
                             </button>
                           )}
                         </div>
                       ) : firstAll[l.part_id] !== l.id ? (
                         <div className="mt-1 text-xs text-[var(--muted)]">Ordered together with the first {l.parts.name} line</div>
+                      ) : supplierQty(l) === 0 ? (
+                        <div className="mt-1 text-xs text-[var(--muted)]">Covered by warehouse stock — nothing to order</div>
                       ) : (
                         <button
-                          onClick={() => orderShortfall(l, partAll[l.part_id] || 0)}
-                          disabled={busy || !partAll[l.part_id]}
+                          onClick={() => orderShortfall(l, supplierQty(l))}
+                          disabled={busy}
                           className="mt-1 block text-xs font-medium text-accent hover:underline disabled:opacity-60"
                         >
-                          Add to purchase order ({fmtPacks(partAll[l.part_id] || 0)}{dupCount > 1 ? `, ${dupCount} lines combined` : ""})
+                          Add to purchase order ({fmtPacks(supplierQty(l))}{supplierQty(l) < (partAll[l.part_id] || 0) ? ` after warehouse stock` : ""}{dupCount > 1 ? `, ${dupCount} lines combined` : ""})
                         </button>
                       )}
                     </td>
