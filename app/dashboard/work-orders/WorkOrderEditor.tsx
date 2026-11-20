@@ -146,8 +146,8 @@ export default function WorkOrderEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNew, form.project_id]);
   function createNumbered() {
-    const base = (projects.find((x) => x.id === form.project_id) as any)?.quote_number;
-    const root = `QW${base}`;
+    const pj = projects.find((x) => x.id === form.project_id) as any;
+    const root = `QW${pj?.quote_number}${pj?.revision_letter ? `-${pj.revision_letter}` : ""}`;
     const used = new Set(dupes.map((d) => d.wo_number));
     let n = root;
     for (let i = 2; used.has(n); i++) n = `${root}-${i}`;

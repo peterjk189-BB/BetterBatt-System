@@ -63,7 +63,7 @@ export default async function NewWorkOrderPage({
       const total = computeQuoteTotal(project, lines ?? [], partById as any);
       const nonDeliveryLines = (lines ?? []).filter((l) => !isDeliveryItem(partById[l.part_id || ""]?.name));
       // Work order numbers are unique (archived ones still hold theirs), so suggest the next free one: QW1053, QW1053-2, ...
-      const base = `QW${project.quote_number}`;
+      const base = `QW${project.quote_number}${(project as any).revision_letter ? `-${(project as any).revision_letter}` : ""}`; // revised quote Q1073-A → QW1073-A
       const { data: taken } = await supabase.from("work_orders").select("wo_number").like("wo_number", `${base}%`);
       const used = new Set((taken ?? []).map((t: any) => t.wo_number));
       let woNumber = base;
