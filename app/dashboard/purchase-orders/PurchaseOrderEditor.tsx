@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PoSendActions from "./PoSendActions";
@@ -135,6 +135,13 @@ export default function PurchaseOrderEditor({
   });
 
   const [saving, setSaving] = useState(false);
+  // Auto-save (existing purchase orders): saves a couple of seconds after the last change, like quotes.
+  const snapshot = JSON.stringify([form, lineItems, siteDelivery, pickup]);
+  const [savedSnap, setSavedSnap] = useState(snapshot);
+  const saveRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
+  // The status is only sent by auto-save once someone has changed it here, so a stale screen can't undo
+  // a status set elsewhere (emailing the PO, applying received stock).
+  const [statusTouched, setStatusTouched] = useState(false);
   // Regular delivery addresses (table exists after migration 0060; the picker just stays hidden until then).
   const [addresses, setAddresses] = useState<{ id: string; label: string; address: string }[]>([]);
   useEffect(() => {
@@ -253,7 +260,8 @@ export default function PurchaseOrderEditor({
   const gst = (subtotal + fuelLevy) * 0.1;
   const grandTotal = subtotal + fuelLevy + gst;
 
-  async function save() {
+  async function save(silent = false) {
+    const savingSnap = snapshot;
     setSaving(true);
     setError(null);
 
@@ -261,7 +269,7 @@ export default function PurchaseOrderEditor({
     // sent here, so a new row gets its default and an existing one keeps whatever it has.
     const payload = {
       supplier_id: form.supplier_id || null,
-      status: form.status,
+      ...(!silent || isNew || statusTouched ? { status: form.status } : {}),
       order_date: form.order_date || null,
       delivery_address: form.delivery_address || null,
       site_contact_name: form.site_contact_name || null,
@@ -325,6 +333,11 @@ export default function PurchaseOrderEditor({
     }
 
     setSaving(false);
+    if (silent) {
+      setSavedSnap(savingSnap);
+      return;
+    }
+    setSavedSnap(savingSnap);
     logAudit(supabase, {
       eventType: isNew ? "create" : "update",
       entityType: "purchase_order",
@@ -334,6 +347,23 @@ export default function PurchaseOrderEditor({
     router.push(`/dashboard/purchase-orders/${poId}`);
     router.refresh();
   }
+
+  saveRef.current = save;
+  const dirty = snapshot !== savedSnap;
+  useEffect(() => {
+    if (isNew || !dirty || saving) return;
+    const t = setTimeout(() => saveRef.current(true), 2500);
+    return () => clearTimeout(t);
+  }, [snapshot, dirty, saving, isNew]);
+  useEffect(() => {
+    if (isNew || !dirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, isNew]);
 
   /** Site delivery: tick delivered (or undo). Marks the PO Received without touching inventory, and stamps the work orders it is for. */
   async function setDelivered(done: boolean) {
@@ -397,6 +427,7 @@ export default function PurchaseOrderEditor({
     }
 
     await supabase.from("purchase_orders").update({ status: "Received" }).eq("id", purchaseOrder.id);
+    setForm((f) => ({ ...f, status: "Received" }));
     logAudit(supabase, {
       eventType: "update",
       entityType: "purchase_order",
@@ -478,8 +509,13 @@ export default function PurchaseOrderEditor({
               {applying ? "Applying..." : "Apply received stock to inventory"}
             </button>
           )}
+          {!isNew && (
+            <span className="self-center text-xs text-[var(--muted)]">
+              {saving ? "Saving..." : error ? "Not saved" : dirty ? "Unsaved changes" : "All changes saved"}
+            </span>
+          )}
           <button
-            onClick={save}
+            onClick={() => save()}
             disabled={saving}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
@@ -515,7 +551,10 @@ export default function PurchaseOrderEditor({
           <select
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value as PurchaseOrder["status"] })}
+            onChange={(e) => {
+              setStatusTouched(true);
+              setForm({ ...form, status: e.target.value as PurchaseOrder["status"] });
+            }}
           >
             {["Draft", "Ordered", "Received"].map((s) => (
               <option key={s}>{s}</option>
