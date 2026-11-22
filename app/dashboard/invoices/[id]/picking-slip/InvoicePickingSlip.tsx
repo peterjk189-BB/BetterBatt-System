@@ -148,6 +148,13 @@ export default function InvoicePickingSlip({ invoice, lines: initial }: { invoic
           </div>
         </div>
 
+        {(invoice.notes || "").trim() && (
+          <div className="mt-4 rounded-lg border-2 border-gray-800 px-3 py-2 text-base">
+            <div className="text-xs font-bold uppercase tracking-wide text-gray-500">Invoice notes</div>
+            <div className="mt-0.5 whitespace-pre-wrap">{String(invoice.notes).trim()}</div>
+          </div>
+        )}
+
         <table className="mt-5 w-full text-sm">
           <thead>
             <tr className="bg-gray-50 text-left text-[10px] uppercase tracking-wide text-gray-500">
