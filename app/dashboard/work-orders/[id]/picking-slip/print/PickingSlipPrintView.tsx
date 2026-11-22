@@ -23,6 +23,7 @@ type WorkOrder = {
   contactPhone?: string | null;
   quoteNumber: string | null;
   deliveryDate?: string | null;
+  invoiceNotes?: { number: string; notes: string }[];
   supplierDelivery?: boolean;
 };
 
@@ -108,6 +109,17 @@ export default function PickingSlipPrintView({ workOrder, lines }: { workOrder: 
             </div>
           </div>
         </div>
+
+        {(workOrder.invoiceNotes ?? []).length > 0 && (
+          <div className="mt-4 rounded-lg border-2 border-gray-800 px-3 py-2 text-base">
+            <div className="text-xs font-bold uppercase tracking-wide text-gray-500">Tax invoice notes</div>
+            {(workOrder.invoiceNotes ?? []).map((n) => (
+              <div key={n.number} className="mt-0.5 whitespace-pre-wrap">
+                <b>{n.number}:</b> {n.notes}
+              </div>
+            ))}
+          </div>
+        )}
 
         {sup && (
           <div className="mt-4 rounded-lg border-2 border-gray-800 px-3 py-2 text-base font-bold">

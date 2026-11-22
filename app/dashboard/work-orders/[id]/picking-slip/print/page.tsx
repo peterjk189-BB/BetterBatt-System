@@ -1,6 +1,7 @@
 import { quoteLabel } from "@/lib/quoteLabel";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { invoiceNotesForWo } from "@/lib/invoiceNotesForWo";
 import PickingSlipPrintView from "./PickingSlipPrintView";
 
 export default async function PickingSlipPrintPage({ params }: { params: { id: string } }) {
@@ -26,6 +27,7 @@ export default async function PickingSlipPrintPage({ params }: { params: { id: s
   const materialLines = (lines ?? []).filter((l: any) => l.part_id && l.parts?.is_stock_item !== false);
   const { data: sd } = await supabase.from("work_orders").select("supplier_delivery").eq("id", params.id).single();
   const project = (workOrder as any).projects;
+  const invoiceNotes = await invoiceNotesForWo(supabase, params.id);
 
   return (
     <PickingSlipPrintView
@@ -38,6 +40,7 @@ export default async function PickingSlipPrintPage({ params }: { params: { id: s
         contactPhone: project?.contact_phone ?? null,
         quoteNumber: project?.quote_number ? quoteLabel(project as any) : null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
+        invoiceNotes,
         supplierDelivery: !!(sd as any)?.supplier_delivery,
       }}
       lines={materialLines as any}

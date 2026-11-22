@@ -55,7 +55,7 @@ export default function PickingSlip({
   reservedByPart,
   onDraft = {},
 }: {
-  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; contactName?: string | null; contactPhone?: string | null; quoteNumber: string | null; deliveryDate?: string | null; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
+  workOrder: { id: string; wo_number: string; address: string | null; customerName: string | null; contactName?: string | null; contactPhone?: string | null; quoteNumber: string | null; deliveryDate?: string | null; invoiceNotes?: { number: string; notes: string }[]; supplierDelivery?: boolean; materialsDeliveredAt?: string | null };
   lines: Line[];
   reservedByPart: Record<string, number>;
   /** Shortfalls already on a draft purchase order for this job, by part. */
@@ -409,6 +409,17 @@ export default function PickingSlip({
         <span className="text-[var(--muted)]">Contact name:</span> <b>{workOrder.contactName || "—"}</b>
         <span className="ml-4 text-[var(--muted)]">Contact phone:</span> <b>{workOrder.contactPhone || "—"}</b>
       </p>
+
+      {(workOrder.invoiceNotes ?? []).length > 0 && (
+        <div className="mt-3 rounded-xl border px-4 py-3 text-sm" style={{ background: "#3a3112", borderColor: "#5b4b14", color: "#fde68a" }}>
+          <div className="text-xs font-bold uppercase tracking-wide">Tax invoice notes</div>
+          {(workOrder.invoiceNotes ?? []).map((n) => (
+            <div key={n.number} className="mt-1 whitespace-pre-wrap">
+              <b>{n.number}:</b> {n.notes}
+            </div>
+          ))}
+        </div>
+      )}
 
       <label className="mt-4 flex flex-wrap items-center gap-3 text-sm font-medium">
         Delivery date

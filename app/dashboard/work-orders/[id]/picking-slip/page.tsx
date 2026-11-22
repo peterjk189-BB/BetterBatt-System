@@ -2,6 +2,7 @@ import { quoteLabel } from "@/lib/quoteLabel";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { packsNeeded } from "@/lib/picking";
+import { invoiceNotesForWo } from "@/lib/invoiceNotesForWo";
 import PickingSlip from "./PickingSlip";
 import ManualReturn from "./ManualReturn";
 
@@ -107,6 +108,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
   // "Materials delivered" comes from migration 0073 (set when a site-delivery PO is ticked delivered).
   const { data: md } = await supabase.from("work_orders").select("materials_delivered_at").eq("id", params.id).single();
   const project = (workOrder as any).projects;
+  const invoiceNotes = await invoiceNotesForWo(supabase, params.id);
 
   // Manual returns (migration 0089); empty before it is run.
   const mrRes = await supabase.from("wo_stock_returns").select("id, part_id, multi, packs, estimated, note, created_at").eq("work_order_id", params.id).order("created_at");
@@ -125,6 +127,7 @@ export default async function PickingSlipPage({ params }: { params: { id: string
         contactPhone: project?.contact_phone ?? null,
         quoteNumber: project?.quote_number ? quoteLabel(project as any) : null,
         deliveryDate: (workOrder as any).stock_delivery_date ?? null,
+        invoiceNotes,
         supplierDelivery,
         materialsDeliveredAt: (md as any)?.materials_delivered_at ?? null,
       }}
