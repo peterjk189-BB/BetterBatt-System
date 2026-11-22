@@ -379,6 +379,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           .map(([woId, ls]) => ({
             woId,
             first: ls[0],
+            ls: [...ls].sort((x, y) => (x.task_date || "").localeCompare(y.task_date || "")),
             lines: ls.length,
             total: ls.reduce((t, l) => t + l.cost, 0),
             unpaid: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
@@ -615,6 +616,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
               <option value="unpaid">Unpaid only</option>
               <option value="paid">Paid only</option>
             </select>
+            <button type="button" onClick={() => setOpen(new Set(weekRows.flatMap((r) => r.jobs.map((j) => j.woId))))} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Expand all</button>
+            <button type="button" onClick={() => setOpen(new Set())} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm">Collapse all</button>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -669,6 +672,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                   <table className="w-full whitespace-nowrap text-sm">
                     <thead className="text-left text-xs uppercase text-[var(--muted)]">
                       <tr>
+                        <th className="w-10 px-4 py-2"></th>
                         <th className="px-4 py-2">Work order</th>
                         <th className="px-4 py-2">Customer / site</th>
                         <th className="px-4 py-2">Work dates</th>
@@ -680,24 +684,50 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     <tbody>
                       {jobs.map((j) => {
                         const p = j.first.work_orders?.projects;
+                        const isOpen = open.has(j.woId);
+                        const allPaid = j.ls.every((l) => l.paid);
+                        const somePaid = j.ls.some((l) => l.paid);
+                        const contract = woTotals.get(j.woId)?.total ?? j.total;
                         return (
-                          <tr key={j.woId} className="border-t border-[var(--border)]">
-                            <td className="px-4 py-2">
-                              <Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.first.work_orders?.wo_number || "—"}</Link>
-                            </td>
-                            <td className="px-4 py-2 text-[var(--muted)]">
-                              {p ? `${quoteLabel(p)} — ${p.customers?.name || "—"}` : "—"}
-                              {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
-                            </td>
-                            <td className="px-4 py-2 text-[var(--muted)]">{j.days.map((d) => new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric" })).join(", ")}</td>
-                            <td className="px-4 py-2 text-right text-[var(--muted)]">{j.lines}</td>
-                            <td className="px-4 py-2 text-right font-medium">{fmtCurrency(j.total)}</td>
-                            <td className={`px-4 py-2 text-right ${j.unpaid > 0.005 ? "text-red-700" : "text-[var(--muted)]"}`}>{j.unpaid > 0.005 ? fmtCurrency(j.unpaid) : "Paid"}</td>
-                          </tr>
+                          <Fragment key={j.woId}>
+                            <tr className="border-t border-[var(--border)] bg-[#f7f6f3]">
+                              <td className="px-4 py-2">
+                                <input type="checkbox" checked={allPaid} ref={(el) => { if (el) el.indeterminate = somePaid && !allPaid; }} onChange={() => togglePaidMany(j.ls, !allPaid)} title="Mark every line on this job paid / unpaid" />
+                              </td>
+                              <td className="px-4 py-2">
+                                <button type="button" className="mr-1 text-[var(--muted)]" onClick={() => setOpen((prev) => { const n = new Set(prev); if (n.has(j.woId)) n.delete(j.woId); else n.add(j.woId); return n; })} aria-label={isOpen ? "Collapse" : "Expand"}>{isOpen ? "▾" : "▸"}</button>
+                                <Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.first.work_orders?.wo_number || "—"}</Link>
+                              </td>
+                              <td className="px-4 py-2 text-[var(--muted)]">
+                                {p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"}
+                                {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
+                              </td>
+                              <td className="px-4 py-2 text-[var(--muted)]">{j.days.filter(Boolean).map((d) => new Date(d + "T00:00:00").toLocaleDateString("en-AU", { weekday: "short", day: "numeric" })).join(", ")}</td>
+                              <td className="px-4 py-2 text-right text-[var(--muted)]">{j.lines}</td>
+                              <td className="px-4 py-2 text-right font-medium">{fmtCurrency(contract)}</td>
+                              <td className={`px-4 py-2 text-right ${j.unpaid > 0.005 ? "text-red-700" : "text-[var(--muted)]"}`}>{j.unpaid > 0.005 ? fmtCurrency(j.unpaid) : "Paid"}</td>
+                            </tr>
+                            {isOpen && j.ls.map((l) => {
+                              const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
+                              return (
+                                <tr key={l.id} className="border-t border-[var(--border)] text-xs">
+                                  <td className="px-4 py-1.5"><input type="checkbox" checked={l.paid} disabled={savingId === l.id} onChange={() => togglePaid(l)} /></td>
+                                  <td className="px-4 py-1.5 text-[var(--muted)]" colSpan={2}>
+                                    <span className="text-sm text-[var(--text)]">{l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}</span>
+                                    {l.note && <div>{l.note}</div>}
+                                  </td>
+                                  <td className="px-4 py-1.5 text-[var(--muted)]">{fmtDate(l.task_date)} · qty {l.qty} × {fmtCurrency(rate)}</td>
+                                  <td className="px-4 py-1.5"></td>
+                                  <td className="px-4 py-1.5 text-right text-sm font-medium">{fmtCurrency(l.cost)}</td>
+                                  <td className={`px-4 py-1.5 text-right font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? "✓ Paid" : "Completed"}</td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
                         );
                       })}
                       <tr className="border-t border-[var(--border)] bg-[#f2f0ec] font-semibold">
-                        <td className="px-4 py-2" colSpan={4}>{sub.name} week total</td>
+                        <td className="px-4 py-2" colSpan={5}>{sub.name} week total</td>
                         <td className="px-4 py-2 text-right">{fmtCurrency(total)}</td>
                         <td className="px-4 py-2 text-right">{unpaid > 0.005 ? fmtCurrency(unpaid) : "Paid"}</td>
                       </tr>
