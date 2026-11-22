@@ -2,7 +2,7 @@
 
 import { supplyInstallCharge, lineLabel } from "@/lib/contractPricing";
 import { supplyPackPrice } from "@/lib/priceTiers";
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
 
 type Line = {
@@ -68,7 +68,22 @@ export default function PublicQuoteView({
 }) {
   const superseded = project.outcome === "Superseded";
   const showPrices = !!project.show_prices_on_quote;
-  const colCount = 1 + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
+  // Line notes sit in their own column to the right of the product, so each item is a single row.
+  const hasNotes = lines.some((l) => !!(l as any).note);
+  const colCount = 1 + (hasNotes ? 1 : 0) + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
+  const qtyW = project.show_qty_on_quote ? 14 : 0;
+  const priceW = showPrices ? 16 : 0;
+  const restW = 100 - qtyW - priceW;
+  const prodW = hasNotes ? Math.round(restW * 0.5) : restW;
+  const noteW = hasNotes ? restW - prodW : 0;
+  const colGroup = (
+    <colgroup>
+      <col style={{ width: `${prodW}%` }} />
+      {hasNotes && <col style={{ width: `${noteW}%` }} className={"hidden sm:table-column"} />}
+      {project.show_qty_on_quote && <col style={{ width: `${qtyW}%` }} />}
+      {showPrices && <col style={{ width: `${priceW}%` }} />}
+    </colgroup>
+  );
   const [name, setName] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -106,20 +121,15 @@ export default function PublicQuoteView({
 
   const renderRows = (list: typeof computed) =>
     list.map((l, i) => (
-      <Fragment key={i}>
-        <tr className={l.note ? "" : "border-b border-gray-300"}>
-          <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
-          {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-          {showPrices && <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>}
-        </tr>
-        {l.note && (
-          <tr className="border-b border-gray-300">
-            <td colSpan={colCount} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
-              {l.note}
-            </td>
-          </tr>
-        )}
-      </Fragment>
+      <tr key={i} className="border-b border-gray-300 align-top">
+        <td className="px-2.5 py-1.5">
+          {lineLabel(l)}
+          {l.note && <div className="mt-0.5 text-xs italic text-[#6b6862] sm:hidden">{l.note}</div>}
+        </td>
+        {hasNotes && <td className="hidden px-2.5 py-1.5 text-xs italic text-[#6b6862] sm:table-cell">{l.note}</td>}
+        {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
+        {showPrices && <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>}
+      </tr>
     ));
 
   const accepted = acceptedNow || (project.accepted_at ? { accepted_at: project.accepted_at, accepted_name: project.accepted_name || "" } : null);
@@ -241,10 +251,12 @@ export default function PublicQuoteView({
         </div>
 
         <div className="mt-5 overflow-x-auto">
-          <table className="w-full min-w-[480px] text-sm">
+          <table className="w-full table-fixed text-sm">
+            {colGroup}
             <thead>
               <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
-                <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${project.show_qty_on_quote || showPrices ? "" : "rounded-r-lg"}`}>Product</th>
+                <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${hasNotes || project.show_qty_on_quote || showPrices ? "" : "rounded-r-lg"} ${hasNotes ? "max-sm:rounded-r-lg" : ""}`}>Product</th>
+                {hasNotes && <th className={`hidden px-2.5 py-2 font-semibold sm:table-cell ${project.show_qty_on_quote || showPrices ? "" : "rounded-r-lg"}`}>Notes</th>}
                 {project.show_qty_on_quote && <th className={`px-2.5 py-2 text-right font-semibold ${showPrices ? "" : "rounded-r-lg"}`}>Qty</th>}
                 {showPrices && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>}
               </tr>
@@ -297,7 +309,8 @@ export default function PublicQuoteView({
                     <span>{optionTitle(project.option_titles, o.key)}</span>
                     <span className="whitespace-nowrap">{fmtCurrency(o.total)} inc GST</span>
                   </div>
-                  <table className="mt-1 w-full text-sm">
+                  <table className="mt-1 w-full table-fixed text-sm">
+                    {colGroup}
                     <tbody>{renderRows(o.lines)}</tbody>
                   </table>
                   <div className="mt-1 text-right text-xs text-[#6b6862]">

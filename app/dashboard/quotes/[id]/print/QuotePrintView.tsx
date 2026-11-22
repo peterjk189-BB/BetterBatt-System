@@ -3,7 +3,7 @@
 import { quoteLabel } from "@/lib/quoteLabel";
 import { supplyInstallCharge, lineLabel } from "@/lib/contractPricing";
 import { supplyPackPrice } from "@/lib/priceTiers";
-import { Fragment, useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
 import { optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
@@ -88,7 +88,22 @@ export default function QuotePrintView({
 
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
   const showPrices = !hidePrices;
-  const colCount = 1 + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
+  // Line notes sit in their own column to the right of the product, so each item is a single row.
+  const hasNotes = lines.some((l) => !!(l as any).note);
+  const colCount = 1 + (hasNotes ? 1 : 0) + (project.show_qty_on_quote ? 1 : 0) + (showPrices ? 1 : 0);
+  const qtyW = project.show_qty_on_quote ? 14 : 0;
+  const priceW = showPrices ? 16 : 0;
+  const restW = 100 - qtyW - priceW;
+  const prodW = hasNotes ? Math.round(restW * 0.5) : restW;
+  const noteW = hasNotes ? restW - prodW : 0;
+  const colGroup = (
+    <colgroup>
+      <col style={{ width: `${prodW}%` }} />
+      {hasNotes && <col style={{ width: `${noteW}%` }} className={""} />}
+      {project.show_qty_on_quote && <col style={{ width: `${qtyW}%` }} />}
+      {showPrices && <col style={{ width: `${priceW}%` }} />}
+    </colgroup>
+  );
 
   // Delivery fee items still count toward the total (the customer is still paying for
   // it), but the quote shouldn't show its price broken out as its own line.
@@ -121,22 +136,14 @@ export default function QuotePrintView({
 
   const renderRows = (list: typeof computed) =>
     list.map((l, i) => (
-      <Fragment key={i}>
-        <tr data-pdf-keep={l.note ? "next" : "yes"} className={`quote-row ${l.note ? "" : "border-b border-gray-300"}`}>
-          <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
-          {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
-          {showPrices && (
-            <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
-          )}
-        </tr>
-        {l.note && (
-          <tr data-pdf-keep="yes" className="quote-note border-b border-gray-300">
-            <td colSpan={colCount} className="px-2.5 pb-1.5 text-xs italic text-[#6b6862]">
-              {l.note}
-            </td>
-          </tr>
+      <tr key={i} data-pdf-keep="yes" className="quote-row border-b border-gray-300 align-top">
+        <td className="px-2.5 py-1.5">{lineLabel(l)}</td>
+        {hasNotes && <td className="px-2.5 py-1.5 text-xs italic text-[#6b6862]">{l.note}</td>}
+        {project.show_qty_on_quote && <td className="px-2.5 py-1.5 text-right">{l.isDelivery ? l.qty_m2 : `${l.qty_m2} m²`}</td>}
+        {showPrices && (
+          <td className="px-2.5 py-1.5 text-right font-medium">{l.isDelivery ? "" : fmtCurrency(l.charge)}</td>
         )}
-      </Fragment>
+      </tr>
     ));
 
   return (
@@ -280,10 +287,12 @@ export default function QuotePrintView({
           </div>
         </div>
 
-        <table className="mt-5 w-full text-sm">
+        <table className="mt-5 w-full table-fixed text-sm">
+          {colGroup}
           <thead>
             <tr className="bg-[#f6f5f2] text-left text-[9px] uppercase tracking-wider text-[#8c887f]">
               <th className={`rounded-l-lg px-2.5 py-2 font-semibold ${colCount === 1 ? "rounded-r-lg" : ""}`}>Product</th>
+              {hasNotes && <th className={`px-2.5 py-2 font-semibold ${project.show_qty_on_quote || showPrices ? "" : "rounded-r-lg"}`}>Notes</th>}
               {project.show_qty_on_quote && <th className={`px-2.5 py-2 text-right font-semibold ${showPrices ? "" : "rounded-r-lg"}`}>Qty</th>}
               {showPrices && <th className="rounded-r-lg px-2.5 py-2 text-right font-semibold">Price</th>}
             </tr>
@@ -335,7 +344,8 @@ export default function QuotePrintView({
                   <span>{optionTitle(project.option_titles, o.key)}</span>
                   {o.accepted && <span className="text-xs font-semibold text-green-700">Accepted</span>}
                 </div>
-                <table className="w-full text-sm">
+                <table className="w-full table-fixed text-sm">
+                  {colGroup}
                   <tbody>{renderRows(o.lines)}</tbody>
                 </table>
                 <div data-pdf-keep="yes" className="quote-totals mt-1.5 flex justify-end">
