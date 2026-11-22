@@ -30,6 +30,7 @@ type Line = {
   work_order_id: string;
   qty: number;
   paid: boolean;
+  completed?: boolean;
   task_date: string | null;
   note: string | null;
   subcontractor_id: string | null;
@@ -37,8 +38,10 @@ type Line = {
     wo_number: string;
     contractor_id: string | null;
     archived: boolean;
+    completed_date?: string | null;
     projects: {
       quote_number: number;
+      revision_letter?: string | null;
       address: string | null;
       suburb: string | null;
       customers: { name: string } | null;
@@ -70,7 +73,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const [view, setView] = useState<"contractor" | "weekly">("contractor");
+  const [view, setView] = useState<"ready" | "weekly" | "upcoming">("ready");
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const [wkStatus, setWkStatus] = useState<StatusFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("unpaid");
   const [contractorFilter, setContractorFilter] = useState<string>("");
@@ -92,7 +96,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const raw = localStorage.getItem("bb-contractor-payments-state");
       if (raw) {
         const v = JSON.parse(raw);
-        if (v.view === "contractor" || v.view === "weekly") setView(v.view);
+        if (v.view === "ready" || v.view === "weekly" || v.view === "upcoming") setView(v.view);
         if (typeof v.wkStatus === "string") setWkStatus(v.wkStatus);
         if (typeof v.status === "string") setStatus(v.status);
         if (typeof v.contractorFilter === "string" && (v.contractorFilter === "" || subs.some((x) => x.id === v.contractorFilter))) setContractorFilter(v.contractorFilter);
@@ -117,19 +121,40 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, rangeEnd]);
 
-  const computed = useMemo(
-    () =>
-      lines
-        .filter((l) => l.work_orders && !l.work_orders.archived)
-        .map((l) => {
-          const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
-          const cost = (Number(l.qty) || 0) * rate;
-          const contractorId = l.subcontractor_id || l.work_orders?.contractor_id || null;
-          const paid = paidOverrides[l.id] ?? l.paid;
-          return { ...l, cost, contractorId, paid };
-        }),
-    [lines, paidOverrides]
-  );
+  // A line counts as completed once it is ticked complete on the work order, or the work order itself has a completed date.
+  // Only completed work is owed; the rest is a future commitment (Upcoming work).
+  const computed = useMemo(() => {
+    const base = lines
+      .filter((l) => l.work_orders && !l.work_orders.archived)
+      .map((l) => {
+        const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
+        const cost = (Number(l.qty) || 0) * rate;
+        const contractorId = l.subcontractor_id || l.work_orders?.contractor_id || null;
+        const paid = paidOverrides[l.id] ?? l.paid;
+        const done = !!l.completed || !!l.work_orders?.completed_date;
+        return { ...l, cost, contractorId, paid, origPaid: l.paid, done };
+      });
+    // The date a job was completed: the work order's completed date, else the latest work date of its completed lines.
+    const doneByWo = new Map<string, string>();
+    for (const l of base) {
+      if (!l.done) continue;
+      const d = l.work_orders?.completed_date || l.task_date || "";
+      if (d > (doneByWo.get(l.work_order_id) ?? "")) doneByWo.set(l.work_order_id, d);
+    }
+    return base.map((l) => ({ ...l, doneDate: doneByWo.get(l.work_order_id) || null }));
+  }, [lines, paidOverrides]);
+  // Whole-job totals (every line, done or not) for the contract total on each work order.
+  const woTotals = useMemo(() => {
+    const m = new Map<string, { total: number; count: number; done: number }>();
+    for (const l of computed) {
+      const e = m.get(l.work_order_id) ?? { total: 0, count: 0, done: 0 };
+      e.total += l.cost;
+      e.count += 1;
+      if (l.done) e.done += 1;
+      m.set(l.work_order_id, e);
+    }
+    return m;
+  }, [computed]);
 
   const unassignedLines = computed.filter((l) => !l.contractorId);
 
@@ -138,12 +163,13 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const filtered = useMemo(
     () =>
       computed.filter((l) => {
-        if (!l.contractorId) return false;
-        if (status === "unpaid" && l.paid) return false;
-        if (status === "paid" && !l.paid) return false;
+        if (!l.contractorId || !l.done) return false;
+        // Membership uses the paid state at load, so a line you tick stays on screen (shown paid) until the page is refreshed.
+        if (status === "unpaid" && l.origPaid) return false;
+        if (status === "paid" && !l.origPaid) return false;
         if (contractorFilter && l.contractorId !== contractorFilter) return false;
-        if (dateFrom && (!l.task_date || l.task_date < dateFrom)) return false;
-        if (dateTo && (!l.task_date || l.task_date > dateTo)) return false;
+        if (dateFrom && (!l.doneDate || l.doneDate < dateFrom)) return false;
+        if (dateTo && (!l.doneDate || l.doneDate > dateTo)) return false;
         return true;
       }),
     [computed, status, contractorFilter, dateFrom, dateTo]
@@ -177,6 +203,26 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       entityId: line.id,
       entityLabel: line.work_orders?.wo_number || "Work order line",
       details: next ? "Marked paid" : "Marked unpaid",
+    });
+  }
+
+  async function togglePaidMany(ls: (typeof computed)[number][], next: boolean) {
+    const targets = ls.filter((l) => l.paid !== next);
+    if (targets.length === 0) return;
+    const ids = targets.map((l) => l.id);
+    setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, next])) }));
+    const { error } = await supabase.from("work_order_lines").update({ paid: next }).in("id", ids);
+    if (error) {
+      setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.paid])) }));
+      alert(`Failed to update: ${error.message}`);
+      return;
+    }
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "work_order_line_payment",
+      entityId: ids[0],
+      entityLabel: targets[0].work_orders?.wo_number || "Work order lines",
+      details: `${next ? "Marked paid" : "Marked unpaid"}: ${ids.length} line${ids.length === 1 ? "" : "s"}`,
     });
   }
 
@@ -319,7 +365,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const weekRows = useMemo(() => {
     const byC = new Map<string, Map<string, typeof computed>>();
     for (const l of computed) {
-      if (!l.contractorId || !l.task_date || l.task_date < wkStart || l.task_date > wkEnd) continue;
+      if (!l.contractorId || !l.done || !l.doneDate || l.doneDate < wkStart || l.doneDate > wkEnd) continue;
       if (wkStatus === "unpaid" && l.paid) continue;
       if (wkStatus === "paid" && !l.paid) continue;
       const jobs = byC.get(l.contractorId) ?? new Map<string, typeof computed>();
@@ -336,7 +382,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             lines: ls.length,
             total: ls.reduce((t, l) => t + l.cost, 0),
             unpaid: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
-            days: Array.from(new Set(ls.map((l) => l.task_date as string))).sort(),
+            days: Array.from(new Set<string>(ls.map((l) => (l.task_date || l.doneDate || "") as string))).sort(),
           }))
           .sort((a, b) => a.days[0].localeCompare(b.days[0]));
         const total = jobs.reduce((t, j) => t + j.total, 0);
@@ -350,6 +396,66 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const weekUnpaid = weekRows.reduce((t, r) => t + r.unpaid, 0);
   const weekGst = weekRows.reduce((t, r) => t + r.gst, 0);
   const weekJobs = weekRows.reduce((t, r) => t + r.jobs.length, 0);
+
+  // Completed in earlier weeks but still unpaid, and allocated-this-week work that isn't finished (shown as notes on the Pay week tab).
+  const earlierUnpaid = useMemo(() => {
+    const jobs = new Set<string>();
+    let total = 0;
+    for (const l of computed) {
+      if (!l.contractorId || !l.done || l.origPaid || !l.doneDate || l.doneDate >= wkStart) continue;
+      jobs.add(l.work_order_id);
+      total += l.cost;
+    }
+    return { jobs: jobs.size, total };
+  }, [computed, wkStart]);
+
+  // Upcoming work: allocated to a contractor but not completed yet. A forecast of what will become owed.
+  const upcoming = useMemo(() => {
+    const byC = new Map<string, Map<string, typeof computed>>();
+    for (const l of computed) {
+      if (!l.contractorId || l.done) continue;
+      if (contractorFilter && l.contractorId !== contractorFilter) continue;
+      const jobs = byC.get(l.contractorId) ?? new Map<string, typeof computed>();
+      jobs.set(l.work_order_id, [...(jobs.get(l.work_order_id) ?? []), l]);
+      byC.set(l.contractorId, jobs);
+    }
+    const thisMon = mondayOfDay(todayAU());
+    const nextMon = addDays(thisMon, 7);
+    const afterNext = addDays(thisMon, 14);
+    let thisWeek = 0, nextWeek = 0, later = 0, thisJobs = 0, nextJobs = 0, laterJobs = 0;
+    const rows = subs
+      .filter((s) => byC.has(s.id))
+      .map((s) => {
+        const jobs = Array.from(byC.get(s.id)!.entries())
+          .map(([woId, ls]) => {
+            const dates = ls.map((l) => l.task_date).filter(Boolean).sort() as string[];
+            const first = dates[0] || null;
+            const last = dates[dates.length - 1] || null;
+            const value = ls.reduce((t, l) => t + l.cost, 0);
+            const tot = woTotals.get(woId);
+            const started = (tot?.done ?? 0) > 0;
+            if (first && first < nextMon) { thisWeek += value; thisJobs++; }
+            else if (first && first < afterNext) { nextWeek += value; nextJobs++; }
+            else { later += value; laterJobs++; }
+            return { woId, ls, first, last, value, started, doneCount: tot?.done ?? 0, count: tot?.count ?? ls.length };
+          })
+          .sort((a, b) => (a.first || "9999").localeCompare(b.first || "9999"));
+        return { sub: s, jobs, total: jobs.reduce((t, j) => t + j.value, 0) };
+      })
+      .sort((a, b) => b.total - a.total);
+    const total = rows.reduce((t, r) => t + r.total, 0);
+    return { rows, total, thisWeek, nextWeek, later, thisJobs, nextJobs, laterJobs, jobCount: rows.reduce((t, r) => t + r.jobs.length, 0) };
+  }, [computed, subs, woTotals, contractorFilter]);
+  const notCountedThisWeek = useMemo(() => {
+    const jobs = new Set<string>();
+    let total = 0;
+    for (const l of computed) {
+      if (!l.contractorId || l.done || !l.task_date || l.task_date < wkStart || l.task_date > wkEnd) continue;
+      jobs.add(l.work_order_id);
+      total += l.cost;
+    }
+    return { jobs: jobs.size, total };
+  }, [computed, wkStart, wkEnd]);
 
   function exportCsv() {
     const header = [
@@ -487,7 +593,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       )}
 
       <div className="mt-4 flex gap-2">
-        {([["contractor", "By contractor"], ["weekly", "Weekly (Mon to Sun)"]] as const).map(([k, l]) => (
+        {([["ready", `Ready to pay (${new Set(computed.filter((l) => l.contractorId && l.done && !l.paid).map((l) => l.work_order_id)).size} jobs)`], ["weekly", "Pay week (Mon–Sun)"], ["upcoming", `Upcoming work (${fmtCurrency(upcoming.total)})`]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setView(k)} className={`rounded-lg px-4 py-2 text-sm font-medium ${view === k ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}>
             {l}
           </button>
@@ -530,9 +636,21 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             </div>
           </div>
 
+          {earlierUnpaid.jobs > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm" style={{ background: "#172554", borderColor: "#1e40af", color: "#dbeafe" }}>
+              <span><b>Not in this week:</b> {fmtCurrency(earlierUnpaid.total)} completed in earlier weeks is still unpaid ({earlierUnpaid.jobs} job{earlierUnpaid.jobs === 1 ? "" : "s"}).</span>
+              <button type="button" onClick={() => setView("ready")} className="rounded-lg border px-3 py-1 text-xs font-medium" style={{ borderColor: "#60a5fa" }}>View in Ready to pay →</button>
+            </div>
+          )}
+          {notCountedThisWeek.jobs > 0 && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2.5 text-sm" style={{ background: "#3a3112", borderColor: "#5b4b14", color: "#fde68a" }}>
+              <span><b>Not counted yet:</b> {fmtCurrency(notCountedThisWeek.total)} of work is allocated to contractors this week but not completed ({notCountedThisWeek.jobs} job{notCountedThisWeek.jobs === 1 ? "" : "s"}).</span>
+              <button type="button" onClick={() => setView("upcoming")} className="rounded-lg border px-3 py-1 text-xs font-medium" style={{ borderColor: "#f5b82e" }}>View in Upcoming work →</button>
+            </div>
+          )}
           <div className="mt-5 flex flex-col gap-5">
             {weekRows.length === 0 && (
-              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">No contractor work dated in this week.</div>
+              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">No work completed in this week.</div>
             )}
             {weekRows.map(({ sub, jobs, total, unpaid, gst }) => (
               <div key={sub.id} className="rounded-xl border border-[var(--border)]">
@@ -553,7 +671,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                       <tr>
                         <th className="px-4 py-2">Work order</th>
                         <th className="px-4 py-2">Customer / site</th>
-                        <th className="px-4 py-2">Days worked</th>
+                        <th className="px-4 py-2">Work dates</th>
                         <th className="px-4 py-2 text-right">Lines</th>
                         <th className="px-4 py-2 text-right">Job total</th>
                         <th className="px-4 py-2 text-right">Unpaid</th>
@@ -592,292 +710,333 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         </div>
       )}
 
-      {view === "contractor" && (
+      {view === "ready" && (
         <>
-      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Owed (filtered)</div>
-          <div className="mt-1 text-2xl font-bold text-red-700">{fmtCurrency(grandOwed)}</div>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">GST on owed (filtered)</div>
-          <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandGst)}</div>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (filtered)</div>
-          <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandPaid)}</div>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] p-4">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Task lines (filtered)</div>
-          <div className="mt-1 text-2xl font-bold">{grandLines}</div>
-        </div>
-      </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Completed &amp; owed (ex GST)</div>
+              <div className="mt-1 text-2xl font-bold text-red-700">{fmtCurrency(grandOwed)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{summaryRows.length} contractor{summaryRows.length === 1 ? "" : "s"}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">GST on owed</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandGst)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">GST-registered contractors only</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (shown)</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(grandPaid)}</div>
+            </div>
+            <button type="button" onClick={() => setView("upcoming")} className="rounded-xl border border-[var(--border)] p-4 text-left hover:border-accent">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Upcoming (not completed)</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(upcoming.total)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">Not owed yet — see Upcoming work</div>
+            </button>
+          </div>
 
-      <div className="mt-6 flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
-          From
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
-          To
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
-          Status
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as StatusFilter)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
-          >
-            <option value="unpaid">Unpaid</option>
-            <option value="paid">Paid</option>
-            <option value="all">All</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
-          Contractor
-          <select
-            value={contractorFilter}
-            onChange={(e) => setContractorFilter(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
-          >
-            <option value="">All contractors</option>
-            {subs.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
-          Search
-          <input
-            placeholder="Filter by name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]"
-          />
-        </label>
-        {(dateFrom || dateTo || contractorFilter || search || status !== "unpaid") && (
-          <button
-            onClick={() => {
-              setDateFrom("");
-              setDateTo("");
-              setContractorFilter("");
-              setSearch("");
-              setStatus("unpaid");
-            }}
-            className="text-sm text-[var(--muted)] hover:underline"
-          >
-            Reset filters
-          </button>
-        )}
-      </div>
+          <div className="mt-5 flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4">
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Completed from
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Completed to
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Status
+              <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]">
+                <option value="unpaid">Unpaid</option>
+                <option value="paid">Paid</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Contractor
+              <select value={contractorFilter} onChange={(e) => setContractorFilter(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]">
+                <option value="">All contractors</option>
+                {subs.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Search
+              <input placeholder="Filter by name..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            {(dateFrom || dateTo || contractorFilter || search || status !== "unpaid") && (
+              <button onClick={() => { setDateFrom(""); setDateTo(""); setContractorFilter(""); setSearch(""); setStatus("unpaid"); }} className="text-sm text-[var(--muted)] hover:underline">
+                Reset filters
+              </button>
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={() => setOpen(new Set(contractorRows.flatMap((r) => r.lines.map((l) => l.work_order_id))))} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Expand all</button>
+              <button type="button" onClick={() => setOpen(new Set())} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Collapse all</button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)]">
+            Shows every completed job that hasn&apos;t been paid, however long ago it finished. Open a work order, then tick each item line as you check it: a ticked line is saved as paid straight away.
+          </p>
 
-      {contractorRows.length > 0 && (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-[var(--border)]">
-          <table className="w-full whitespace-nowrap text-sm">
-            <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
-              <tr>
-                <th className="px-4 py-2">Contractor</th>
-                <th className="px-4 py-2">GST reg.</th>
-                <th className="px-4 py-2 text-right">Lines</th>
-                <th className="px-4 py-2 text-right">Owed</th>
-                <th className="px-4 py-2 text-right">GST</th>
-                <th className="px-4 py-2 text-right">Owed + GST</th>
-                <th className="px-4 py-2 text-right">Paid</th>
-                <th className="px-4 py-2 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {contractorRows.map(({ sub, lines: subLines, owed, paidTotal, gst, owedWithGst, total }) => (
-                <tr key={sub.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2 font-medium">
-                    <a href={`#contractor-${sub.id}`} className="hover:underline">
-                      {sub.name}
-                    </a>
-                  </td>
-                  <td className="px-4 py-2 text-[var(--muted)]">{sub.gst_registered ? "Yes" : "No"}</td>
-                  <td className="px-4 py-2 text-right text-[var(--muted)]">{subLines.length}</td>
-                  <td className="px-4 py-2 text-right font-medium text-red-700">{fmtCurrency(owed)}</td>
-                  <td className="px-4 py-2 text-right">{sub.gst_registered ? fmtCurrency(gst) : "—"}</td>
-                  <td className="px-4 py-2 text-right font-semibold text-red-700">
-                    {sub.gst_registered ? fmtCurrency(owedWithGst) : fmtCurrency(owed)}
-                  </td>
-                  <td className="px-4 py-2 text-right">{fmtCurrency(paidTotal)}</td>
-                  <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <div className="mt-4 flex flex-col gap-5">
+            {contractorRows.map((cRow) => {
+              const { sub, lines: subLines, owed, paidTotal, gst, owedWithGst } = cRow;
+              const woGroups = (() => {
+                const m = new Map<string, typeof subLines>();
+                for (const l of subLines) m.set(l.work_order_id, [...(m.get(l.work_order_id) ?? []), l]);
+                return Array.from(m.entries())
+                  .map(([woId, ls]) => ({
+                    woId,
+                    lines: [...ls].sort((x, y) => (x.task_date || "").localeCompare(y.task_date || "")),
+                    owed: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
+                    doneDate: ls[0].doneDate,
+                  }))
+                  .sort((x, y) => (x.doneDate || "").localeCompare(y.doneDate || ""));
+              })();
+              return (
+                <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
+                    <div>
+                      <div className="font-semibold">
+                        {sub.name}
+                        {sub.gst_registered && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-normal text-blue-800">GST registered</span>}
+                      </div>
+                      <div className="text-xs text-[var(--muted)]">
+                        {sub.phone || sub.email ? <><PhoneLink phone={sub.phone} />{sub.phone && sub.email ? " · " : ""}{sub.email}</> : "No mobile/email on file"}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                      <div><span className="text-[var(--muted)]">Owed </span><span className="font-bold text-red-700">{fmtCurrency(owed)}</span></div>
+                      {sub.gst_registered && (
+                        <>
+                          <div><span className="text-[var(--muted)]">GST </span><span className="font-semibold">{fmtCurrency(gst)}</span></div>
+                          <div><span className="text-[var(--muted)]">Owed + GST </span><span className="font-bold text-red-700">{fmtCurrency(owedWithGst)}</span></div>
+                        </>
+                      )}
+                      <div><span className="text-[var(--muted)]">Paid </span><span className="font-semibold">{fmtCurrency(paidTotal)}</span></div>
+                      <button onClick={() => exportPdf(cRow)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Download PDF</button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full whitespace-nowrap text-sm">
+                      <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                        <tr>
+                          <th className="w-10 px-4 py-2" title="Tick the whole job paid"></th>
+                          <th className="px-4 py-2">Work order</th>
+                          <th className="px-4 py-2">Customer / site</th>
+                          <th className="px-4 py-2">Completed</th>
+                          <th className="px-4 py-2">Waiting</th>
+                          <th className="px-4 py-2 text-right">Lines done</th>
+                          <th className="px-4 py-2 text-right">Contract total</th>
+                          <th className="px-4 py-2 text-right">Owed (ex GST)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {woGroups.map((g) => {
+                          const first = g.lines[0];
+                          const p = first.work_orders?.projects;
+                          const tot = woTotals.get(g.woId);
+                          const isOpen = open.has(g.woId);
+                          const allPaid = g.lines.every((l) => l.paid);
+                          const somePaid = g.lines.some((l) => l.paid);
+                          const waiting = g.doneDate ? Math.max(0, Math.round((new Date(todayAU() + "T00:00:00").getTime() - new Date(g.doneDate + "T00:00:00").getTime()) / 86400000)) : null;
+                          // Not-done lines of the same job, shown greyed (not owed yet).
+                          const pending = computed.filter((l) => l.work_order_id === g.woId && !l.done && (l.subcontractor_id || l.work_orders?.contractor_id) === sub.id);
+                          return (
+                            <Fragment key={g.woId}>
+                              <tr className="border-t border-[var(--border)] bg-[#f7f6f3]">
+                                <td className="px-4 py-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={allPaid}
+                                    ref={(el) => { if (el) el.indeterminate = somePaid && !allPaid; }}
+                                    onChange={() => togglePaidMany(g.lines, !allPaid)}
+                                    title="Mark every completed line on this job paid / unpaid"
+                                  />
+                                </td>
+                                <td className="px-4 py-2">
+                                  <button type="button" className="mr-1 text-[var(--muted)]" onClick={() => setOpen((prev) => { const n = new Set(prev); if (n.has(g.woId)) n.delete(g.woId); else n.add(g.woId); return n; })} aria-label={isOpen ? "Collapse" : "Expand"}>
+                                    {isOpen ? "▾" : "▸"}
+                                  </button>
+                                  <Link href={`/dashboard/work-orders/${g.woId}`} className="text-accent hover:underline">{first.work_orders?.wo_number || "—"}</Link>
+                                </td>
+                                <td className="px-4 py-2">
+                                  {p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"}
+                                  {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs text-[var(--muted)]">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
+                                </td>
+                                <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(g.doneDate)}</td>
+                                <td className="px-4 py-2">
+                                  {allPaid ? <span className="text-green-700">Paid</span> : waiting === null ? "—" : <span className={waiting >= 14 ? "rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800" : "text-[var(--muted)]"}>{waiting} day{waiting === 1 ? "" : "s"}</span>}
+                                </td>
+                                <td className="px-4 py-2 text-right text-[var(--muted)]">{tot ? `${tot.done} / ${tot.count}` : g.lines.length}</td>
+                                <td className="px-4 py-2 text-right">{fmtCurrency(tot?.total ?? g.lines.reduce((t, l) => t + l.cost, 0))}</td>
+                                <td className={`px-4 py-2 text-right font-semibold ${g.owed > 0.005 ? "text-red-700" : "text-green-700"}`}>{g.owed > 0.005 ? fmtCurrency(g.owed) : "Paid"}</td>
+                              </tr>
+                              {isOpen && (
+                                <>
+                                  <tr className="border-t border-[var(--border)] text-left text-[11px] uppercase text-[var(--muted)]">
+                                    <th className="px-4 py-1.5 font-semibold">Paid</th>
+                                    <th className="px-4 py-1.5 font-semibold" colSpan={2}>Item</th>
+                                    <th className="px-4 py-1.5 font-semibold">Work date</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold">Qty</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold">Rate</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold">Line amount</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold">Status</th>
+                                  </tr>
+                                  {g.lines.map((l) => {
+                                    const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
+                                    return (
+                                      <tr key={l.id} className="border-t border-[var(--border)]">
+                                        <td className="px-4 py-1.5">
+                                          <input type="checkbox" checked={l.paid} disabled={savingId === l.id} onChange={() => togglePaid(l)} />
+                                        </td>
+                                        <td className="px-4 py-1.5" colSpan={2}>
+                                          {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
+                                          {l.note && <div className="text-xs text-[var(--muted)]">{l.note}</div>}
+                                        </td>
+                                        <td className="px-4 py-1.5 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
+                                        <td className="px-4 py-1.5 text-right">{l.qty}</td>
+                                        <td className="px-4 py-1.5 text-right text-[var(--muted)]">{fmtCurrency(rate)}</td>
+                                        <td className="px-4 py-1.5 text-right font-medium">{fmtCurrency(l.cost)}</td>
+                                        <td className={`px-4 py-1.5 text-right text-xs font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? "✓ Paid" : "Completed"}</td>
+                                      </tr>
+                                    );
+                                  })}
+                                  {pending.map((l) => {
+                                    const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
+                                    return (
+                                      <tr key={l.id} className="border-t border-[var(--border)] text-[var(--muted)] opacity-70">
+                                        <td className="px-4 py-1.5"></td>
+                                        <td className="px-4 py-1.5" colSpan={2}>{l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}</td>
+                                        <td className="px-4 py-1.5">{fmtDate(l.task_date)}</td>
+                                        <td className="px-4 py-1.5 text-right">{l.qty}</td>
+                                        <td className="px-4 py-1.5 text-right">{fmtCurrency(rate)}</td>
+                                        <td className="px-4 py-1.5 text-right">{fmtCurrency(l.cost)}</td>
+                                        <td className="px-4 py-1.5 text-right text-xs">Not done</td>
+                                      </tr>
+                                    );
+                                  })}
+                                  <tr className="border-t border-[var(--border)] bg-[#f2f0ec] text-sm">
+                                    <td className="px-4 py-2" colSpan={6}>
+                                      <span className="text-[var(--muted)]">
+                                        {first.work_orders?.wo_number} · contract total {fmtCurrency(tot?.total ?? 0)} · ticked paid {fmtCurrency(g.lines.filter((l) => l.paid).reduce((t, l) => t + l.cost, 0))}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2 text-right font-semibold" colSpan={2}>{g.owed > 0.005 ? `${fmtCurrency(g.owed)} still owed` : "All paid"}</td>
+                                  </tr>
+                                </>
+                              )}
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })}
+            {contractorRows.length === 0 && (
+              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">
+                No completed work matches these filters.
+              </div>
+            )}
+          </div>
+
+          {unassignedLines.length > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {unassignedLines.length} task line(s) have no contractor assigned on their work order and aren&apos;t shown above.
+            </div>
+          )}
+        </>
       )}
 
-      <div className="mt-6 flex flex-col gap-5">
-        {contractorRows.map((cRow) => {
-          const { sub, lines: subLines, owed, paidTotal, gst, owedWithGst } = cRow;
-          // Group the lines by work order (most recent job first) so each job gets a total.
-          const woGroups = (() => {
-            const m = new Map<string, typeof subLines>();
-            for (const l of subLines) m.set(l.work_order_id, [...(m.get(l.work_order_id) ?? []), l]);
-            const latest = (ls: typeof subLines) => ls.reduce((d, l) => ((l.task_date || "") > d ? l.task_date || "" : d), "");
-            return Array.from(m.entries())
-              .map(([woId, ls]) => ({
-                woId,
-                lines: [...ls].sort((x, y) => (x.task_date || "").localeCompare(y.task_date || "")),
-                total: ls.reduce((t, l) => t + l.cost, 0),
-                unpaid: ls.filter((l) => !l.paid).reduce((t, l) => t + l.cost, 0),
-                last: latest(ls),
-              }))
-              .sort((x, y) => y.last.localeCompare(x.last));
-          })();
-          return (
-            <div key={sub.id} id={`contractor-${sub.id}`} className="rounded-xl border border-[var(--border)]">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
-                <div>
-                  <div className="font-semibold">
-                    {sub.name}
-                    {sub.gst_registered && (
-                      <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-normal text-blue-800">
-                        GST registered
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-[var(--muted)]">
-                    {sub.phone || sub.email ? <><PhoneLink phone={sub.phone} />{sub.phone && sub.email ? " · " : ""}{sub.email}</> : "No mobile/email on file"}
-                  </div>
+      {view === "upcoming" && (
+        <div className="mt-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Committed, not completed</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(upcoming.total)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">ex GST · {upcoming.jobCount} work order{upcoming.jobCount === 1 ? "" : "s"}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">This week or overdue</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(upcoming.thisWeek)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{upcoming.thisJobs} job{upcoming.thisJobs === 1 ? "" : "s"}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Next week</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(upcoming.nextWeek)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{upcoming.nextJobs} job{upcoming.nextJobs === 1 ? "" : "s"}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Later / unscheduled</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(upcoming.later)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{upcoming.laterJobs} job{upcoming.laterJobs === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4">
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Contractor
+              <select value={contractorFilter} onChange={(e) => setContractorFilter(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]">
+                <option value="">All contractors</option>
+                {subs.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <p className="ml-auto max-w-sm text-xs text-[var(--muted)]">Allocated work orders that aren&apos;t finished yet. This is a forecast — nothing here is owed or can be marked paid.</p>
+          </div>
+          <div className="mt-4 flex flex-col gap-5">
+            {upcoming.rows.length === 0 && (
+              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">No allocated work waiting to be completed.</div>
+            )}
+            {upcoming.rows.map(({ sub, jobs, total }) => (
+              <div key={sub.id} className="rounded-xl border border-[var(--border)]">
+                <div className="flex items-center justify-between border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
+                  <div className="font-semibold">{sub.name}</div>
+                  <div className="text-sm"><span className="text-[var(--muted)]">Committed </span><span className="font-bold">{fmtCurrency(total)}</span></div>
                 </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div>
-                    <span className="text-[var(--muted)]">Owed </span>
-                    <span className="font-bold text-red-700">{fmtCurrency(owed)}</span>
-                  </div>
-                  {sub.gst_registered && (
-                    <>
-                      <div>
-                        <span className="text-[var(--muted)]">GST </span>
-                        <span className="font-semibold">{fmtCurrency(gst)}</span>
-                      </div>
-                      <div>
-                        <span className="text-[var(--muted)]">Owed + GST </span>
-                        <span className="font-bold text-red-700">{fmtCurrency(owedWithGst)}</span>
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <span className="text-[var(--muted)]">Paid </span>
-                    <span className="font-semibold">{fmtCurrency(paidTotal)}</span>
-                  </div>
-                  <button
-                    onClick={() => exportPdf(cRow)}
-                    className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent"
-                  >
-                    Download PDF
-                  </button>
-                </div>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full whitespace-nowrap text-sm">
-                  <thead className="text-left text-xs uppercase text-[var(--muted)]">
-                    <tr>
-                      <th className="px-4 py-2">Date</th>
-                      <th className="px-4 py-2">Work order</th>
-                      <th className="px-4 py-2">Customer</th>
-                      <th className="px-4 py-2">Product</th>
-                      <th className="px-4 py-2 text-right">Qty</th>
-                      <th className="px-4 py-2 text-right">$</th>
-                      <th className="px-4 py-2">Note</th>
-                      <th className="px-4 py-2">Paid</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {woGroups.map((g) => {
-                      const first = g.lines[0];
-                      const p = first.work_orders?.projects;
-                      return (
-                        <Fragment key={g.woId}>
-                          {g.lines.map((l) => (
-                          <tr key={l.id} className="border-t border-[var(--border)]">
-                            <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(l.task_date)}</td>
+                <div className="overflow-x-auto">
+                  <table className="w-full whitespace-nowrap text-sm">
+                    <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                      <tr>
+                        <th className="px-4 py-2">Work order</th>
+                        <th className="px-4 py-2">Customer / site</th>
+                        <th className="px-4 py-2">Scheduled</th>
+                        <th className="px-4 py-2">Status</th>
+                        <th className="px-4 py-2 text-right">Lines left</th>
+                        <th className="px-4 py-2 text-right">Value (ex GST)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobs.map((j) => {
+                        const p = j.ls[0].work_orders?.projects;
+                        const range = j.first ? (j.last && j.last !== j.first ? `${fmtDate(j.first)} – ${fmtDate(j.last)}` : fmtDate(j.first)) : "No date";
+                        return (
+                          <tr key={j.woId} className="border-t border-[var(--border)]">
+                            <td className="px-4 py-2"><Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.ls[0].work_orders?.wo_number || "—"}</Link></td>
                             <td className="px-4 py-2">
-                              {l.work_orders ? (
-                                <Link
-                                  href={`/dashboard/work-orders/${l.work_order_id}`}
-                                  className="text-accent hover:underline"
-                                >
-                                  {l.work_orders.wo_number}
-                                </Link>
-                              ) : (
-                                "—"
-                              )}
+                              {p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"}
+                              {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs text-[var(--muted)]">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
                             </td>
-                            <td className="px-4 py-2 text-[var(--muted)]">
-                              {l.work_orders?.projects
-                                ? `${quoteLabel(l.work_orders.projects)} — ${l.work_orders.projects.customers?.name || "—"}`
-                                : "—"}
-                            </td>
+                            <td className={`px-4 py-2 ${j.first ? "" : "text-[var(--muted)]"}`}>{range}</td>
                             <td className="px-4 py-2">
-                              {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
-                            </td>
-                            <td className="px-4 py-2 text-right">{l.qty}</td>
-                            <td className="px-4 py-2 text-right font-medium">{fmtCurrency(l.cost)}</td>
-                            <td className="px-4 py-2 text-[var(--muted)]">{l.note || "—"}</td>
-                            <td className="px-4 py-2">
-                              <input
-                                type="checkbox"
-                                checked={l.paid}
-                                disabled={savingId === l.id}
-                                onChange={() => togglePaid(l)}
-                              />
-                            </td>
-                          </tr>
-                          ))}
-                          <tr className="border-t border-[var(--border)] bg-[#f2f0ec] font-semibold">
-                            <td className="px-4 py-2" colSpan={5}>
-                              {first.work_orders?.wo_number || "Work order"} total
-                              <span className="ml-2 font-normal text-[var(--muted)]">
-                                {p ? [p.address, p.suburb].filter(Boolean).join(", ") : ""} · {g.lines.length} line{g.lines.length === 1 ? "" : "s"}
+                              <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${j.started ? "bg-amber-100 text-amber-800" : "bg-blue-100 text-blue-800"}`}>
+                                {j.started ? `In progress · ${j.doneCount} of ${j.count} done` : "Allocated"}
                               </span>
                             </td>
-                            <td className="px-4 py-2 text-right">{fmtCurrency(g.total)}</td>
-                            <td className="px-4 py-2 font-normal text-[var(--muted)]" colSpan={2}>
-                              {g.unpaid > 0.005 ? `${fmtCurrency(g.unpaid)} unpaid` : "All paid"}
-                            </td>
+                            <td className="px-4 py-2 text-right text-[var(--muted)]">{j.ls.length}</td>
+                            <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(j.value)}</td>
                           </tr>
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          );
-        })}
-        {contractorRows.length === 0 && (
-          <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">
-            No task lines match these filters.
+            ))}
           </div>
-        )}
-      </div>
-
-      {unassignedLines.length > 0 && (
-        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {unassignedLines.length} task line(s) have no contractor assigned on their work order and aren't shown
-          above.
         </div>
-      )}
-        </>
       )}
     </div>
   );
