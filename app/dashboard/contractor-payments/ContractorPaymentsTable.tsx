@@ -30,6 +30,7 @@ type Line = {
   work_order_id: string;
   qty: number;
   paid: boolean;
+  pay_week?: string | null;
   completed?: boolean;
   task_date: string | null;
   note: string | null;
@@ -70,6 +71,9 @@ function csvCell(v: string | number) {
 export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; lines: Line[] }) {
   const supabase = createClient();
   const [paidOverrides, setPaidOverrides] = useState<Record<string, boolean>>({});
+  const [weekOverrides, setWeekOverrides] = useState<Record<string, string | null>>({});
+  // Set false if the pay_week column isn't in the database yet (migration 0102): payments still save.
+  const [payWeekOk, setPayWeekOk] = useState(true);
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
@@ -80,14 +84,13 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [contractorFilter, setContractorFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  // Optional custom end date for the summary PDF (blank = the Sunday of that week). With it set, the summary runs exactly weekDay to rangeEnd.
-  const [rangeEnd, setRangeEnd] = useState("");
   // Contractors left out of the summary (e.g. already reported in an earlier summary).
   const [skipSubs, setSkipSubs] = useState<string[]>([]);
   // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
   const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
-  const sumStart = rangeEnd && rangeEnd >= weekDay ? weekDay : mondayOfDay(weekDay);
-  const sumEnd = rangeEnd && rangeEnd >= weekDay ? rangeEnd : addDays(sumStart, 6);
+  // The pay week: ticking a line paid files it under this week, and the weekly summary lists only lines filed under it.
+  const sumStart = mondayOfDay(weekDay);
+  const sumEnd = addDays(sumStart, 6);
 
   // Remember where this person left off (view, filters, search, week) in this browser.
   const [restored, setRestored] = useState(false);
@@ -104,7 +107,6 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         if (typeof v.dateTo === "string") setDateTo(v.dateTo);
         if (typeof v.search === "string") setSearch(v.search);
         if (typeof v.weekDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.weekDay)) setWeekDay(v.weekDay);
-        if (typeof v.rangeEnd === "string" && (v.rangeEnd === "" || /^\d{4}-\d{2}-\d{2}$/.test(v.rangeEnd))) setRangeEnd(v.rangeEnd);
       }
     } catch {
       /* storage unavailable: use the defaults */
@@ -115,11 +117,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   useEffect(() => {
     if (!restored) return;
     try {
-      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, rangeEnd }));
+      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay }));
     } catch {
       /* ignore */
     }
-  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, rangeEnd]);
+  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay]);
 
   // A line counts as completed once it is ticked complete on the work order, or the work order itself has a completed date.
   // Only completed work is owed; the rest is a future commitment (Upcoming work).
@@ -131,8 +133,10 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         const cost = (Number(l.qty) || 0) * rate;
         const contractorId = l.subcontractor_id || l.work_orders?.contractor_id || null;
         const paid = paidOverrides[l.id] ?? l.paid;
+        // Paid lines with no pay week recorded (older payments) count as the week the work was done.
+        const payWeek = !paid ? null : (l.id in weekOverrides ? weekOverrides[l.id] : l.pay_week) || (l.task_date ? mondayOfDay(l.task_date) : null);
         const done = !!l.completed || !!l.work_orders?.completed_date;
-        return { ...l, cost, contractorId, paid, origPaid: l.paid, done };
+        return { ...l, cost, contractorId, paid, payWeek, origPaid: l.paid, done };
       });
     // The date a job was completed: the work order's completed date, else the latest work date of its completed lines.
     const doneByWo = new Map<string, string>();
@@ -142,7 +146,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       if (d > (doneByWo.get(l.work_order_id) ?? "")) doneByWo.set(l.work_order_id, d);
     }
     return base.map((l) => ({ ...l, doneDate: doneByWo.get(l.work_order_id) || null }));
-  }, [lines, paidOverrides]);
+  }, [lines, paidOverrides, weekOverrides]);
   // Whole-job totals (every line, done or not) for the contract total on each work order.
   const woTotals = useMemo(() => {
     const m = new Map<string, { total: number; count: number; done: number }>();
@@ -187,13 +191,20 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
 
   async function togglePaid(line: (typeof computed)[number]) {
     const next = !line.paid;
+    const pw = next ? sumStart : null;
     setPaidOverrides((prev) => ({ ...prev, [line.id]: next }));
+    setWeekOverrides((prev) => ({ ...prev, [line.id]: pw }));
     setSavingId(line.id);
-    const { error } = await supabase.from("work_order_lines").update({ paid: next }).eq("id", line.id);
+    let { error } = await supabase.from("work_order_lines").update(payWeekOk ? { paid: next, pay_week: pw } : { paid: next }).eq("id", line.id);
+    if (error && /pay_week/.test(error.message)) {
+      setPayWeekOk(false);
+      ({ error } = await supabase.from("work_order_lines").update({ paid: next }).eq("id", line.id));
+    }
     setSavingId(null);
     if (error) {
       // Revert on failure.
       setPaidOverrides((prev) => ({ ...prev, [line.id]: line.paid }));
+      setWeekOverrides((prev) => ({ ...prev, [line.id]: line.payWeek }));
       alert(`Failed to update: ${error.message}`);
       return;
     }
@@ -202,7 +213,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       entityType: "work_order_line_payment",
       entityId: line.id,
       entityLabel: line.work_orders?.wo_number || "Work order line",
-      details: next ? "Marked paid" : "Marked unpaid",
+      details: next ? `Marked paid (pay week ${sumStart})` : "Marked unpaid",
     });
   }
 
@@ -210,10 +221,17 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     const targets = ls.filter((l) => l.paid !== next);
     if (targets.length === 0) return;
     const ids = targets.map((l) => l.id);
+    const pw = next ? sumStart : null;
     setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, next])) }));
-    const { error } = await supabase.from("work_order_lines").update({ paid: next }).in("id", ids);
+    setWeekOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, pw])) }));
+    let { error } = await supabase.from("work_order_lines").update(payWeekOk ? { paid: next, pay_week: pw } : { paid: next }).in("id", ids);
+    if (error && /pay_week/.test(error.message)) {
+      setPayWeekOk(false);
+      ({ error } = await supabase.from("work_order_lines").update({ paid: next }).in("id", ids));
+    }
     if (error) {
       setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.paid])) }));
+      setWeekOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.payWeek])) }));
       alert(`Failed to update: ${error.message}`);
       return;
     }
@@ -222,7 +240,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       entityType: "work_order_line_payment",
       entityId: ids[0],
       entityLabel: targets[0].work_orders?.wo_number || "Work order lines",
-      details: `${next ? "Marked paid" : "Marked unpaid"}: ${ids.length} line${ids.length === 1 ? "" : "s"}`,
+      details: `${next ? `Marked paid (pay week ${sumStart})` : "Marked unpaid"}: ${ids.length} line${ids.length === 1 ? "" : "s"}`,
     });
   }
 
@@ -275,11 +293,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
-  // One page for the whole week (Mon–Sun by work date): every contractor paid for the week, regardless of the filters above.
+  // One page for the pay week: every contractor with lines ticked paid in that pay week, regardless of the filters.
   function weekPdfRows(start: string, end: string, applySkips = true) {
     const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
-      if (!l.contractorId || !l.paid || !l.task_date || l.task_date < start || l.task_date > end) continue;
+      if (!l.contractorId || !l.paid || !l.payWeek || l.payWeek < start || l.payWeek > end) continue;
       const e = map.get(l.contractorId) ?? { jobs: new Set<string>(), exGst: 0 };
       e.jobs.add(l.work_order_id);
       e.exGst += l.cost;
@@ -322,7 +340,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     const rows = weekPdfRows(start, sumEnd);
     setEmailMsg(null);
     if (rows.length === 0) {
-      setEmailMsg("Nothing paid in that period, so there is nothing to send.");
+      setEmailMsg("Nothing has been ticked paid in that pay week, so there is nothing to send.");
       return;
     }
     try {
@@ -514,25 +532,22 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Contractor Payments</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
-            Summary from
-            <input type="date" value={weekDay} onChange={(e) => e.target.value && setWeekDay(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-[var(--muted)]" title="Leave blank for a normal Mon–Sun week. Set it to cover any period, e.g. Thu 5 Nov to Wed 11 Nov.">
-            to
-            <input type="date" value={rangeEnd} min={weekDay} onChange={(e) => setRangeEnd(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" />
-            {rangeEnd && (
-              <button type="button" onClick={() => setRangeEnd("")} className="hover:underline">
-                Clear
-              </button>
-            )}
-          </label>
+          <div className="flex items-center gap-1 text-xs text-[var(--muted)]" title="Pay week: lines you tick as paid are filed under this week, and the weekly summary PDF lists only lines paid in it.">
+            <span className="mr-1">Pay week</span>
+            <button type="button" onClick={() => setWeekDay(addDays(sumStart, -7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" aria-label="Previous pay week">‹</button>
+            <span className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)]">
+              {fmtDate(sumStart)} – {fmtDate(sumEnd)}
+            </span>
+            <button type="button" onClick={() => setWeekDay(addDays(sumStart, 7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" aria-label="Next pay week">›</button>
+            <button type="button" onClick={() => setWeekDay(mondayOfDay(todayAU()))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs text-[var(--text)]">This week</button>
+            <button type="button" onClick={() => setWeekDay(addDays(mondayOfDay(todayAU()), -7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs text-[var(--text)]">Last week</button>
+          </div>
           <details className="relative text-xs text-[var(--muted)]">
             <summary className="cursor-pointer list-none rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)] hover:border-accent">
               Contractors in summary ({sumCandidates.length - sumCandidates.filter((c) => skipSubs.includes(c.id)).length}/{sumCandidates.length})
             </summary>
             <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
-              {sumCandidates.length === 0 && <div className="p-1">No paid lines in this period.</div>}
+              {sumCandidates.length === 0 && <div className="p-1">Nothing paid in this pay week yet.</div>}
               {sumCandidates.map((c) => (
                 <label key={c.id} className="flex items-center gap-2 p-1 text-sm text-[var(--text)]">
                   <input
@@ -550,7 +565,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           <button
             onClick={exportWeekPdf}
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-            title="One PDF for the period shown (a Mon–Sun week unless you set an end date), by work date: every contractor paid"
+            title="One PDF of everything ticked paid in the selected pay week: every contractor paid"
           >
             Weekly summary PDF
           </button>
@@ -719,7 +734,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                   <td className="px-4 py-1.5 text-[var(--muted)]">{fmtDate(l.task_date)} · qty {l.qty} × {fmtCurrency(rate)}</td>
                                   <td className="px-4 py-1.5"></td>
                                   <td className="px-4 py-1.5 text-right text-sm font-medium">{fmtCurrency(l.cost)}</td>
-                                  <td className={`px-4 py-1.5 text-right font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? "✓ Paid" : "Completed"}</td>
+                                  <td className={`px-4 py-1.5 text-right font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? `✓ Paid${l.payWeek ? ` · wk ${fmtDate(l.payWeek).slice(0, 5)}` : ""}` : "Completed"}</td>
                                 </tr>
                               );
                             })}
@@ -928,7 +943,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                         <td className="px-4 py-1.5 text-right">{l.qty}</td>
                                         <td className="px-4 py-1.5 text-right text-[var(--muted)]">{fmtCurrency(rate)}</td>
                                         <td className="px-4 py-1.5 text-right font-medium">{fmtCurrency(l.cost)}</td>
-                                        <td className={`px-4 py-1.5 text-right text-xs font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? "✓ Paid" : "Completed"}</td>
+                                        <td className={`px-4 py-1.5 text-right text-xs font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? `✓ Paid${l.payWeek ? ` · wk ${fmtDate(l.payWeek).slice(0, 5)}` : ""}` : "Completed"}</td>
                                       </tr>
                                     );
                                   })}
