@@ -253,6 +253,9 @@ function InlineCell({
 
 // Inventory sections: products are grouped by the unit they are counted in (Insulation = packs, Rolls, Boxes...), non-stock items last.
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
+// Polyester / poly products are only ever counted in packs: no multi.
+const packOnlyName = (name: string | null | undefined) => /\bpoly/i.test(name || "");
+
 function groupKeyOf(p: Part) {
   return p.is_stock_item ? unitsOf(p).one.toLowerCase() : "~non";
 }
@@ -1042,7 +1045,7 @@ export default function PartsTable({
           <InlineCell type="number" value={p.pks} onCommit={(v) => patch(p, "pks", v)} align="center" integer alwaysEditable />
         );
       case "multi":
-        if (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0)) {
+        if (packOnlyName(p.name) || (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0))) {
           return <span className="block text-center text-[var(--muted)]">—</span>;
         }
         return (
@@ -1053,7 +1056,7 @@ export default function PartsTable({
       case "bulkUnit":
         return <InlineCell value={p.multi_unit ?? "multi"} onCommit={(v) => patch(p, "multi_unit", String(v).trim())} align="center" />;
       case "packPerMulti":
-        if (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0)) {
+        if (packOnlyName(p.name) || (!groupInfo.get(groupKeyOf(p))?.bulk && !(Number(p.multi) > 0) && !(Number(p.pack_per_multi) > 0))) {
           return <span className="block text-center text-[var(--muted)]">—</span>;
         }
         return (
@@ -1881,7 +1884,8 @@ export default function PartsTable({
                     type="number"
                     step="1"
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
-                    value={form.pack_per_multi}
+                    value={packOnlyName(form.name) ? 0 : form.pack_per_multi}
+                    disabled={packOnlyName(form.name)}
                     onChange={(e) => setForm({ ...form, pack_per_multi: Math.round(Number(e.target.value)) })}
                   />
                 </label>
@@ -1891,7 +1895,8 @@ export default function PartsTable({
                     type="number"
                     step="1"
                     className="rounded-lg border border-[var(--border)] px-3 py-2"
-                    value={form.multi}
+                    value={packOnlyName(form.name) ? 0 : form.multi}
+                    disabled={packOnlyName(form.name)}
                     onChange={(e) => setForm({ ...form, multi: Math.round(Number(e.target.value)) })}
                   />
                 </label>

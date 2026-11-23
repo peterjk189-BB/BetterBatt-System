@@ -87,7 +87,7 @@ export default function CountSheet({ parts, suppliers }: { parts: Part[]; suppli
                   <tr key={p.id} style={{ breakInside: "avoid" }}>
                     <td className="border border-[#c9c5bb] px-2 py-2 font-mono text-[11px]">{p.code}</td>
                     <td className="border border-[#c9c5bb] px-2 py-2">{p.name}</td>
-                    <td className="border border-[#c9c5bb] px-1 py-2 text-center">{p.pack_per_multi || ""}</td>
+                    <td className="border border-[#c9c5bb] px-1 py-2 text-center">{/\bpoly/i.test(p.name) ? "—" : p.pack_per_multi || ""}</td>
                     {showSystem && <td className="border border-[#c9c5bb] px-1 py-2 text-center">{Number(p.stock_on_hand)}</td>}
                     <td className="border border-[#c9c5bb] px-1 py-2"></td>
                     <td className="border border-[#c9c5bb] px-1 py-2"></td>
