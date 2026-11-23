@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { withAllRows } from "./pagedFetch";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -15,6 +16,7 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: withAllRows((i, n) => fetch(i, n)) },
       cookies: {
         getAll() {
           return cookieStore.getAll();

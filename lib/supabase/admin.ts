@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { withAllRows } from "./pagedFetch";
 
 /**
  * Admin client using the service_role key — bypasses Row Level Security.
@@ -15,7 +16,7 @@ export function createAdminClient() {
       auth: { autoRefreshToken: false, persistSession: false },
       // Next.js caches fetch() responses by default, which made pages built from this client (e.g. the customer quote link)
       // keep showing old data after an edit. Always read fresh.
-      global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }) },
+      global: { fetch: withAllRows((input, init) => fetch(input, { ...init, cache: "no-store" })) },
     }
   );
 }
