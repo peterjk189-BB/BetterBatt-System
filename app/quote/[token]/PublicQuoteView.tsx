@@ -110,7 +110,7 @@ export default function PublicQuoteView({
     return { key: k, lines: ls, sub, gst: sub * 0.1, total: sub * 1.1 };
   });
   const chargeBeforeMarkup = mainComputed.reduce((s, l) => s + l.charge, 0);
-  const customerDiscountTotal = chargeBeforeMarkup * (customerDiscountPct / 100);
+  const customerDiscountTotal = Math.round(chargeBeforeMarkup * (customerDiscountPct / 100) * 100) / 100;
   const subtotal = chargeBeforeMarkup - customerDiscountTotal + Number(project.quote_markup || 0);
   const gst = subtotal * 0.1;
   const total = subtotal + gst;

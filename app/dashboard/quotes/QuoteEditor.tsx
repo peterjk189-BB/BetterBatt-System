@@ -591,7 +591,7 @@ export default function QuoteEditor({
   const ncTotal = ncOn ? Number(ncAmount) || 0 : 0;
   const labourCost = (isSupplyOnly ? 0 : costLines.reduce((s, l) => s + l.labourCost, 0)) + travelTotal + ncTotal;
   const chargeBeforeMarkup = mainLines.reduce((s, l) => s + l.grossCharge, 0);
-  const customerDiscountTotal = mainLines.reduce((s, l) => s + l.discountAmount, 0);
+  const customerDiscountTotal = Math.round(mainLines.reduce((s, l) => s + l.discountAmount, 0) * 100) / 100;
   // Per-option totals (customer discount applies; the flat discount/markup above is main-quote only).
   const optionTotals = Object.fromEntries(
     optionKeys.map((k) => {
@@ -617,9 +617,9 @@ export default function QuoteEditor({
     const base = subtotal + acceptedOptSub - adjustmentAmount;
     const ideal = Math.round((target / 1.1 - base) * 100);
     let adj = ideal / 100;
-    for (const k of [0, 1, -1, 2, -2]) {
+    for (const k of [0, 1, -1, 2, -2, 3, -3]) {
       const c = (ideal + k) / 100;
-      if (Math.round((base + c) * 1.1 * 100) === Math.round(target * 100)) {
+      if (Math.round(Math.round((base + c) * 100) / 100 * 1.1 * 100) === Math.round(target * 100)) {
         adj = c;
         break;
       }

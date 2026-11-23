@@ -23,7 +23,7 @@ export function quoteTotals(
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;
     return s + (isSupplyOnly ? packs * supplyPackPrice(part as any, project.price_tier) : supplyInstallCharge(q, part, l.contract_rate));
   }, 0);
-  const disc = before * ((project.customers?.discount_pct || 0) / 100);
+  const disc = Math.round(before * ((project.customers?.discount_pct || 0) / 100) * 100) / 100;
   // Discount / markup typed on an accepted option (option_adjust, saved in $) is part of what the customer pays.
   const optionAdj = (project.option_accepted ?? []).reduce((a, k) => a + (Number(project.option_adjust?.[k]) || 0), 0);
   const ex = before - disc + (Number(project.quote_markup) || 0) + optionAdj;
