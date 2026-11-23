@@ -45,6 +45,8 @@ type Project = {
   option_titles?: Record<string, string> | null;
   option_accepted?: string[] | null;
   option_adjust?: Record<string, number> | null;
+  share_token?: string | null;
+  accepted_at?: string | null;
   customers: { name: string; discount_pct: number | null } | null;
 };
 
@@ -63,6 +65,8 @@ export default function QuotePrintView({
 }) {
   const printableRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
   // Line prices are hidden by default: only Subtotal / GST / Total show. The button turns them on. Applies to Print and PDF.
   const [hidePrices, setHidePrices] = useState(true);
 
@@ -390,6 +394,25 @@ export default function QuotePrintView({
                     {paragraph}
                   </p>
                 ))}
+            </div>
+          </div>
+        )}
+
+        {!project.accepted_at && (
+          <div data-pdf-keep="yes" className="quote-terms-block mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-4">
+            <div className="text-sm font-bold text-[#201f1c]">Accept this quote</div>
+            <p className="mt-1 text-[11px] leading-relaxed text-[#6b6862]">
+              I accept this quote, its total of {fmtCurrency(grandTotal)} including GST, and the terms &amp; conditions above.
+              {project.share_token && origin && (
+                <>
+                  {" "}You can also accept online: <span className="font-semibold text-[#201f1c]">{`${origin}/quote/${project.share_token}`}</span>
+                </>
+              )}
+            </p>
+            <div className="mt-6 grid grid-cols-3 gap-6 text-[10px] text-[#6b6862]">
+              <div className="border-t border-[#201f1c] pt-1">Name</div>
+              <div className="border-t border-[#201f1c] pt-1">Signature</div>
+              <div className="border-t border-[#201f1c] pt-1">Date</div>
             </div>
           </div>
         )}

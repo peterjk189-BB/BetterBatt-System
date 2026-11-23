@@ -226,6 +226,13 @@ export default function PublicQuoteView({
           </div>
         </div>
 
+        {!accepted && !superseded && (
+          <a href="#accept-quote" className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-accent px-5 py-3 text-sm font-semibold text-white print:hidden">
+            <span>Happy with this quote? Accept it online: type your name and tick the box at the bottom.</span>
+            <span className="shrink-0 rounded-lg bg-white/20 px-3 py-1.5">Accept quote ↓</span>
+          </a>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <div className="rounded-lg bg-[#f6f5f2] px-3.5 py-3">
             <div className="text-[9px] uppercase tracking-wider text-[#8c887f]">Customer</div>
@@ -355,7 +362,7 @@ export default function PublicQuoteView({
 
         {/* Acceptance */}
         {!superseded && (
-        <div className={`mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-5${accepted ? "" : " print:hidden"}`}>
+        <div id="accept-quote" className={`mt-6 rounded-xl border border-[#e4e1da] bg-[#fdf8ec] p-5${accepted ? "" : " print:hidden"}`}>
           {accepted ? (
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">✓</div>
