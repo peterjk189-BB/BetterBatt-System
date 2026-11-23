@@ -365,7 +365,7 @@ export default function CalendarView({
     router.refresh();
   }
 
-  async function moveWorkOrder(woId: string, label: string, from: string, to: string, subIds: string[]) {
+  async function moveWorkOrder(woId: string, label: string, from: string, to: string, subIds: string[], names = "") {
     if (!to || to === from) return;
     const closed = closedOn(to);
     if (closed && !window.confirm(`The business is closed on that day${closed.note ? " (" + closed.note + ")" : ""}. Move it there anyway?`)) return;
@@ -382,7 +382,8 @@ export default function CalendarView({
       return;
     }
     logAudit(supabase, { eventType: "update", entityType: "work_order", entityId: woId, entityLabel: label, details: `Job date moved from ${from} to ${to}` });
-    if (subIds.length > 0) {
+    // Never email automatically: ask first (the contractor may have been changed, or the move may be tentative).
+    if (subIds.length > 0 && window.confirm(`Moved ${label} to ${to}.\n\nEmail ${names || "the contractor"} about the new date?\n\nOK = send email, Cancel = don't email.`)) {
       fetch("/api/work-orders/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -958,7 +959,7 @@ export default function CalendarView({
                           const evs = (eventsByDate.get(w.from) || []).find((x) => x.kind === "wo" && x.workOrderId === w.woId) as WoEvent | undefined;
                           setWoDrag(null);
                           setDropDate(null);
-                          moveWorkOrder(w.woId, w.label, w.from, dateStr, evs?.subIds ?? []);
+                          moveWorkOrder(w.woId, w.label, w.from, dateStr, evs?.subIds ?? [], evs?.contractorNames ?? "");
                           return;
                         }
                         const id = e.dataTransfer.getData("text/inspection-id") || dragId;

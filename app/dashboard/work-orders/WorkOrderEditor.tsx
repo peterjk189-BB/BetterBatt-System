@@ -520,7 +520,9 @@ export default function WorkOrderEditor({
         (fresh[sid] ||= []).push(l.task_date);
       }
       const notifyItems = Object.entries(fresh).map(([subcontractor_id, dates]) => ({ subcontractor_id, dates }));
-      if (notifyItems.length > 0) {
+      const names = notifyItems.map((n) => subById[n.subcontractor_id]?.name || "the contractor").join(", ");
+      // Never email automatically: ask first, naming who would be emailed.
+      if (notifyItems.length > 0 && window.confirm(`Email ${names} about the new job dates?\n\nOK = send email, Cancel = don't email.`)) {
         fetch("/api/work-orders/notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
