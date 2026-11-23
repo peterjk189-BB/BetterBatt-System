@@ -36,6 +36,8 @@ export default function LowStockReport() {
   const [supplierFilter, setSupplierFilter] = useState("");
   const [saving, setSaving] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // Products ticked to go on a purchase order.
+  const [ticked, setTicked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     (async () => {
@@ -158,7 +160,9 @@ export default function LowStockReport() {
 
   // Draft purchase orders (one per supplier) pre-loaded with the suggested quantities; unwanted lines are removed in the PO.
   async function createPos() {
-    const todo = view.filter((r) => r.suggest > 0);
+    // Ticked products go on the PO (suggested qty, or 1 if none suggested: change it in the PO); with nothing ticked, every product with a suggestion does.
+    const tickedRows = view.filter((r) => ticked.has(r.id));
+    const todo = (tickedRows.length > 0 ? tickedRows : view.filter((r) => r.suggest > 0)).map((r) => ({ ...r, suggest: r.suggest > 0 ? r.suggest : 1 }));
     const noSupplier = todo.filter((r) => !r.supplierId);
     const bySup = new Map<string, typeof todo>();
     for (const r of todo) if (r.supplierId) bySup.set(r.supplierId, [...(bySup.get(r.supplierId) ?? []), r]);
@@ -167,7 +171,7 @@ export default function LowStockReport() {
       return;
     }
     const summary = Array.from(bySup.values()).map((rs) => `${rs[0].supplier}: ${rs.length} product${rs.length === 1 ? "" : "s"}`).join("\n");
-    if (!window.confirm(`Create draft purchase orders from the suggestions?\n\n${summary}${noSupplier.length ? `\n\n(${noSupplier.length} product${noSupplier.length === 1 ? " has" : "s have"} no supplier and will be skipped.)` : ""}\n\nYou can remove any lines you don't need in each PO before sending.`)) return;
+    if (!window.confirm(`Create draft purchase orders from ${tickedRows.length > 0 ? "the ticked products" : "the suggestions"}?\n\n${summary}${noSupplier.length ? `\n\n(${noSupplier.length} product${noSupplier.length === 1 ? " has" : "s have"} no supplier and will be skipped.)` : ""}\n\nYou can remove any lines you don't need in each PO before sending.`)) return;
     setCreating(true);
     setError(null);
     const ids: string[] = [];
@@ -207,8 +211,8 @@ export default function LowStockReport() {
               <option key={s}>{s}</option>
             ))}
           </select>
-          <button onClick={createPos} disabled={creating || loading || !view.some((r) => r.suggest > 0)} className="rounded-lg bg-accent px-3 py-1.5 font-medium text-white disabled:opacity-50" title="Creates a draft PO per supplier from the suggested quantities shown">
-            {creating ? "Creating…" : "Create PO from suggestions"}
+          <button onClick={createPos} disabled={creating || loading || (ticked.size === 0 && !view.some((r) => r.suggest > 0))} className="rounded-lg bg-accent px-3 py-1.5 font-medium text-white disabled:opacity-50" title="Creates a draft PO per supplier. Tick products to choose exactly which ones; with none ticked it uses every suggestion shown.">
+            {creating ? "Creating…" : ticked.size > 0 ? `Create PO from ticked (${ticked.size})` : "Create PO from suggestions"}
           </button>
           <button onClick={() => setFilter("low")} className={`rounded-lg px-3 py-1.5 ${filter === "low" ? "bg-accent text-white" : "border border-[var(--border)]"}`}>
             Low only
@@ -234,6 +238,14 @@ export default function LowStockReport() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)]">
+                  <th className={th} style={{ width: 28 }}>
+                    <input
+                      type="checkbox"
+                      title="Tick / untick all shown"
+                      checked={view.length > 0 && view.every((r) => ticked.has(r.id))}
+                      onChange={(e) => setTicked(e.target.checked ? new Set(view.map((r) => r.id)) : new Set())}
+                    />
+                  </th>
                   <th className={th}>Product</th><th className={th}>Supplier</th>
                   <th className={th + " text-right"}>On hand</th><th className={th + " text-right"}>Reserved</th>
                   <th className={th + " text-right"}>Available</th><th className={th + " text-right"}>On order</th>
@@ -244,6 +256,13 @@ export default function LowStockReport() {
                 {view.map((r) => (
                   <Fragment key={r.id}>
                   <tr className="border-b border-[var(--border)]">
+                    <td className={td}>
+                      <input
+                        type="checkbox"
+                        checked={ticked.has(r.id)}
+                        onChange={() => setTicked((t) => { const n = new Set(t); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; })}
+                      />
+                    </td>
                     <td className={td}>
                       <Link href="/dashboard/parts" className="hover:underline">{r.code ? `${r.code} · ` : ""}{r.name}</Link>
                       {r.out && <span className="ml-2 rounded px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: "#f5b5ae", color: "#000" }}>Out</span>}
@@ -280,7 +299,7 @@ export default function LowStockReport() {
                   </tr>
                   {open.has(r.id) && r.orders.length > 0 && (
                     <tr className="border-b border-[var(--border)] bg-black/[0.03]">
-                      <td className={td} colSpan={8}>
+                      <td className={td} colSpan={9}>
                         <div className="space-y-1 pl-4 text-xs">
                           {r.orders.map((o, i) => (
                             <div key={i} className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
@@ -299,7 +318,7 @@ export default function LowStockReport() {
                   </Fragment>
                 ))}
                 {view.length === 0 && (
-                  <tr><td className={td + " text-[var(--muted)]"} colSpan={8}>{filter === "low" ? "Nothing is below its reorder level." : "No products."}</td></tr>
+                  <tr><td className={td + " text-[var(--muted)]"} colSpan={9}>{filter === "low" ? "Nothing is below its reorder level." : "No products."}</td></tr>
                 )}
               </tbody>
             </table>
