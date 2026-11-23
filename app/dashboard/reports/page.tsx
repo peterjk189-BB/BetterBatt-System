@@ -62,16 +62,12 @@ export default async function ReportsPage() {
         "*, parts(name, coverage_m2, pack_cost_ex_gst, pack_per_multi, installer_rate_per_m2)"
       ),
     supabase.from("labour_items").select("id, contractor_rate"),
-    supabase
-      .from("invoices")
-      .select("id, project_id, customer_id, kind, amount_ex_gst, total, status, invoice_date, customers(name)"),
+    pagedAll(supabase, "invoices", "id, project_id, customer_id, kind, amount_ex_gst, total, status, invoice_date, customers(name)"),
     supabase.from("invoice_payments").select("invoice_id, amount"),
   ]);
 
   // Lines of item / counter invoices, with the part's pack cost, so counter sales get a profit figure.
-  const { data: plInvLines } = await supabase
-    .from("invoice_lines")
-    .select("invoice_id, part_id, qty, line_ex, parts(pack_cost_ex_gst)");
+  const { data: plInvLines } = await pagedAll(supabase, "invoice_lines", "id, invoice_id, part_id, qty, line_ex, parts(pack_cost_ex_gst)");
 
   // Manual returns to stock (migration 0089); none before it is run.
   const { data: plWoReturns } = await supabase
@@ -120,4 +116,16 @@ export default async function ReportsPage() {
       }}
     />
   );
+}
+
+/** Supabase returns at most 1000 rows per request: read every row in pages (newest invoices were being cut off). */
+async function pagedAll(supabase: any, table: string, cols: string): Promise<{ data: any[] | null; error: any }> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const r: any = await supabase.from(table).select(cols).order("id", { ascending: true }).range(from, from + 999);
+    if (r.error) return { data: null, error: r.error };
+    out.push(...(r.data ?? []));
+    if ((r.data ?? []).length < 1000) break;
+  }
+  return { data: out, error: null };
 }

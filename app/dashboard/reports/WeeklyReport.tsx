@@ -62,13 +62,22 @@ export default function WeeklyReport({
 
   useEffect(() => {
     (async () => {
-      const res: any = await supabase
-        .from("invoice_lines")
-        .select("invoice_id, part_id, description, qty, line_ex, invoices(invoice_number, invoice_date, status, project_id, bill_to_name, customers(name))");
+      // Supabase returns at most 1000 rows per request, so read in pages (newest invoices were being cut off).
+      const all = async (table: string, cols: string, order: string) => {
+        const out: any[] = [];
+        for (let from = 0; ; from += 1000) {
+          const r: any = await supabase.from(table).select(cols).order(order, { ascending: true }).range(from, from + 999);
+          if (r.error) return { error: r.error, data: null as any[] | null };
+          out.push(...(r.data ?? []));
+          if ((r.data ?? []).length < 1000) break;
+        }
+        return { error: null, data: out };
+      };
+      const res: any = await all("invoice_lines", "id, invoice_id, part_id, description, qty, line_ex, invoices(invoice_number, invoice_date, status, project_id, bill_to_name, customers(name))", "id");
       if (res.error) setError(res.error.message);
       else setInvLines(res.data ?? []);
       // Every invoice header, for the "Invoiced" total (drafts and voids are left out below).
-      const inv: any = await supabase.from("invoices").select("id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, qb_ref, bill_to_name, customers(name)");
+      const inv: any = await all("invoices", "id, invoice_number, invoice_date, status, amount_ex_gst, gst, total, qb_ref, bill_to_name, customers(name)", "id");
       if (!inv.error) setInvoiceRows(inv.data ?? []);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
