@@ -1248,10 +1248,10 @@ export default function QuoteEditor({
                 </button>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                  <select value={manualHow} onChange={(e) => setManualHow(e.target.value)} className="rounded border px-2 py-1" style={{ color: "#201f1c" }}>
+                  <select value={manualHow} onChange={(e) => setManualHow(e.target.value)} className="rounded border px-2 py-1" style={{ color: "var(--text)" }}>
                     {["Phone", "Email", "In person", "Text message"].map((h) => <option key={h}>{h}</option>)}
                   </select>
-                  <input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Who accepted (customer name)" className="rounded border px-2 py-1" style={{ color: "#201f1c" }} />
+                  <input value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="Who accepted (customer name)" className="rounded border px-2 py-1" style={{ color: "var(--text)" }} />
                   <button onClick={markAcceptedManually} disabled={manualBusy} className="rounded px-3 py-1 font-semibold text-white" style={{ background: "#2b7a3d" }}>
                     {manualBusy ? "Saving..." : "Confirm accepted"}
                   </button>
