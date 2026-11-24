@@ -77,7 +77,12 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const [view, setView] = useState<"ready" | "weekly" | "upcoming">("ready");
+  const [view, setView] = useState<"ready" | "weekly" | "upcoming" | "paid">("ready");
+  // Paid jobs report filters (by pay week).
+  const [paidFrom, setPaidFrom] = useState("");
+  const [paidTo, setPaidTo] = useState("");
+  const [paidContractor, setPaidContractor] = useState("");
+  const [paidSearch, setPaidSearch] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [wkStatus, setWkStatus] = useState<StatusFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("unpaid");
@@ -99,7 +104,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const raw = localStorage.getItem("bb-contractor-payments-state");
       if (raw) {
         const v = JSON.parse(raw);
-        if (v.view === "ready" || v.view === "weekly" || v.view === "upcoming") setView(v.view);
+        if (v.view === "ready" || v.view === "weekly" || v.view === "upcoming" || v.view === "paid") setView(v.view);
+        if (typeof v.paidFrom === "string") setPaidFrom(v.paidFrom);
+        if (typeof v.paidTo === "string") setPaidTo(v.paidTo);
+        if (typeof v.paidContractor === "string" && (v.paidContractor === "" || subs.some((x) => x.id === v.paidContractor))) setPaidContractor(v.paidContractor);
+        if (typeof v.paidSearch === "string") setPaidSearch(v.paidSearch);
         if (typeof v.wkStatus === "string") setWkStatus(v.wkStatus);
         if (typeof v.status === "string") setStatus(v.status);
         if (typeof v.contractorFilter === "string" && (v.contractorFilter === "" || subs.some((x) => x.id === v.contractorFilter))) setContractorFilter(v.contractorFilter);
@@ -117,11 +126,11 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   useEffect(() => {
     if (!restored) return;
     try {
-      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay }));
+      localStorage.setItem("bb-contractor-payments-state", JSON.stringify({ view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, paidFrom, paidTo, paidContractor, paidSearch }));
     } catch {
       /* ignore */
     }
-  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay]);
+  }, [restored, view, wkStatus, status, contractorFilter, dateFrom, dateTo, search, weekDay, paidFrom, paidTo, paidContractor, paidSearch]);
 
   // A line counts as completed once it is ticked complete on the work order, or the work order itself has a completed date.
   // Only completed work is owed; the rest is a future commitment (Upcoming work).
@@ -476,6 +485,99 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     return { jobs: jobs.size, total };
   }, [computed, wkStart, wkEnd]);
 
+  // ---- Paid jobs report: every work order with lines ticked paid, grouped by pay week (newest first) ----
+  const subById = useMemo(() => new Map(subs.map((s) => [s.id, s])), [subs]);
+  const paidReport = useMemo(() => {
+    // Pay week filters snap to the Monday of the chosen dates.
+    const from = paidFrom ? mondayOfDay(paidFrom) : "";
+    const to = paidTo ? mondayOfDay(paidTo) : "";
+    const q = paidSearch.trim().toLowerCase();
+    const jobs = new Map<string, { key: string; woId: string; week: string; contractorId: string; ls: typeof computed }>();
+    for (const l of computed) {
+      if (!l.contractorId || !l.paid) continue;
+      const week = l.payWeek || "";
+      if (from && (!week || week < from)) continue;
+      if (to && (!week || week > to)) continue;
+      if (paidContractor && l.contractorId !== paidContractor) continue;
+      if (q) {
+        const p = l.work_orders?.projects;
+        const hay = [l.work_orders?.wo_number, p ? quoteLabel(p as any) : "", p?.customers?.name, p?.address, p?.suburb, subById.get(l.contractorId)?.name]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) continue;
+      }
+      // One row per work order, contractor and pay week (a job paid across two weeks shows in both).
+      const key = `${week}|${l.work_order_id}|${l.contractorId}`;
+      const e = jobs.get(key) ?? { key, woId: l.work_order_id, week, contractorId: l.contractorId, ls: [] as typeof computed };
+      e.ls.push(l);
+      jobs.set(key, e);
+    }
+    const rows = Array.from(jobs.values()).map((j) => {
+      const sub = subById.get(j.contractorId);
+      const exGst = j.ls.reduce((t, l) => t + l.cost, 0);
+      const gst = sub?.gst_registered ? exGst * 0.1 : 0;
+      // Anything on the same work order (this contractor) not yet paid.
+      const notPaid = computed
+        .filter((l) => l.work_order_id === j.woId && l.contractorId === j.contractorId && !l.paid)
+        .reduce((t, l) => t + l.cost, 0);
+      return { ...j, sub, exGst, gst, notPaid, doneDate: j.ls[0].doneDate, ls: [...j.ls].sort((a, b) => (a.task_date || "").localeCompare(b.task_date || "")) };
+    });
+    const weeks = new Map<string, typeof rows>();
+    for (const r of rows) weeks.set(r.week, [...(weeks.get(r.week) ?? []), r]);
+    const groups = Array.from(weeks.entries())
+      .map(([week, rs]) => ({
+        week,
+        rows: rs.sort((a, b) => (a.sub?.name || "").localeCompare(b.sub?.name || "") || (a.ls[0].work_orders?.wo_number || "").localeCompare(b.ls[0].work_orders?.wo_number || "")),
+        exGst: rs.reduce((t, r) => t + r.exGst, 0),
+        gst: rs.reduce((t, r) => t + r.gst, 0),
+      }))
+      .sort((a, b) => (b.week || "").localeCompare(a.week || ""));
+    const exGst = rows.reduce((t, r) => t + r.exGst, 0);
+    const gst = rows.reduce((t, r) => t + r.gst, 0);
+    return {
+      groups,
+      rows,
+      exGst,
+      gst,
+      jobs: new Set(rows.map((r) => r.woId)).size,
+      contractors: new Set(rows.map((r) => r.contractorId)).size,
+    };
+  }, [computed, subById, paidFrom, paidTo, paidContractor, paidSearch]);
+
+  function exportPaidCsv() {
+    const header = ["Pay week (Mon)", "Contractor", "GST registered", "Work order", "Quote / customer", "Site", "Completed", "Lines paid", "Paid ex GST", "GST", "Paid inc GST", "Still unpaid on job"];
+    const out: string[] = [header.join(",")];
+    for (const g of paidReport.groups) {
+      for (const r of g.rows) {
+        const p = r.ls[0].work_orders?.projects;
+        out.push(
+          [
+            csvCell(r.week ? fmtDate(r.week) : "Not recorded"),
+            csvCell(r.sub?.name || "—"),
+            csvCell(r.sub?.gst_registered ? "Yes" : "No"),
+            csvCell(r.ls[0].work_orders?.wo_number || "—"),
+            csvCell(p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"),
+            csvCell(p ? [p.address, p.suburb].filter(Boolean).join(", ") : ""),
+            csvCell(fmtDate(r.doneDate)),
+            csvCell(r.ls.length),
+            csvCell(r.exGst.toFixed(2)),
+            csvCell(r.gst.toFixed(2)),
+            csvCell((r.exGst + r.gst).toFixed(2)),
+            csvCell(r.notPaid.toFixed(2)),
+          ].join(",")
+        );
+      }
+    }
+    const blob = new Blob([out.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contractor-paid-jobs-${todayAU()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportCsv() {
     const header = [
       "Contractor",
@@ -530,8 +632,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Contractor Payments</h1>
-        <div className="flex flex-wrap items-center gap-2">
+        <h1 className="text-2xl font-bold">{view === "paid" ? <><span className="print:hidden">Contractor Payments</span><span className="hidden print:inline">Contractor paid jobs</span></> : "Contractor Payments"}</h1>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <div className="flex items-center gap-1 text-xs text-[var(--muted)]" title="Pay week: lines you tick as paid are filed under this week, and the weekly summary PDF lists only lines paid in it.">
             <span className="mr-1">Pay week</span>
             <button type="button" onClick={() => setWeekDay(addDays(sumStart, -7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" aria-label="Previous pay week">‹</button>
@@ -608,8 +710,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        {([["ready", `Ready to pay (${new Set(computed.filter((l) => l.contractorId && l.done && !l.paid).map((l) => l.work_order_id)).size} jobs)`], ["weekly", "Pay week (Mon–Sun)"], ["upcoming", `Upcoming work (${fmtCurrency(upcoming.total)})`]] as const).map(([k, l]) => (
+      <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+        {([["ready", `Ready to pay (${new Set(computed.filter((l) => l.contractorId && l.done && !l.paid).map((l) => l.work_order_id)).size} jobs)`], ["weekly", "Pay week (Mon–Sun)"], ["upcoming", `Upcoming work (${fmtCurrency(upcoming.total)})`], ["paid", "Paid jobs"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setView(k)} className={`rounded-lg px-4 py-2 text-sm font-medium ${view === k ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}>
             {l}
           </button>
@@ -993,6 +1095,167 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             </div>
           )}
         </>
+      )}
+
+      {view === "paid" && (
+        <div className="mt-4">
+          <div className="flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4 print:hidden">
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Pay week from
+              <input type="date" value={paidFrom} onChange={(e) => setPaidFrom(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Pay week to
+              <input type="date" value={paidTo} onChange={(e) => setPaidTo(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Contractor
+              <select value={paidContractor} onChange={(e) => setPaidContractor(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]">
+                <option value="">All contractors</option>
+                {subs.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+              Search
+              <input placeholder="WO, quote, customer, address..." value={paidSearch} onChange={(e) => setPaidSearch(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+            </label>
+            <div className="flex flex-wrap gap-1 pb-0.5">
+              <button type="button" onClick={() => { const w = addDays(mondayOfDay(todayAU()), -7); setPaidFrom(w); setPaidTo(w); }} className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-xs font-medium hover:border-accent">Last week</button>
+              <button type="button" onClick={() => { setPaidFrom(addDays(mondayOfDay(todayAU()), -28)); setPaidTo(""); }} className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-xs font-medium hover:border-accent">Last 4 weeks</button>
+              <button type="button" onClick={() => { const t = todayAU(); setPaidFrom(`${t.slice(0, 7)}-01`); setPaidTo(""); }} className="rounded-lg border border-[var(--border)] bg-white px-2 py-1.5 text-xs font-medium hover:border-accent">This month</button>
+              {(paidFrom || paidTo || paidContractor || paidSearch) && (
+                <button type="button" onClick={() => { setPaidFrom(""); setPaidTo(""); setPaidContractor(""); setPaidSearch(""); }} className="px-2 py-1.5 text-xs text-[var(--muted)] hover:underline">Show all</button>
+              )}
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <button type="button" onClick={() => setOpen(new Set(paidReport.rows.map((r) => r.key)))} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Expand all</button>
+              <button type="button" onClick={() => setOpen(new Set())} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Collapse all</button>
+              <button type="button" onClick={exportPaidCsv} className="rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium hover:border-accent">Export CSV</button>
+              <button type="button" onClick={() => window.print()} className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white">Print</button>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-[var(--muted)] print:hidden">
+            Every job with lines ticked paid, grouped by the pay week they were paid in (newest first). Older payments made before pay weeks were recorded are filed under the week the work was done.
+          </p>
+          <p className="mt-1 hidden text-sm print:block">
+            {paidFrom || paidTo ? `Pay weeks ${paidFrom ? fmtDate(mondayOfDay(paidFrom)) : "start"} to ${paidTo ? fmtDate(addDays(mondayOfDay(paidTo), 6)) : "now"}` : "All pay weeks"}
+            {paidContractor ? ` · ${subById.get(paidContractor)?.name || ""}` : ""}
+            {paidSearch ? ` · search "${paidSearch}"` : ""} · printed {fmtDate(todayAU())}
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (ex GST)</div>
+              <div className="mt-1 text-2xl font-bold text-green-700">{fmtCurrency(paidReport.exGst)}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">GST</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(paidReport.gst)}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">GST-registered contractors only</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Paid (inc GST)</div>
+              <div className="mt-1 text-2xl font-bold">{fmtCurrency(paidReport.exGst + paidReport.gst)}</div>
+            </div>
+            <div className="rounded-xl border border-[var(--border)] p-4">
+              <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Jobs paid</div>
+              <div className="mt-1 text-2xl font-bold">{paidReport.jobs}</div>
+              <div className="mt-0.5 text-xs text-[var(--muted)]">{paidReport.contractors} contractor{paidReport.contractors === 1 ? "" : "s"}</div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-5">
+            {paidReport.groups.length === 0 && (
+              <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">No paid jobs match these filters.</div>
+            )}
+            {paidReport.groups.map((g) => (
+              <div key={g.week || "none"} className="break-inside-avoid-page rounded-xl border border-[var(--border)]">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
+                  <div className="font-semibold">
+                    {g.week ? `Pay week ${fmtDate(g.week)} – ${fmtDate(addDays(g.week, 6))}` : "Pay week not recorded"}
+                    <span className="ml-2 text-xs font-normal text-[var(--muted)]">{g.rows.length} job{g.rows.length === 1 ? "" : "s"}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div><span className="text-[var(--muted)]">Paid </span><span className="font-bold">{fmtCurrency(g.exGst)}</span></div>
+                    {g.gst > 0.005 && <div><span className="text-[var(--muted)]">inc GST </span><span className="font-semibold">{fmtCurrency(g.exGst + g.gst)}</span></div>}
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full whitespace-nowrap text-sm">
+                    <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                      <tr>
+                        <th className="px-4 py-2">Work order</th>
+                        <th className="px-4 py-2">Contractor</th>
+                        <th className="px-4 py-2">Customer / site</th>
+                        <th className="px-4 py-2">Completed</th>
+                        <th className="px-4 py-2 text-right">Lines</th>
+                        <th className="px-4 py-2 text-right">Paid (ex GST)</th>
+                        <th className="px-4 py-2 text-right">Inc GST</th>
+                        <th className="px-4 py-2 text-right">Job status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.rows.map((r) => {
+                        const p = r.ls[0].work_orders?.projects;
+                        const isOpen = open.has(r.key);
+                        return (
+                          <Fragment key={r.key}>
+                            <tr className="border-t border-[var(--border)]">
+                              <td className="px-4 py-2">
+                                <button type="button" className="mr-1 text-[var(--muted)] print:hidden" onClick={() => setOpen((prev) => { const n = new Set(prev); if (n.has(r.key)) n.delete(r.key); else n.add(r.key); return n; })} aria-label={isOpen ? "Collapse" : "Expand"}>{isOpen ? "▾" : "▸"}</button>
+                                <Link href={`/dashboard/work-orders/${r.woId}`} className="text-accent hover:underline">{r.ls[0].work_orders?.wo_number || "—"}</Link>
+                              </td>
+                              <td className="px-4 py-2">{r.sub?.name || "—"}</td>
+                              <td className="px-4 py-2">
+                                {p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"}
+                                {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs text-[var(--muted)]">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
+                              </td>
+                              <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(r.doneDate)}</td>
+                              <td className="px-4 py-2 text-right text-[var(--muted)]">{r.ls.length}</td>
+                              <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(r.exGst)}</td>
+                              <td className="px-4 py-2 text-right text-[var(--muted)]">{fmtCurrency(r.exGst + r.gst)}</td>
+                              <td className="px-4 py-2 text-right">
+                                {r.notPaid > 0.005 ? (
+                                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">Part paid · {fmtCurrency(r.notPaid)} not paid</span>
+                                ) : (
+                                  <span className="text-xs font-semibold text-green-700">✓ Fully paid</span>
+                                )}
+                              </td>
+                            </tr>
+                            {isOpen && r.ls.map((l) => {
+                              const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
+                              return (
+                                <tr key={l.id} className="border-t border-[var(--border)] text-xs text-[var(--muted)]">
+                                  <td className="px-4 py-1.5"></td>
+                                  <td className="px-4 py-1.5" colSpan={2}>
+                                    <span className="text-sm text-[var(--text)]">{l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}</span>
+                                    {l.note && <div>{l.note}</div>}
+                                  </td>
+                                  <td className="px-4 py-1.5">{fmtDate(l.task_date)}</td>
+                                  <td className="px-4 py-1.5 text-right">qty {l.qty} × {fmtCurrency(rate)}</td>
+                                  <td className="px-4 py-1.5 text-right text-sm text-[var(--text)]">{fmtCurrency(l.cost)}</td>
+                                  <td className="px-4 py-1.5" colSpan={2}></td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      })}
+                      <tr className="border-t border-[var(--border)] bg-[#f2f0ec] font-semibold">
+                        <td className="px-4 py-2" colSpan={5}>Week total</td>
+                        <td className="px-4 py-2 text-right">{fmtCurrency(g.exGst)}</td>
+                        <td className="px-4 py-2 text-right">{fmtCurrency(g.exGst + g.gst)}</td>
+                        <td className="px-4 py-2"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {view === "upcoming" && (
