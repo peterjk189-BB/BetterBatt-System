@@ -56,7 +56,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
   const heldBack: string[] = [];
   for (const r of (rows ?? []) as any[]) {
     const wo = Array.isArray(r.work_orders) ? r.work_orders[0] : r.work_orders;
-    if (!wo || wo.archived) continue;
+    if (!wo || wo.archived || wo.on_hold) continue;
     // A line belongs to its own contractor, or to the work order's contractor when it has none.
     const owner = r.subcontractor_id || wo.contractor_id;
     if (owner !== subId) continue;
