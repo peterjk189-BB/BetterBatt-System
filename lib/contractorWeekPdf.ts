@@ -30,7 +30,10 @@ function iso(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string) {
+/** payDate: a pay run's payment date. The header and footer then read "Pay run" instead of a week. */
+export type WeekPdfOpts = { payDate?: string };
+
+async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string, opts: WeekPdfOpts = {}) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const L = 14;
@@ -39,7 +42,7 @@ async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[],
   const endDay = weekEnd || addDays(weekStart, 6);
   const custom = endDay !== addDays(weekStart, 6) || mondayOfDay(weekStart) !== weekStart;
   const end = new Date(`${endDay}T00:00:00`);
-  const range = `${dFull(start)} – ${dFull(end)}`;
+  const range = opts.payDate ? dFull(new Date(`${opts.payDate}T00:00:00`)) : `${dFull(start)} – ${dFull(end)}`;
   const list = [...rows].sort((a, b) => a.name.localeCompare(b.name));
   const gstOf = (r: WeekPdfContractor, v: number) => (r.gstRegistered ? v * 0.1 : 0);
 
@@ -63,9 +66,9 @@ async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[],
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(201, 198, 191);
-  doc.text("Contractor payments made — weekly summary", L + 6, 29.5);
+  doc.text(opts.payDate ? "Contractor payments — pay run summary" : "Contractor payments made — weekly summary", L + 6, 29.5);
   doc.setFontSize(7.5);
-  doc.text(custom ? "PAID PERIOD" : "WEEK (MON–SUN)", R - 6, 19, { align: "right" });
+  doc.text(opts.payDate ? "PAY DATE" : custom ? "PAID PERIOD" : "WEEK (MON–SUN)", R - 6, 19, { align: "right" });
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
@@ -192,20 +195,20 @@ async function buildWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[],
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(107, 104, 98);
-    doc.text(`Better Batt Insulation · paid work done ${range} · printed ${dFull(new Date())} · GST added at 10% for GST-registered contractors only`, L, 203);
+    doc.text(`Better Batt Insulation · ${opts.payDate ? `pay run ${range}` : `paid work done ${range}`} · printed ${dFull(new Date())} · GST added at 10% for GST-registered contractors only`, L, 203);
     doc.text(`Page ${p} of ${pages}`, R, 203, { align: "right" });
   }
   return doc;
 }
 
-export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string) {
-  const doc = await buildWeekSummaryPdf(weekStart, rows, weekEnd);
-  doc.save(`Contractor-Payments-${weekStart}${weekEnd ? "-to-" + weekEnd : ""}.pdf`);
+export async function downloadWeekSummaryPdf(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string, opts: WeekPdfOpts = {}) {
+  const doc = await buildWeekSummaryPdf(weekStart, rows, weekEnd, opts);
+  doc.save(opts.payDate ? `Contractor-Pay-Run-${opts.payDate}.pdf` : `Contractor-Payments-${weekStart}${weekEnd ? "-to-" + weekEnd : ""}.pdf`);
 }
 
 /** The same PDF as base64 (no data: prefix), for attaching to an email. */
-export async function weekSummaryPdfBase64(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string) {
-  const doc = await buildWeekSummaryPdf(weekStart, rows, weekEnd);
+export async function weekSummaryPdfBase64(weekStart: string, rows: WeekPdfContractor[], weekEnd?: string, opts: WeekPdfOpts = {}) {
+  const doc = await buildWeekSummaryPdf(weekStart, rows, weekEnd, opts);
   const dataUri = doc.output("datauristring") as string;
   return dataUri.slice(dataUri.indexOf("base64,") + 7);
 }

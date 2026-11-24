@@ -31,6 +31,8 @@ type Line = {
   qty: number;
   paid: boolean;
   pay_week?: string | null;
+  checked?: boolean | null;
+  pay_run_id?: string | null;
   completed?: boolean;
   task_date: string | null;
   note: string | null;
@@ -55,6 +57,15 @@ type Line = {
 
 type StatusFilter = "all" | "unpaid" | "paid";
 
+export type PayRun = {
+  id: string;
+  pay_date: string;
+  status: "Open" | "Paid";
+  paid_at: string | null;
+  emailed_at: string | null;
+  emailed_to: string | null;
+};
+
 function fmtCurrency(n: number) {
   return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
 }
@@ -68,16 +79,18 @@ function csvCell(v: string | number) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; lines: Line[] }) {
+export default function ContractorPaymentsTable({ subs, lines, runs: initialRuns, runsOk }: { subs: Sub[]; lines: Line[]; runs: PayRun[]; runsOk: boolean }) {
   const supabase = createClient();
-  const [paidOverrides, setPaidOverrides] = useState<Record<string, boolean>>({});
-  const [weekOverrides, setWeekOverrides] = useState<Record<string, string | null>>({});
-  // Set false if the pay_week column isn't in the database yet (migration 0102): payments still save.
-  const [payWeekOk, setPayWeekOk] = useState(true);
+  // Ticking a line marks it checked (cross-checked against the contractor's invoice). Lines only become paid
+  // when the pay run they're in is marked paid.
+  const [checkedOverrides, setCheckedOverrides] = useState<Record<string, boolean>>({});
+  const [runOverrides, setRunOverrides] = useState<Record<string, string | null>>({});
+  const [runs, setRuns] = useState<PayRun[]>(initialRuns);
+  const [runBusy, setRunBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
 
-  const [view, setView] = useState<"ready" | "weekly" | "upcoming" | "paid">("ready");
+  const [view, setView] = useState<"ready" | "weekly" | "upcoming" | "paid" | "payrun">("ready");
   // Paid jobs report filters (by pay week).
   const [paidFrom, setPaidFrom] = useState("");
   const [paidTo, setPaidTo] = useState("");
@@ -89,13 +102,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const [contractorFilter, setContractorFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  // Contractors left out of the summary (e.g. already reported in an earlier summary).
-  const [skipSubs, setSkipSubs] = useState<string[]>([]);
-  // Weekly summary PDF: any date in the week; defaults to last week (the usual pay run).
+  // The week shown on the Pay week tab; defaults to last week.
   const [weekDay, setWeekDay] = useState(() => addDays(mondayOfDay(new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" })), -7));
-  // The pay week: ticking a line paid files it under this week, and the weekly summary lists only lines filed under it.
-  const sumStart = mondayOfDay(weekDay);
-  const sumEnd = addDays(sumStart, 6);
 
   // Remember where this person left off (view, filters, search, week) in this browser.
   const [restored, setRestored] = useState(false);
@@ -104,7 +112,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const raw = localStorage.getItem("bb-contractor-payments-state");
       if (raw) {
         const v = JSON.parse(raw);
-        if (v.view === "ready" || v.view === "weekly" || v.view === "upcoming" || v.view === "paid") setView(v.view);
+        if (["ready", "weekly", "upcoming", "paid", "payrun"].includes(v.view)) setView(v.view);
         if (typeof v.paidFrom === "string") setPaidFrom(v.paidFrom);
         if (typeof v.paidTo === "string") setPaidTo(v.paidTo);
         if (typeof v.paidContractor === "string" && (v.paidContractor === "" || subs.some((x) => x.id === v.paidContractor))) setPaidContractor(v.paidContractor);
@@ -141,11 +149,13 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
         const cost = (Number(l.qty) || 0) * rate;
         const contractorId = l.subcontractor_id || l.work_orders?.contractor_id || null;
-        const paid = paidOverrides[l.id] ?? l.paid;
+        const paid = !!l.paid;
         // Paid lines with no pay week recorded (older payments) count as the week the work was done.
-        const payWeek = !paid ? null : (l.id in weekOverrides ? weekOverrides[l.id] : l.pay_week) || (l.task_date ? mondayOfDay(l.task_date) : null);
+        const payWeek = !paid ? null : l.pay_week || (l.task_date ? mondayOfDay(l.task_date) : null);
         const done = !!l.completed || !!l.work_orders?.completed_date;
-        return { ...l, cost, contractorId, paid, payWeek, origPaid: l.paid, done };
+        const checked = paid || (checkedOverrides[l.id] ?? !!l.checked);
+        const runId = l.id in runOverrides ? runOverrides[l.id] : l.pay_run_id ?? null;
+        return { ...l, cost, contractorId, paid, payWeek, origPaid: l.paid, done, checked, runId };
       });
     // The date a job was completed: the work order's completed date, else the latest work date of its completed lines.
     const doneByWo = new Map<string, string>();
@@ -155,7 +165,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       if (d > (doneByWo.get(l.work_order_id) ?? "")) doneByWo.set(l.work_order_id, d);
     }
     return base.map((l) => ({ ...l, doneDate: doneByWo.get(l.work_order_id) || null }));
-  }, [lines, paidOverrides, weekOverrides]);
+  }, [lines, checkedOverrides, runOverrides]);
   // Whole-job totals (every line, done or not) for the contract total on each work order.
   const woTotals = useMemo(() => {
     const m = new Map<string, { total: number; count: number; done: number }>();
@@ -198,49 +208,55 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     return map;
   }, [filtered]);
 
-  async function togglePaid(line: (typeof computed)[number]) {
-    const next = !line.paid;
-    const pw = next ? sumStart : null;
-    setPaidOverrides((prev) => ({ ...prev, [line.id]: next }));
-    setWeekOverrides((prev) => ({ ...prev, [line.id]: pw }));
-    setSavingId(line.id);
-    let { error } = await supabase.from("work_order_lines").update(payWeekOk ? { paid: next, pay_week: pw } : { paid: next }).eq("id", line.id);
-    if (error && /pay_week/.test(error.message)) {
-      setPayWeekOk(false);
-      ({ error } = await supabase.from("work_order_lines").update({ paid: next }).eq("id", line.id));
-    }
-    setSavingId(null);
-    if (error) {
-      // Revert on failure.
-      setPaidOverrides((prev) => ({ ...prev, [line.id]: line.paid }));
-      setWeekOverrides((prev) => ({ ...prev, [line.id]: line.payWeek }));
-      alert(`Failed to update: ${error.message}`);
-      return;
-    }
-    logAudit(supabase, {
-      eventType: "update",
-      entityType: "work_order_line_payment",
-      entityId: line.id,
-      entityLabel: line.work_orders?.wo_number || "Work order line",
-      details: next ? `Marked paid (pay week ${sumStart})` : "Marked unpaid",
-    });
-  }
+  type CLine = (typeof computed)[number];
+  const MIGRATION_MSG = "Pay runs need migration 0103 run in Supabase first (SQL Editor). Nothing was saved.";
 
-  async function togglePaidMany(ls: (typeof computed)[number][], next: boolean) {
-    const targets = ls.filter((l) => l.paid !== next);
+  // Tick lines as checked (cross-checked against the contractor's invoice). Paid lines can't be unticked here.
+  async function toggleCheckedMany(ls: CLine[], next: boolean) {
+    if (!runsOk) return alert(MIGRATION_MSG);
+    const targets = ls.filter((l) => !l.paid && l.checked !== next);
     if (targets.length === 0) return;
     const ids = targets.map((l) => l.id);
-    const pw = next ? sumStart : null;
-    setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, next])) }));
-    setWeekOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, pw])) }));
-    let { error } = await supabase.from("work_order_lines").update(payWeekOk ? { paid: next, pay_week: pw } : { paid: next }).in("id", ids);
-    if (error && /pay_week/.test(error.message)) {
-      setPayWeekOk(false);
-      ({ error } = await supabase.from("work_order_lines").update({ paid: next }).in("id", ids));
-    }
+    setCheckedOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, next])) }));
+    if (ids.length === 1) setSavingId(ids[0]);
+    const { error } = await supabase.from("work_order_lines").update({ checked: next }).in("id", ids);
+    setSavingId(null);
     if (error) {
-      setPaidOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.paid])) }));
-      setWeekOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.payWeek])) }));
+      setCheckedOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.checked])) }));
+      alert(`Failed to update: ${error.message}`);
+    }
+  }
+  const toggleChecked = (l: CLine) => toggleCheckedMany([l], !l.checked);
+
+  const openRun = runs.find((r) => r.status === "Open") || null;
+
+  async function ensureOpenRun(): Promise<PayRun | null> {
+    if (openRun) return openRun;
+    const { data, error } = await supabase.from("contractor_pay_runs").insert({ pay_date: todayAU(), status: "Open" }).select("id, pay_date, status, paid_at, emailed_at, emailed_to").single();
+    if (error || !data) {
+      alert(`Couldn't start a pay run: ${error?.message || "unknown error"}`);
+      return null;
+    }
+    setRuns((prev) => [data as PayRun, ...prev]);
+    return data as PayRun;
+  }
+
+  // Put a job's completed, unpaid lines into the open pay run (starting one if needed), or take them out.
+  async function setInRun(ls: CLine[], add: boolean) {
+    if (!runsOk) return alert(MIGRATION_MSG);
+    const targets = ls.filter((l) => l.done && !l.paid);
+    if (targets.length === 0) return;
+    if (add && targets.some((l) => !l.checked) && !confirm("Some lines on this job haven't been ticked as checked yet. Add the job to the pay run anyway?")) return;
+    setRunBusy(true);
+    const run = add ? await ensureOpenRun() : null;
+    if (add && !run) return setRunBusy(false);
+    const ids = targets.map((l) => l.id);
+    const rid = add ? run!.id : null;
+    setRunOverrides((prev) => ({ ...prev, ...Object.fromEntries(ids.map((i) => [i, rid])) }));
+    const { error } = await supabase.from("work_order_lines").update({ pay_run_id: rid }).in("id", ids);
+    setRunBusy(false);
+    if (error) {
+      setRunOverrides((prev) => ({ ...prev, ...Object.fromEntries(targets.map((l) => [l.id, l.runId])) }));
       alert(`Failed to update: ${error.message}`);
       return;
     }
@@ -248,9 +264,80 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       eventType: "update",
       entityType: "work_order_line_payment",
       entityId: ids[0],
-      entityLabel: targets[0].work_orders?.wo_number || "Work order lines",
-      details: `${next ? `Marked paid (pay week ${sumStart})` : "Marked unpaid"}: ${ids.length} line${ids.length === 1 ? "" : "s"}`,
+      entityLabel: targets[0].work_orders?.wo_number || "Work order",
+      details: add ? `Added to pay run ${run!.pay_date}` : "Removed from pay run",
     });
+  }
+
+  async function setRunDate(d: string) {
+    if (!openRun || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return;
+    setRuns((prev) => prev.map((r) => (r.id === openRun.id ? { ...r, pay_date: d } : r)));
+    const { error } = await supabase.from("contractor_pay_runs").update({ pay_date: d }).eq("id", openRun.id);
+    if (error) alert(`Couldn't save the pay date: ${error.message}`);
+  }
+
+  // Mark every line in the open pay run paid, filed under the pay date's week, and close the run.
+  async function markRunPaid() {
+    if (!openRun) return;
+    const ls = computed.filter((l) => l.runId === openRun.id && !l.paid);
+    if (ls.length === 0) return alert("There's nothing in this pay run yet.");
+    const total = ls.reduce((t, l) => t + l.cost, 0);
+    if (!confirm(`Mark this pay run (${fmtDate(openRun.pay_date)}) as paid?\n\n${new Set(ls.map((l) => l.work_order_id)).size} jobs · ${fmtCurrency(total)} ex GST.\n\nThe jobs move to Paid jobs, and anything not in the run stays in Ready to pay.`)) return;
+    setRunBusy(true);
+    const { error } = await supabase
+      .from("work_order_lines")
+      .update({ paid: true, checked: true, pay_week: mondayOfDay(openRun.pay_date) })
+      .eq("pay_run_id", openRun.id);
+    if (!error) {
+      const r2 = await supabase.from("contractor_pay_runs").update({ status: "Paid", paid_at: new Date().toISOString() }).eq("id", openRun.id);
+      if (r2.error) {
+        setRunBusy(false);
+        return alert(`Lines were marked paid but the pay run couldn't be closed: ${r2.error.message}`);
+      }
+    }
+    if (error) {
+      setRunBusy(false);
+      return alert(`Failed to mark paid: ${error.message}`);
+    }
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "contractor_payments",
+      entityId: openRun.id,
+      entityLabel: `Pay run ${openRun.pay_date}`,
+      details: `Pay run marked paid: ${ls.length} lines, ${fmtCurrency(total)} ex GST`,
+    });
+    window.location.reload();
+  }
+
+  // A small button to add a job to / take it out of the open pay run.
+  function runButton(ls: CLine[]) {
+    const owing = ls.filter((l) => l.done && !l.paid);
+    if (owing.length === 0) return <span className="text-xs font-semibold text-green-700">Paid</span>;
+    const inRun = owing.every((l) => l.runId && l.runId === openRun?.id);
+    const checkedN = owing.filter((l) => l.checked).length;
+    return inRun ? (
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-semibold text-green-800">✓ In pay run</span>
+        <button type="button" disabled={runBusy} onClick={() => setInRun(owing, false)} className="text-xs text-[var(--muted)] hover:underline disabled:opacity-50">Remove</button>
+      </span>
+    ) : (
+      <button
+        type="button"
+        disabled={runBusy}
+        onClick={() => setInRun(owing, true)}
+        title={checkedN < owing.length ? `${checkedN} of ${owing.length} lines checked` : "All lines checked"}
+        className={`whitespace-nowrap rounded-lg border px-2 py-1 text-xs font-medium disabled:opacity-50 ${checkedN < owing.length ? "border-[var(--border)] text-[var(--muted)] hover:border-accent" : "border-accent text-accent hover:bg-accent hover:text-white"}`}
+      >
+        + Pay run{checkedN < owing.length ? ` (${checkedN}/${owing.length} checked)` : ""}
+      </button>
+    );
+  }
+
+  function lineStatus(l: CLine) {
+    if (l.paid) return <span className="text-green-700">✓ Paid{l.payWeek ? ` · wk ${fmtDate(l.payWeek).slice(0, 5)}` : ""}</span>;
+    if (l.runId && l.runId === openRun?.id) return <span className="text-green-700">In pay run</span>;
+    if (l.checked) return <span className="text-[var(--text)]">Checked</span>;
+    return <span className="text-[var(--muted)]">Completed</span>;
   }
 
   const summaryRows = subs
@@ -302,18 +389,18 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
     }
   }
 
-  // One page for the pay week: every contractor with lines ticked paid in that pay week, regardless of the filters.
-  function weekPdfRows(start: string, end: string, applySkips = true) {
+  // Summary PDF rows for one pay run: each contractor with lines in it, bank details and totals.
+  function runPdfRows(runId: string) {
     const map = new Map<string, { jobs: Set<string>; exGst: number }>();
     for (const l of computed) {
-      if (!l.contractorId || !l.paid || !l.payWeek || l.payWeek < start || l.payWeek > end) continue;
+      if (!l.contractorId || l.runId !== runId) continue;
       const e = map.get(l.contractorId) ?? { jobs: new Set<string>(), exGst: 0 };
       e.jobs.add(l.work_order_id);
       e.exGst += l.cost;
       map.set(l.contractorId, e);
     }
     return subs
-      .filter((s) => map.has(s.id) && (!applySkips || !skipSubs.includes(s.id)))
+      .filter((s) => map.has(s.id))
       .map((s) => {
         const e = map.get(s.id)!;
         return {
@@ -330,10 +417,9 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
         };
       });
   }
-  const sumCandidates = weekPdfRows(sumStart, sumEnd, false) as any[];
-  async function exportWeekPdf() {
+  async function downloadRunPdf(run: PayRun) {
     try {
-      await downloadWeekSummaryPdf(sumStart, weekPdfRows(sumStart, sumEnd), sumEnd);
+      await downloadWeekSummaryPdf(run.pay_date, runPdfRows(run.id), run.pay_date, { payDate: run.pay_date });
     } catch (e: any) {
       alert(`Couldn't create the PDF: ${e?.message || e}`);
     }
@@ -342,23 +428,22 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
   const ACCOUNTS_EMAIL = "kradford@regencyplaster.com.au";
   const [emailing, setEmailing] = useState(false);
   const [emailMsg, setEmailMsg] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ start: string; end: string; pdf: string; url: string; contractors: number; exGst: number } | null>(null);
-  // Step 1: build the PDF and show it for checking. Nothing is sent yet.
-  async function previewWeekPdf() {
-    const start = sumStart;
-    const rows = weekPdfRows(start, sumEnd);
+  const [preview, setPreview] = useState<{ run: PayRun; pdf: string; url: string; contractors: number; exGst: number } | null>(null);
+  // Step 1: build the pay run PDF and show it for checking. Nothing is sent yet.
+  async function previewRunPdf(run: PayRun) {
+    const rows = runPdfRows(run.id);
     setEmailMsg(null);
     if (rows.length === 0) {
-      setEmailMsg("Nothing has been ticked paid in that pay week, so there is nothing to send.");
+      setEmailMsg("There's nothing in this pay run yet, so there is nothing to send.");
       return;
     }
     try {
-      const pdf = await weekSummaryPdfBase64(start, rows, sumEnd);
+      const pdf = await weekSummaryPdfBase64(run.pay_date, rows, run.pay_date, { payDate: run.pay_date });
       const bin = atob(pdf);
       const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-      setPreview({ start, end: sumEnd, pdf, url, contractors: rows.length, exGst: rows.reduce((t, r) => t + r.exGst, 0) });
+      setPreview({ run, pdf, url, contractors: rows.length, exGst: rows.reduce((t, r) => t + r.exGst, 0) });
     } catch (e: any) {
       setEmailMsg(`Couldn't create the PDF: ${e?.message || e}`);
     }
@@ -375,16 +460,56 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       const res = await fetch("/api/contractor-payments/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekStart: preview.start, weekEnd: preview.end, to: ACCOUNTS_EMAIL, pdf: preview.pdf, contractors: preview.contractors, exGst: preview.exGst }),
+        body: JSON.stringify({ weekStart: preview.run.pay_date, weekEnd: preview.run.pay_date, payDate: preview.run.pay_date, to: ACCOUNTS_EMAIL, pdf: preview.pdf, contractors: preview.contractors, exGst: preview.exGst }),
       });
       const j = await res.json().catch(() => ({}));
-      setEmailMsg(res.ok ? `Sent to ${ACCOUNTS_EMAIL}.` : `Not sent: ${j.error || res.status}`);
-      if (res.ok) closePreview();
+      setEmailMsg(res.ok ? `Sent to ${ACCOUNTS_EMAIL}.${preview.run.status === "Open" ? " When the payments have gone through, press \"Mark pay run as paid\"." : ""}` : `Not sent: ${j.error || res.status}`);
+      if (res.ok) {
+        const at = new Date().toISOString();
+        const id = preview.run.id;
+        setRuns((prev) => prev.map((r) => (r.id === id ? { ...r, emailed_at: at, emailed_to: ACCOUNTS_EMAIL } : r)));
+        supabase.from("contractor_pay_runs").update({ emailed_at: at, emailed_to: ACCOUNTS_EMAIL }).eq("id", id).then(() => {});
+        closePreview();
+      }
     } catch (e: any) {
       setEmailMsg(`Not sent: ${e?.message || e}`);
     }
     setEmailing(false);
   }
+
+  // Pay run tab: the open run's jobs by contractor, and earlier runs.
+  const runView = useMemo(() => {
+    const byRun = new Map<string, CLine[]>();
+    for (const l of computed) if (l.runId && l.contractorId) byRun.set(l.runId, [...(byRun.get(l.runId) ?? []), l]);
+    const groupRun = (ls: CLine[]) => {
+      const byC = new Map<string, Map<string, CLine[]>>();
+      for (const l of ls) {
+        const cid = l.contractorId as string;
+        const jobs = byC.get(cid) ?? new Map<string, CLine[]>();
+        jobs.set(l.work_order_id, [...(jobs.get(l.work_order_id) ?? []), l]);
+        byC.set(cid, jobs);
+      }
+      return subs
+        .filter((s) => byC.has(s.id))
+        .map((s) => {
+          const jobs = Array.from(byC.get(s.id)!.entries()).map(([woId, jl]) => ({ woId, ls: jl, total: jl.reduce((t, l) => t + l.cost, 0), checked: jl.filter((l) => l.checked).length }));
+          const total = jobs.reduce((t, j) => t + j.total, 0);
+          return { sub: s, jobs, total, gst: s.gst_registered ? total * 0.1 : 0 };
+        })
+        .sort((a, b) => a.sub.name.localeCompare(b.sub.name));
+    };
+    const summarise = (run: PayRun) => {
+      const ls = byRun.get(run.id) ?? [];
+      const rows = groupRun(ls);
+      const total = rows.reduce((t, r) => t + r.total, 0);
+      const gst = rows.reduce((t, r) => t + r.gst, 0);
+      return { run, rows, total, gst, jobs: new Set(ls.map((l) => l.work_order_id)).size };
+    };
+    return {
+      open: openRun ? summarise(openRun) : null,
+      past: runs.filter((r) => r.status === "Paid").sort((a, b) => b.pay_date.localeCompare(a.pay_date)).map(summarise),
+    };
+  }, [computed, runs, openRun, subs]);
 
   // ---- Weekly tab: Monday to Sunday by work date, a total per job and per contractor ----
   const wkStart = mondayOfDay(weekDay);
@@ -660,20 +785,21 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                         <th className="px-4 py-2 text-right">Lines</th>
                         <th className="px-4 py-2 text-right">Job total</th>
                         <th className="px-4 py-2 text-right">Unpaid</th>
+                        <th className="px-4 py-2 text-right">Pay run</th>
                       </tr>
                     </thead>
                     <tbody>
                       {jobs.map((j) => {
                         const p = j.first.work_orders?.projects;
                         const isOpen = open.has(j.woId);
-                        const allPaid = j.ls.every((l) => l.paid);
-                        const somePaid = j.ls.some((l) => l.paid);
+                        const allChecked = j.ls.every((l) => l.checked);
+                        const someChecked = j.ls.some((l) => l.checked);
                         const contract = woTotals.get(j.woId)?.total ?? j.total;
                         return (
                           <Fragment key={j.woId}>
                             <tr className="border-t border-[var(--border)] bg-[#f7f6f3]">
                               <td className="px-4 py-2">
-                                <input type="checkbox" checked={allPaid} ref={(el) => { if (el) el.indeterminate = somePaid && !allPaid; }} onChange={() => togglePaidMany(j.ls, !allPaid)} title="Mark every line on this job paid / unpaid" />
+                                <input type="checkbox" checked={allChecked} ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }} onChange={() => toggleCheckedMany(j.ls, !allChecked)} title="Tick every line on this job as checked" />
                               </td>
                               <td className="px-4 py-2">
                                 <button type="button" className="mr-1 text-[var(--muted)]" onClick={() => setOpen((prev) => { const n = new Set(prev); if (n.has(j.woId)) n.delete(j.woId); else n.add(j.woId); return n; })} aria-label={isOpen ? "Collapse" : "Expand"}>{isOpen ? "▾" : "▸"}</button>
@@ -699,12 +825,13 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                               <td className="px-4 py-2 text-right text-[var(--muted)]">{j.lines}</td>
                               <td className="px-4 py-2 text-right font-medium">{fmtCurrency(contract)}</td>
                               <td className={`px-4 py-2 text-right ${j.unpaid > 0.005 ? "text-red-700" : "text-[var(--muted)]"}`}>{j.unpaid > 0.005 ? fmtCurrency(j.unpaid) : "Paid"}</td>
+                              <td className="px-4 py-2 text-right">{runButton(j.ls)}</td>
                             </tr>
                             {isOpen && j.ls.map((l) => {
                               const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
                               return (
                                 <tr key={l.id} className="border-t border-[var(--border)] text-xs">
-                                  <td className="px-4 py-1.5"><input type="checkbox" checked={l.paid} disabled={savingId === l.id} onChange={() => togglePaid(l)} /></td>
+                                  <td className="px-4 py-1.5"><input type="checkbox" checked={l.checked} disabled={l.paid || savingId === l.id} onChange={() => toggleChecked(l)} title={l.paid ? "Paid" : "Checked"} /></td>
                                   <td className="px-4 py-1.5 text-[var(--muted)]" colSpan={2}>
                                     <span className="text-sm text-[var(--text)]">{l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}</span>
                                     {l.note && <div>{l.note}</div>}
@@ -712,7 +839,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                   <td className="px-4 py-1.5 text-[var(--muted)]">{fmtDate(l.task_date)} · qty {l.qty} × {fmtCurrency(rate)}</td>
                                   <td className="px-4 py-1.5"></td>
                                   <td className="px-4 py-1.5 text-right text-sm font-medium">{fmtCurrency(l.cost)}</td>
-                                  <td className={`px-4 py-1.5 text-right font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? `✓ Paid${l.payWeek ? ` · wk ${fmtDate(l.payWeek).slice(0, 5)}` : ""}` : "Completed"}</td>
+                                  <td className="px-4 py-1.5 text-right font-semibold" colSpan={2}>{lineStatus(l)}</td>
                                 </tr>
                               );
                             })}
@@ -723,6 +850,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                         <td className="px-4 py-2" colSpan={5}>{sub.name} {carried ? "carried over" : "week"} total</td>
                         <td className="px-4 py-2 text-right">{fmtCurrency(total)}</td>
                         <td className="px-4 py-2 text-right">{unpaid > 0.005 ? fmtCurrency(unpaid) : "Paid"}</td>
+                        <td className="px-4 py-2"></td>
                       </tr>
                     </tbody>
                   </table>
@@ -736,49 +864,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{view === "paid" ? <><span className="print:hidden">Contractor Payments</span><span className="hidden print:inline">Contractor paid jobs</span></> : "Contractor Payments"}</h1>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <div className="flex items-center gap-1 text-xs text-[var(--muted)]" title="Pay week: lines you tick as paid are filed under this week, and the weekly summary PDF lists only lines paid in it.">
-            <span className="mr-1">Pay week</span>
-            <button type="button" onClick={() => setWeekDay(addDays(sumStart, -7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" aria-label="Previous pay week">‹</button>
-            <span className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--text)]">
-              {fmtDate(sumStart)} – {fmtDate(sumEnd)}
-            </span>
-            <button type="button" onClick={() => setWeekDay(addDays(sumStart, 7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)]" aria-label="Next pay week">›</button>
-            <button type="button" onClick={() => setWeekDay(mondayOfDay(todayAU()))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs text-[var(--text)]">This week</button>
-            <button type="button" onClick={() => setWeekDay(addDays(mondayOfDay(todayAU()), -7))} className="rounded-lg border border-[var(--border)] px-2 py-1.5 text-xs text-[var(--text)]">Last week</button>
-          </div>
-          <details className="relative text-xs text-[var(--muted)]">
-            <summary className="cursor-pointer list-none rounded-lg border border-[var(--border)] px-2 py-1.5 text-sm text-[var(--text)] hover:border-accent">
-              Contractors in summary ({sumCandidates.length - sumCandidates.filter((c) => skipSubs.includes(c.id)).length}/{sumCandidates.length})
-            </summary>
-            <div className="absolute right-0 z-20 mt-1 w-64 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-lg">
-              {sumCandidates.length === 0 && <div className="p-1">Nothing paid in this pay week yet.</div>}
-              {sumCandidates.map((c) => (
-                <label key={c.id} className="flex items-center gap-2 p-1 text-sm text-[var(--text)]">
-                  <input
-                    type="checkbox"
-                    checked={!skipSubs.includes(c.id)}
-                    onChange={(e) => setSkipSubs((prev) => (e.target.checked ? prev.filter((x) => x !== c.id) : [...prev, c.id]))}
-                  />
-                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  <span className="tabular-nums text-xs text-[var(--muted)]">${Math.round(c.exGst).toLocaleString("en-AU")}</span>
-                </label>
-              ))}
-              <div className="mt-1 border-t border-[var(--border)] p-1 text-[11px]">Untick anyone already reported in an earlier summary.</div>
-            </div>
-          </details>
-          <button
-            onClick={exportWeekPdf}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white"
-            title="One PDF of everything ticked paid in the selected pay week: every contractor paid"
-          >
-            Weekly summary PDF
-          </button>
-          <button
-            onClick={previewWeekPdf}
-            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-accent disabled:opacity-60"
-            title={`Preview the weekly summary PDF, then email it to ${ACCOUNTS_EMAIL}`}
-          >
-            Preview &amp; email to accounts
+          <button type="button" onClick={() => setView("payrun")} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white">
+            Pay run{runView.open ? ` · ${runView.open.jobs} job${runView.open.jobs === 1 ? "" : "s"} · ${fmtCurrency(runView.open.total)}` : ""}
           </button>
           <button
             onClick={exportCsv}
@@ -794,7 +881,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
           <div className="flex h-[90vh] w-full max-w-5xl flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-lg font-semibold">Preview: contractor payments, {fmtDate(preview.start)} to {fmtDate(preview.end)}</div>
+                <div className="text-lg font-semibold">Preview: contractor pay run {fmtDate(preview.run.pay_date)}</div>
                 <div className="text-sm text-[var(--muted)]">
                   To: {ACCOUNTS_EMAIL} · {preview.contractors} contractor{preview.contractors === 1 ? "" : "s"} · {fmtCurrency(preview.exGst)} ex GST. This PDF is attached to the email.
                 </div>
@@ -807,13 +894,18 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
               </div>
             </div>
             {emailMsg && <p className="mt-2 text-sm font-medium text-red-700">{emailMsg}</p>}
-            <iframe src={preview.url} title="Weekly summary preview" className="mt-3 w-full flex-1 rounded-lg border border-[var(--border)] bg-white" />
+            <iframe src={preview.url} title="Pay run summary preview" className="mt-3 w-full flex-1 rounded-lg border border-[var(--border)] bg-white" />
           </div>
         </div>
       )}
 
+      {!runsOk && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 print:hidden">
+          Pay runs aren&apos;t set up in the database yet. Run migration <b>0103_contractor_pay_runs.sql</b> in Supabase → SQL Editor, then reload this page.
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2 print:hidden">
-        {([["ready", `Ready to pay (${new Set(computed.filter((l) => l.contractorId && l.done && !l.paid).map((l) => l.work_order_id)).size} jobs)`], ["weekly", "Pay week (Mon–Sun)"], ["upcoming", `Upcoming work (${fmtCurrency(upcoming.total)})`], ["paid", "Paid jobs"]] as const).map(([k, l]) => (
+        {([["ready", `Ready to pay (${new Set(computed.filter((l) => l.contractorId && l.done && !l.paid).map((l) => l.work_order_id)).size} jobs)`], ["weekly", "Pay week (Mon–Sun)"], ["payrun", `Pay run (${runView.open ? fmtCurrency(runView.open.total) : "empty"})`], ["upcoming", `Upcoming work (${fmtCurrency(upcoming.total)})`], ["paid", "Paid jobs"]] as const).map(([k, l]) => (
           <button key={k} type="button" onClick={() => setView(k)} className={`rounded-lg px-4 py-2 text-sm font-medium ${view === k ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"}`}>
             {l}
           </button>
@@ -958,7 +1050,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             </div>
           </div>
           <p className="mt-2 text-xs text-[var(--muted)]">
-            Shows every completed job that hasn&apos;t been paid, however long ago it finished. Open a work order, then tick each item line as you check it: a ticked line is saved as paid straight away.
+            Shows every completed job that hasn&apos;t been paid, however long ago it finished. Open a work order and tick each line as you check it against the contractor&apos;s invoice, then press <b>+ Pay run</b> when you&apos;re paying that job. Jobs become paid when the pay run is marked paid.
           </p>
 
           <div className="mt-4 flex flex-col gap-5">
@@ -1004,7 +1096,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                     <table className="w-full whitespace-nowrap text-sm">
                       <thead className="text-left text-xs uppercase text-[var(--muted)]">
                         <tr>
-                          <th className="w-10 px-4 py-2" title="Tick the whole job paid"></th>
+                          <th className="w-10 px-4 py-2" title="Tick the whole job as checked"></th>
                           <th className="px-4 py-2">Work order</th>
                           <th className="px-4 py-2">Customer / site</th>
                           <th className="px-4 py-2">Completed</th>
@@ -1012,6 +1104,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                           <th className="px-4 py-2 text-right">Lines done</th>
                           <th className="px-4 py-2 text-right">Contract total</th>
                           <th className="px-4 py-2 text-right">Owed (ex GST)</th>
+                          <th className="px-4 py-2 text-right">Pay run</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1021,7 +1114,8 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                           const tot = woTotals.get(g.woId);
                           const isOpen = open.has(g.woId);
                           const allPaid = g.lines.every((l) => l.paid);
-                          const somePaid = g.lines.some((l) => l.paid);
+                          const allChecked = g.lines.every((l) => l.checked);
+                          const someChecked = g.lines.some((l) => l.checked);
                           const waiting = g.doneDate ? Math.max(0, Math.round((new Date(todayAU() + "T00:00:00").getTime() - new Date(g.doneDate + "T00:00:00").getTime()) / 86400000)) : null;
                           // Not-done lines of the same job, shown greyed (not owed yet).
                           const pending = computed.filter((l) => l.work_order_id === g.woId && !l.done && (l.subcontractor_id || l.work_orders?.contractor_id) === sub.id);
@@ -1031,10 +1125,10 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                 <td className="px-4 py-2">
                                   <input
                                     type="checkbox"
-                                    checked={allPaid}
-                                    ref={(el) => { if (el) el.indeterminate = somePaid && !allPaid; }}
-                                    onChange={() => togglePaidMany(g.lines, !allPaid)}
-                                    title="Mark every completed line on this job paid / unpaid"
+                                    checked={allChecked}
+                                    ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                                    onChange={() => toggleCheckedMany(g.lines, !allChecked)}
+                                    title="Tick every completed line on this job as checked"
                                   />
                                 </td>
                                 <td className="px-4 py-2">
@@ -1054,24 +1148,25 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                 <td className="px-4 py-2 text-right text-[var(--muted)]">{tot ? `${tot.done} / ${tot.count}` : g.lines.length}</td>
                                 <td className="px-4 py-2 text-right">{fmtCurrency(tot?.total ?? g.lines.reduce((t, l) => t + l.cost, 0))}</td>
                                 <td className={`px-4 py-2 text-right font-semibold ${g.owed > 0.005 ? "text-red-700" : "text-green-700"}`}>{g.owed > 0.005 ? fmtCurrency(g.owed) : "Paid"}</td>
+                                <td className="px-4 py-2 text-right">{runButton(g.lines)}</td>
                               </tr>
                               {isOpen && (
                                 <>
                                   <tr className="border-t border-[var(--border)] text-left text-[11px] uppercase text-[var(--muted)]">
-                                    <th className="px-4 py-1.5 font-semibold">Paid</th>
+                                    <th className="px-4 py-1.5 font-semibold">Checked</th>
                                     <th className="px-4 py-1.5 font-semibold" colSpan={2}>Item</th>
                                     <th className="px-4 py-1.5 font-semibold">Work date</th>
                                     <th className="px-4 py-1.5 text-right font-semibold">Qty</th>
                                     <th className="px-4 py-1.5 text-right font-semibold">Rate</th>
                                     <th className="px-4 py-1.5 text-right font-semibold">Line amount</th>
-                                    <th className="px-4 py-1.5 text-right font-semibold">Status</th>
+                                    <th className="px-4 py-1.5 text-right font-semibold" colSpan={2}>Status</th>
                                   </tr>
                                   {g.lines.map((l) => {
                                     const rate = lineRate(l.rate, l.labour_items?.contractor_rate, l.parts?.installer_rate_per_m2);
                                     return (
                                       <tr key={l.id} className="border-t border-[var(--border)]">
                                         <td className="px-4 py-1.5">
-                                          <input type="checkbox" checked={l.paid} disabled={savingId === l.id} onChange={() => togglePaid(l)} />
+                                          <input type="checkbox" checked={l.checked} disabled={l.paid || savingId === l.id} onChange={() => toggleChecked(l)} title={l.paid ? "Paid" : "Checked"} />
                                         </td>
                                         <td className="px-4 py-1.5" colSpan={2}>
                                           {l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : "—")}
@@ -1081,7 +1176,7 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                         <td className="px-4 py-1.5 text-right">{l.qty}</td>
                                         <td className="px-4 py-1.5 text-right text-[var(--muted)]">{fmtCurrency(rate)}</td>
                                         <td className="px-4 py-1.5 text-right font-medium">{fmtCurrency(l.cost)}</td>
-                                        <td className={`px-4 py-1.5 text-right text-xs font-semibold ${l.paid ? "text-green-700" : "text-[var(--muted)]"}`}>{l.paid ? `✓ Paid${l.payWeek ? ` · wk ${fmtDate(l.payWeek).slice(0, 5)}` : ""}` : "Completed"}</td>
+                                        <td className="px-4 py-1.5 text-right text-xs font-semibold" colSpan={2}>{lineStatus(l)}</td>
                                       </tr>
                                     );
                                   })}
@@ -1095,17 +1190,17 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
                                         <td className="px-4 py-1.5 text-right">{l.qty}</td>
                                         <td className="px-4 py-1.5 text-right">{fmtCurrency(rate)}</td>
                                         <td className="px-4 py-1.5 text-right">{fmtCurrency(l.cost)}</td>
-                                        <td className="px-4 py-1.5 text-right text-xs">Not done</td>
+                                        <td className="px-4 py-1.5 text-right text-xs" colSpan={2}>Not done</td>
                                       </tr>
                                     );
                                   })}
                                   <tr className="border-t border-[var(--border)] bg-[#f2f0ec] text-sm">
                                     <td className="px-4 py-2" colSpan={6}>
                                       <span className="text-[var(--muted)]">
-                                        {first.work_orders?.wo_number} · contract total {fmtCurrency(tot?.total ?? 0)} · ticked paid {fmtCurrency(g.lines.filter((l) => l.paid).reduce((t, l) => t + l.cost, 0))}
+                                        {first.work_orders?.wo_number} · contract total {fmtCurrency(tot?.total ?? 0)} · checked {fmtCurrency(g.lines.filter((l) => l.checked).reduce((t, l) => t + l.cost, 0))} · paid {fmtCurrency(g.lines.filter((l) => l.paid).reduce((t, l) => t + l.cost, 0))}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-2 text-right font-semibold" colSpan={2}>{g.owed > 0.005 ? `${fmtCurrency(g.owed)} still owed` : "All paid"}</td>
+                                    <td className="px-4 py-2 text-right font-semibold" colSpan={3}>{g.owed > 0.005 ? `${fmtCurrency(g.owed)} still owed` : "All paid"}</td>
                                   </tr>
                                 </>
                               )}
@@ -1131,6 +1226,141 @@ export default function ContractorPaymentsTable({ subs, lines }: { subs: Sub[]; 
             </div>
           )}
         </>
+      )}
+
+      {view === "payrun" && (
+        <div className="mt-4">
+          {!runView.open || runView.open.rows.length === 0 ? (
+            <div className="rounded-xl border border-[var(--border)] px-4 py-8 text-center text-[var(--muted)]">
+              The pay run is empty. On <button type="button" onClick={() => setView("ready")} className="text-accent hover:underline">Ready to pay</button>, tick each job&apos;s lines as you check them, then press <b>+ Pay run</b> on the jobs you&apos;re paying.
+              {runView.open && (
+                <div className="mt-3 text-xs">
+                  Pay date{" "}
+                  <input type="date" value={runView.open.run.pay_date} onChange={(e) => setRunDate(e.target.value)} className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm text-[var(--text)]" />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] bg-[#f2f0ec] p-4">
+                <label className="flex flex-col gap-1 text-xs font-medium text-[var(--muted)]">
+                  Pay date
+                  <input type="date" value={runView.open.run.pay_date} onChange={(e) => setRunDate(e.target.value)} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--text)]" />
+                </label>
+                <div className="text-sm">
+                  <div><b>{runView.open.rows.length}</b> contractor{runView.open.rows.length === 1 ? "" : "s"} · <b>{runView.open.jobs}</b> job{runView.open.jobs === 1 ? "" : "s"}</div>
+                  <div>
+                    <b>{fmtCurrency(runView.open.total)}</b> ex GST · <b>{fmtCurrency(runView.open.total + runView.open.gst)}</b> inc GST
+                  </div>
+                  {runView.open.run.emailed_at && <div className="text-xs text-green-700">Emailed to accounts {new Date(runView.open.run.emailed_at).toLocaleString("en-AU", { dateStyle: "short", timeStyle: "short" })}</div>}
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => downloadRunPdf(runView.open!.run)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium hover:border-accent">Summary PDF</button>
+                  <button type="button" onClick={() => previewRunPdf(runView.open!.run)} className="rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-medium hover:border-accent">Preview &amp; email to accounts</button>
+                  <button type="button" disabled={runBusy} onClick={markRunPaid} className="rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">Mark pay run as paid</button>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[var(--muted)]">
+                Only the jobs listed here go in the summary PDF, whatever dates the work was done. Anything you don&apos;t add stays in Ready to pay for a later run.
+              </p>
+              <div className="mt-4 flex flex-col gap-5">
+                {runView.open.rows.map(({ sub, jobs, total, gst }) => {
+                  const noBank = !sub.bank_bsb && !sub.bank_account_number;
+                  return (
+                    <div key={sub.id} className="rounded-xl border border-[var(--border)]">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] bg-[#f2f0ec] px-4 py-3">
+                        <div>
+                          <div className="font-semibold">
+                            {sub.name}
+                            {sub.gst_registered && <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-normal text-blue-800">GST registered</span>}
+                          </div>
+                          <div className={`text-xs ${noBank ? "font-semibold text-red-700" : "text-[var(--muted)]"}`}>
+                            {noBank ? "No bank details on file" : `${sub.bank_account_name || ""} · BSB ${sub.bank_bsb || "—"} · Acc ${sub.bank_account_number || "—"}`}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-sm">
+                          <div><span className="text-[var(--muted)]">Ex GST </span><span className="font-bold">{fmtCurrency(total)}</span></div>
+                          <div><span className="text-[var(--muted)]">Inc GST </span><span className="font-bold">{fmtCurrency(total + gst)}</span></div>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full whitespace-nowrap text-sm">
+                          <thead className="text-left text-xs uppercase text-[var(--muted)]">
+                            <tr>
+                              <th className="px-4 py-2">Work order</th>
+                              <th className="px-4 py-2">Customer / site</th>
+                              <th className="px-4 py-2">Completed</th>
+                              <th className="px-4 py-2 text-right">Lines checked</th>
+                              <th className="px-4 py-2 text-right">Amount (ex GST)</th>
+                              <th className="px-4 py-2"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {jobs.map((j) => {
+                              const p = j.ls[0].work_orders?.projects;
+                              return (
+                                <tr key={j.woId} className="border-t border-[var(--border)]">
+                                  <td className="px-4 py-2"><Link href={`/dashboard/work-orders/${j.woId}`} className="text-accent hover:underline">{j.ls[0].work_orders?.wo_number || "—"}</Link></td>
+                                  <td className="px-4 py-2">
+                                    {p ? `${quoteLabel(p as any)} — ${p.customers?.name || "—"}` : "—"}
+                                    {p && [p.address, p.suburb].filter(Boolean).length > 0 && <div className="text-xs text-[var(--muted)]">{[p.address, p.suburb].filter(Boolean).join(", ")}</div>}
+                                  </td>
+                                  <td className="px-4 py-2 text-[var(--muted)]">{fmtDate(j.ls[0].doneDate)}</td>
+                                  <td className={`px-4 py-2 text-right ${j.checked < j.ls.length ? "font-semibold text-amber-700" : "text-[var(--muted)]"}`}>{j.checked} / {j.ls.length}</td>
+                                  <td className="px-4 py-2 text-right font-semibold">{fmtCurrency(j.total)}</td>
+                                  <td className="px-4 py-2 text-right">
+                                    <button type="button" disabled={runBusy} onClick={() => setInRun(j.ls, false)} className="text-xs text-[var(--muted)] hover:text-red-700 hover:underline disabled:opacity-50">Remove</button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {runView.past.length > 0 && (
+            <div className="mt-8">
+              <h2 className="text-lg font-semibold">Previous pay runs</h2>
+              <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--border)]">
+                <table className="w-full whitespace-nowrap text-sm">
+                  <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
+                    <tr>
+                      <th className="px-4 py-2">Pay date</th>
+                      <th className="px-4 py-2 text-right">Contractors</th>
+                      <th className="px-4 py-2 text-right">Jobs</th>
+                      <th className="px-4 py-2 text-right">Ex GST</th>
+                      <th className="px-4 py-2 text-right">Inc GST</th>
+                      <th className="px-4 py-2">Emailed</th>
+                      <th className="px-4 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runView.past.map((r) => (
+                      <tr key={r.run.id} className="border-t border-[var(--border)]">
+                        <td className="px-4 py-2 font-medium">{fmtDate(r.run.pay_date)}</td>
+                        <td className="px-4 py-2 text-right">{r.rows.length}</td>
+                        <td className="px-4 py-2 text-right">{r.jobs}</td>
+                        <td className="px-4 py-2 text-right">{fmtCurrency(r.total)}</td>
+                        <td className="px-4 py-2 text-right">{fmtCurrency(r.total + r.gst)}</td>
+                        <td className="px-4 py-2 text-[var(--muted)]">{r.run.emailed_at ? new Date(r.run.emailed_at).toLocaleDateString("en-AU") : "—"}</td>
+                        <td className="px-4 py-2 text-right">
+                          <button type="button" onClick={() => downloadRunPdf(r.run)} className="rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-accent">PDF</button>
+                          <button type="button" onClick={() => previewRunPdf(r.run)} className="ml-2 rounded-lg border border-[var(--border)] px-3 py-1 text-xs font-medium hover:border-accent">Email again</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {view === "paid" && (

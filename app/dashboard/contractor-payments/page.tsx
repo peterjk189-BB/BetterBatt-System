@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default async function ContractorPaymentsPage() {
   const supabase = await createClient();
-  const [{ data: subs }, { data: lines }, { data: pendingExtras }, { data: parts }] = await Promise.all([
+  const [{ data: subs }, { data: lines }, { data: pendingExtras }, { data: parts }, runsRes] = await Promise.all([
     supabase
       .from("subcontractors")
       .select("id, name, phone, email, gst_registered, company_name, trading_name, abn, bank_account_name, bank_bsb, bank_account_number")
@@ -24,6 +24,8 @@ export default async function ContractorPaymentsPage() {
       .eq("status", "Pending")
       .order("created_at"),
     supabase.from("parts").select("id, name, installer_rate_per_m2").eq("archived", false).order("name"),
+    // Pay runs (migration 0103): the open run plus recent paid runs.
+    supabase.from("contractor_pay_runs").select("id, pay_date, status, paid_at, emailed_at, emailed_to").order("pay_date", { ascending: false }).limit(52),
   ]);
 
   return (
@@ -36,7 +38,7 @@ export default async function ContractorPaymentsPage() {
       <div className="print:hidden">
         <ExtrasApproval extras={(pendingExtras ?? []) as any} parts={(parts ?? []) as any} />
       </div>
-      <ContractorPaymentsTable subs={subs ?? []} lines={(lines ?? []) as any} />
+      <ContractorPaymentsTable subs={subs ?? []} lines={(lines ?? []) as any} runs={(runsRes.data ?? []) as any} runsOk={!runsRes.error} />
     </>
   );
 }

@@ -29,20 +29,23 @@ export async function POST(req: Request) {
   const end = /^\d{4}-\d{2}-\d{2}$/.test(String(body.weekEnd || "")) ? String(body.weekEnd) : addDays(weekStart, 6);
   const exGst = Number(body.exGst) || 0;
   const n = Number(body.contractors) || 0;
+  // A pay run sends its payment date instead of a week.
+  const payDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.payDate || "")) ? String(body.payDate) : "";
+  const period = payDate ? `pay run ${dmy(payDate)}` : `${dmy(weekStart)} to ${dmy(end)}`;
   const res = await sendEmail({
     kind: "invoices",
     sender: await getEmailSender(ctx.supabase, ctx.user),
     to: good,
-    subject: `Contractor payments – ${dmy(weekStart)} to ${dmy(end)}`,
+    subject: payDate ? `Contractor payments – pay run ${dmy(payDate)}` : `Contractor payments – ${dmy(weekStart)} to ${dmy(end)}`,
     html: brandedEmailHtml({
       heading: "Contractor payments",
-      bodyHtml: `<p>Hi,</p><p>Please find attached the contractor payments summary for ${dmy(weekStart)} to ${dmy(end)}.</p><p><b>${n}</b> contractor${n === 1 ? "" : "s"} · <b>${money(exGst)}</b> ex GST (GST is added at 10% for GST-registered contractors).</p>`,
+      bodyHtml: `<p>Hi,</p><p>Please find attached the contractor payments summary for ${period}.</p><p><b>${n}</b> contractor${n === 1 ? "" : "s"} · <b>${money(exGst)}</b> ex GST (GST is added at 10% for GST-registered contractors).</p>`,
     }),
-    attachments: [{ filename: `Contractor-Payments-${weekStart}-to-${end}.pdf`, content: pdf }],
+    attachments: [{ filename: payDate ? `Contractor-Pay-Run-${payDate}.pdf` : `Contractor-Payments-${weekStart}-to-${end}.pdf`, content: pdf }],
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
   try {
-    await logAudit(ctx.supabase, { eventType: "update", entityType: "contractor_payments", entityId: weekStart, entityLabel: `Week ${weekStart}`, details: `Weekly contractor payments emailed to ${good.join(", ")}` });
+    await logAudit(ctx.supabase, { eventType: "update", entityType: "contractor_payments", entityId: weekStart, entityLabel: `Week ${weekStart}`, details: `${payDate ? `Contractor pay run ${payDate}` : "Weekly contractor payments"} emailed to ${good.join(", ")}` });
   } catch {
     /* best-effort */
   }
