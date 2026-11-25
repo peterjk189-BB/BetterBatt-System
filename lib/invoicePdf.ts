@@ -1,5 +1,5 @@
 // Server-side invoice PDF (jsPDF, text only so it stays crisp).
-import { money, fmtDate, invNo, type Invoice } from "@/lib/invoices";
+import { money, fmtDate, invNo, docNo, isCreditNote, creditRemaining, type Invoice } from "@/lib/invoices";
 import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 
 export type InvoicePdfInput = {
@@ -12,19 +12,24 @@ export type InvoicePdfInput = {
   paid: number;
   lines?: { description: string; qty: number; unit_price: number; line_ex: number }[];
   company: { abn?: string | null; phone?: string | null; bankDetails?: string | null; footer?: string | null };
+  /** On a credit note: the original invoice's number. */
+  originalInvoiceNumber?: number | null;
 };
 
 export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Array> {
   const { jsPDF } = await import("jspdf");
   const { invoice: inv, company } = input;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  // Credit notes are stored with negative amounts; the document shows them as positive credits.
+  const credit = isCreditNote(inv);
+  const sgn = (n: number) => (credit ? -Number(n || 0) : Number(n || 0));
   const W = 210;
   const M = 18;
   let y = M;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text("TAX INVOICE", W - M, y + 2, { align: "right" });
+  doc.text(credit ? "ADJUSTMENT NOTE" : "TAX INVOICE", W - M, y + 2, { align: "right" });
   try {
     doc.addImage(LOGO_PNG_DATA_URL, "PNG", M, M - 5, 44, 22);
   } catch {
@@ -42,11 +47,17 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
 
   // meta block (right)
   let my = M + 10;
-  const meta: [string, string][] = [
-    ["Invoice no.", invNo(inv.invoice_number)],
-    ["Invoice date", fmtDate(inv.invoice_date)],
-    ["Due date", fmtDate(inv.due_date)],
-  ];
+  const meta: [string, string][] = credit
+    ? [
+        ["Credit note no.", docNo(inv)],
+        ["Date", fmtDate(inv.invoice_date)],
+        ...(input.originalInvoiceNumber ? ([["Original invoice", invNo(input.originalInvoiceNumber)]] as [string, string][]) : []),
+      ]
+    : [
+        ["Invoice no.", invNo(inv.invoice_number)],
+        ["Invoice date", fmtDate(inv.invoice_date)],
+        ["Due date", fmtDate(inv.due_date)],
+      ];
   if (input.quoteNumber) meta.push(["Quote ref", typeof input.quoteNumber === "number" ? `Q${input.quoteNumber}` : String(input.quoteNumber)]);
   if (inv.customer_po) meta.push(["Your PO", inv.customer_po]);
   doc.setFontSize(9.5);
@@ -70,7 +81,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(110);
-  doc.text("BILL TO", M, ly);
+  doc.text(credit ? "CREDIT TO" : "BILL TO", M, ly);
   doc.setTextColor(0);
   ly += 5;
   doc.setFontSize(11);
@@ -114,7 +125,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     doc.text("Item", M + 2, y);
     doc.text("Qty", W - M - 78, y, { align: "right" });
     doc.text("Unit (ex GST)", W - M - 32, y, { align: "right" });
-    doc.text("Amount (ex GST)", W - M - 2, y, { align: "right" });
+    doc.text(credit ? "Credit (ex GST)" : "Amount (ex GST)", W - M - 2, y, { align: "right" });
     y += 9;
     doc.setFont("helvetica", "normal");
     for (const l of lines) {
@@ -125,11 +136,11 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
         y = M + 6;
       }
       doc.text(wrapped, M + 2, y);
-      doc.text(num(l.qty), W - M - 78, y, { align: "right" });
+      doc.text(num(credit ? -Number(l.qty) : l.qty), W - M - 78, y, { align: "right" });
       // Whole-dollar GST-inclusive prices are held ex GST to 4 decimals, so show them as they are (e.g. $41.8182).
       const up = Number(l.unit_price) || 0;
       doc.text(Math.abs(up * 100 - Math.round(up * 100)) > 1e-6 ? `$${up.toFixed(4)}` : money(up), W - M - 32, y, { align: "right" });
-      doc.text(money(l.line_ex), W - M - 2, y, { align: "right" });
+      doc.text(money(sgn(l.line_ex)), W - M - 2, y, { align: "right" });
       y += h + 2;
     }
     y += 2;
@@ -141,7 +152,7 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     const desc = inv.description || `${inv.kind} invoice`;
     const dl = doc.splitTextToSize(desc, W - M * 2 - 50) as string[];
     doc.text(dl, M + 2, y);
-    doc.text(money(Number(inv.amount_ex_gst)), W - M - 2, y, { align: "right" });
+    doc.text(money(sgn(inv.amount_ex_gst)), W - M - 2, y, { align: "right" });
     y += dl.length * 4.8 + 4;
   }
   doc.setDrawColor(210);
@@ -158,10 +169,20 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
     y += bold ? 7 : 5.5;
   };
   // Discounts / adjustments are internal: the customer's invoice shows only the final ex-GST amount.
+  if (credit) {
+    row("Credit (ex GST)", money(sgn(inv.amount_ex_gst)));
+    row("GST credited", money(sgn(inv.gst)));
+    row("Total credit (inc GST)", money(sgn(inv.total)), true);
+    if (input.paid < -0.005) {
+      row("Refunded / applied", `-${money(-input.paid)}`);
+      row("Credit remaining", money(creditRemaining(inv.total, input.paid)), true);
+    }
+  } else {
   row("Subtotal (ex GST)", money(inv.amount_ex_gst));
   row("GST (10%)", money(inv.gst));
   row("Total (inc GST)", money(inv.total), true);
-  if (input.paid > 0) {
+  }
+  if (!credit && input.paid > 0) {
     row("Paid to date", `-${money(input.paid)}`);
     row("Balance due", money(Math.max(0, inv.total - input.paid)), true);
   }
@@ -179,10 +200,15 @@ export async function buildInvoicePdf(input: InvoicePdfInput): Promise<Uint8Arra
   y += 8;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
-  doc.text("Payment", M, y);
+  doc.text(credit ? "Credit" : "Payment", M, y);
   y += 5;
   doc.setFont("helvetica", "normal");
-  const payLines = [
+  const payLines = credit
+    ? [
+        `This adjustment note credits ${money(sgn(inv.total))} (inc GST)${input.originalInvoiceNumber ? ` against ${invNo(input.originalInvoiceNumber)}` : ""}.`,
+        "It will be refunded to you or applied to your account.",
+      ]
+    : [
     inv.terms ? `Terms: ${inv.terms}` : "",
     `Please quote ${invNo(inv.invoice_number)} with your payment.`,
     ...(company.bankDetails ? (company.bankDetails.split("\n") as string[]) : []),

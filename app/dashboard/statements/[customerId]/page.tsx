@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ageingOf, BUCKET_LABELS, statementRows, type StatementInvoice, type StatementPayment } from "@/lib/statements";
-import { fmtDate, invNo, money } from "@/lib/invoices";
+import { fmtDate, docNo, money } from "@/lib/invoices";
 import StatementActions from "./StatementActions";
 import { todayAU } from "@/lib/dates";
 
@@ -40,7 +40,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
             {rows.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-[var(--muted)]">No outstanding invoices.</td></tr>}
             {rows.map((r) => (
               <tr key={r.invoice.id} className="border-b border-[var(--border)] last:border-0">
-                <td className="px-3 py-2"><Link href={`/dashboard/invoices/${r.invoice.id}`} className="text-accent">{invNo(r.invoice.invoice_number)}</Link></td>
+                <td className="px-3 py-2"><Link href={`/dashboard/invoices/${r.invoice.id}`} className="text-accent">{docNo(r.invoice)}</Link></td>
                 <td className="px-3 py-2">{fmtDate(r.invoice.invoice_date)}</td>
                 <td className={`px-3 py-2 ${r.daysOverdue > 0 ? "text-[#b91c1c]" : ""}`}>{fmtDate(r.due)}{r.daysOverdue > 0 ? ` (${r.daysOverdue}d)` : ""}</td>
                 <td className="px-3 py-2">{r.invoice.customer_po || r.invoice.description || ""}</td>

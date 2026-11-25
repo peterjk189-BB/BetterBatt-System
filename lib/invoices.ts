@@ -4,7 +4,9 @@ export type Invoice = {
   invoice_number: number;
   project_id: string | null;
   customer_id: string | null;
-  kind: "Deposit" | "Balance" | "Full" | "Progress" | "Other" | "Items";
+  kind: "Deposit" | "Balance" | "Full" | "Progress" | "Other" | "Items" | "Credit";
+  /** On a credit note: the invoice it credits (migration 0105). */
+  credit_of?: string | null;
   description: string | null;
   amount_ex_gst: number;
   gst: number;
@@ -40,6 +42,13 @@ export const KINDS = ["Deposit", "Balance", "Full", "Progress", "Other", "Items"
 export type InvoiceLine = { id: string; invoice_id: string; part_id: string | null; description: string; qty: number; unit_price: number; line_ex: number; sort_order: number; fulfilment?: "warehouse" | "supplier"; picked?: boolean; multi_picked?: number | null; packs_picked?: number | null; packs_returned?: number | null; po_id?: string | null };
 export const PAY_METHODS = ["Bank transfer", "Card", "Cash", "Cheque", "Other"] as const;
 export const invNo = (n: number) => `INV-${n}`;
+export const cnNo = (n: number) => `CN-${n}`;
+/** A credit note: kind 'Credit' (or, where kind isn't loaded, a negative total). */
+export const isCreditNote = (i: { kind?: string | null; total?: number | null }) => i.kind === "Credit" || (i.kind == null && Number(i.total) < 0);
+/** INV-1234 for an invoice, CN-1234 for a credit note. */
+export const docNo = (i: { invoice_number: number; kind?: string | null; total?: number | null }) => (isCreditNote(i) ? cnNo(i.invoice_number) : invNo(i.invoice_number));
+/** Credit still to refund or apply on a credit note (a positive number). Refunds/applications are negative payments. */
+export const creditRemaining = (total: number, paid: number) => Math.max(0, round2(-Number(total || 0) + Number(paid || 0)));
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export const round4 = (n: number) => Math.round((n + Number.EPSILON) * 10000) / 10000;
 export const today = () => todayAU();
@@ -68,6 +77,11 @@ export function paidTotal(payments: Payment[]) {
 
 export function derivedStatus(inv: Invoice, paid: number): DerivedStatus {
   if (inv.status === "Void") return "Void";
+  if (isCreditNote(inv)) {
+    // Credit notes: "Paid" once the whole credit has been refunded or applied, otherwise open.
+    if (inv.status === "Draft") return "Draft";
+    return creditRemaining(inv.total, paid) <= 0.005 ? "Paid" : "Sent";
+  }
   if (paid >= inv.total - 0.005 && inv.total > 0) return "Paid";
   if (inv.status === "Draft") return "Draft";
   if (inv.due_date && inv.due_date < today()) return "Overdue";
@@ -96,7 +110,8 @@ export function invoiceTotals(subtotal: number, type: "amount" | "percent" | und
   const sub = round2(Number(subtotal) || 0);
   const v = Number(value) || 0;
   const raw = type === "percent" ? (sub * Math.max(-1000, Math.min(100, v))) / 100 : v;
-  const discount = round2(Math.min(sub, raw));
+  // Credit notes (negative subtotals) carry no discount: their lines are already at the price charged.
+  const discount = sub < 0 ? 0 : round2(Math.min(sub, raw));
   const ex = round2(sub - discount);
   const gst = round2(ex * 0.1);
   return { discount_ex_gst: discount, amount_ex_gst: ex, gst, total: round2(ex + gst) };

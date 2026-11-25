@@ -1,7 +1,7 @@
 import { quoteLabel } from "@/lib/quoteLabel";
 import { NextResponse } from "next/server";
 import { requireStaff } from "@/lib/invoiceServer";
-import { invNo } from "@/lib/invoices";
+import { docNo, isCreditNote } from "@/lib/invoices";
 import { todayAU } from "@/lib/dates";
 
 export const runtime = "nodejs";
@@ -46,10 +46,12 @@ export async function POST(req: Request) {
   for (const i of list as any[]) {
     const name = clean(i.customers?.name) || "Unknown customer";
     const memo = clean(i.description) || `${i.kind} invoice${i.projects?.quote_number ? ` - ${quoteLabel(i.projects)}` : ""}`;
-    const doc = invNo(i.invoice_number);
-    out.push(["TRNS", "INVOICE", dmy(i.invoice_date), ar, name, amt(Number(i.total)), doc, i.due_date ? dmy(i.due_date) : "", clean(i.terms), memo].join(T));
-    out.push(["SPL", "INVOICE", dmy(i.invoice_date), income, name, amt(-Number(i.amount_ex_gst)), doc, memo].join(T));
-    if (Number(i.gst) !== 0) out.push(["SPL", "INVOICE", dmy(i.invoice_date), gstAcc, name, amt(-Number(i.gst)), doc, "GST"].join(T));
+    const doc = docNo(i);
+    // Credit notes (negative amounts) import as QuickBooks credit memos.
+    const tt = isCreditNote(i) ? "CREDIT MEMO" : "INVOICE";
+    out.push(["TRNS", tt, dmy(i.invoice_date), ar, name, amt(Number(i.total)), doc, i.due_date ? dmy(i.due_date) : "", clean(i.terms), memo].join(T));
+    out.push(["SPL", tt, dmy(i.invoice_date), income, name, amt(-Number(i.amount_ex_gst)), doc, memo].join(T));
+    if (Number(i.gst) !== 0) out.push(["SPL", tt, dmy(i.invoice_date), gstAcc, name, amt(-Number(i.gst)), doc, "GST"].join(T));
     out.push("ENDTRNS");
   }
 

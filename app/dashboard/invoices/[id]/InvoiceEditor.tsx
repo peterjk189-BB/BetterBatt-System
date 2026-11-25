@@ -8,7 +8,9 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { supplyPackPrice, PRICE_TIERS } from "@/lib/priceTiers";
-import { derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, round4, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
+import CreditNoteButton from "./CreditNoteButton";
+import CreditSettle from "./CreditSettle";
+import { cnNo, docNo, isCreditNote, derivedStatus, fmtDate, invNo, invoiceTotals, money, paidTotal, PAY_METHODS, round2, round4, STATUS_STYLE, today, type Invoice, type InvoiceLine, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 import { fmtPicked, plural, unitsOf } from "@/lib/units";
 
@@ -21,7 +23,27 @@ const input = "mt-1 w-full rounded-lg border border-[var(--border)] bg-white px-
 
 type PartOpt = { id: string; code: string | null; name: string; supply_charge_per_pack: number; price_retail: number | null; price_trade: number | null; price_regency: number | null; pack_cost_ex_gst?: number | null; supplier_id?: string | null; is_stock_item?: boolean | null; pack_per_multi?: number | null; stock_on_hand?: number | null; pack_unit?: string | null; multi_unit?: string | null };
 
-export default function InvoiceEditor({ invoice, payments: initialPayments, initialLines, parts, suppliers = [], initialPoNumbers = {} }: { invoice: Full; payments: Payment[]; initialLines: InvoiceLine[]; parts: PartOpt[]; suppliers?: { id: string; name: string }[]; initialPoNumbers?: Record<string, string> }) {
+export default function InvoiceEditor({
+  invoice,
+  payments: initialPayments,
+  initialLines,
+  parts,
+  suppliers = [],
+  initialPoNumbers = {},
+  original = null,
+  credits = [],
+}: {
+  invoice: Full;
+  payments: Payment[];
+  initialLines: InvoiceLine[];
+  parts: PartOpt[];
+  suppliers?: { id: string; name: string }[];
+  initialPoNumbers?: Record<string, string>;
+  /** On a credit note: the invoice it credits. */
+  original?: { id: string; invoice_number: number } | null;
+  /** On an invoice: credit notes raised against it. */
+  credits?: { id: string; invoice_number: number; total: number; status: string }[];
+}) {
   const supabase = createClient();
   const router = useRouter();
   const [inv, setInv] = useState<Full>(invoice);
@@ -47,6 +69,8 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
   const [pay, setPay] = useState({ date: today(), amount: "", method: "Bank transfer", ref: "" });
 
   const draft = inv.status === "Draft";
+  const isCredit = isCreditNote(inv);
+  const creditedTotal = credits.filter((c) => c.status !== "Void").reduce((t, c) => t + Math.abs(Number(c.total) || 0), 0);
   const paid = paidTotal(payments);
   const status = derivedStatus(inv, paid);
   const balance = Math.max(0, round2(inv.total - paid));
@@ -447,7 +471,7 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
     <div className="w-full max-w-[1600px]">
       <Link href="/dashboard/invoices" className="text-sm text-[var(--muted)] hover:underline">← Invoices</Link>
       <div className="mt-2 flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold">{invNo(inv.invoice_number)}</h1>
+        <h1 className="text-2xl font-bold">{isCredit ? `Credit note ${docNo(inv)}` : invNo(inv.invoice_number)}</h1>
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>{status}</span>
         {inv.qb_exported_at && <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">In QuickBooks export {fmtDate(inv.qb_exported_at.slice(0, 10))}</span>}
       </div>
@@ -462,10 +486,34 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
         )}
       </p>
 
+      {isCredit && (
+        <p className="mt-2 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-3 py-2 text-sm text-[#5c440b]">
+          Credit note{original ? (
+            <>
+              {" "}for <Link href={`/dashboard/invoices/${original.id}`} className="font-semibold text-accent hover:underline">{invNo(original.invoice_number)}</Link>
+            </>
+          ) : ""}
+          . Amounts show as negative. Returned stock goes back into Inventory when you enter it under &quot;Pick from warehouse&quot;.
+        </p>
+      )}
+      {!isCredit && credits.length > 0 && (
+        <p className="mt-2 text-sm">
+          <span className="text-[var(--muted)]">Credit notes: </span>
+          {credits.map((c, i) => (
+            <span key={c.id}>
+              {i > 0 && ", "}
+              <Link href={`/dashboard/invoices/${c.id}`} className={`font-medium text-accent hover:underline ${c.status === "Void" ? "line-through" : ""}`}>{cnNo(c.invoice_number)}</Link>{" "}
+              <span className="text-[var(--muted)]">({money(Math.abs(Number(c.total)))}{c.status === "Draft" ? ", draft" : c.status === "Void" ? ", void" : ""})</span>
+            </span>
+          ))}
+        </p>
+      )}
+
       {msg && <p className={`mt-3 rounded-lg p-3 text-sm ${msg.ok ? "bg-green-50 text-green-800" : "bg-[#fde8e8] text-[#b91c1c]"}`}>{msg.text}</p>}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href={`/dashboard/invoices/${inv.id}/pdf`} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">View / download PDF</Link>
+        {!isCredit && !draft && inv.status !== "Void" && <CreditNoteButton inv={inv} lines={lines} credited={creditedTotal} />}
         {draft && (
           <button onClick={() => save({ status: "Sent", sent_at: new Date().toISOString() }, "Marked as sent.")} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium">
             Mark as sent (without emailing)
@@ -872,14 +920,15 @@ export default function InvoiceEditor({ invoice, payments: initialPayments, init
           <div className="mt-2 flex flex-wrap gap-2">
             <input className="min-w-[16rem] flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm" type="email" placeholder="customer@email.com" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} />
             <button onClick={emailIt} disabled={busy === "email" || !emailTo} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
-              {busy === "email" ? "Sending..." : "Email invoice (PDF attached)"}
+              {busy === "email" ? "Sending..." : isCredit ? "Email credit note (PDF attached)" : "Email invoice (PDF attached)"}
             </button>
           </div>
           {inv.sent_at && <p className="mt-2 text-xs text-[var(--muted)]">Last sent {new Date(inv.sent_at).toLocaleString("en-AU")}</p>}
         </div>
       )}
 
-      {inv.status !== "Void" && (
+      {inv.status !== "Void" && isCredit && <CreditSettle inv={inv} payments={payments} setPayments={setPayments} onMsg={setMsg} />}
+      {inv.status !== "Void" && !isCredit && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">Payments</h2>

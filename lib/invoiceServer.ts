@@ -26,6 +26,8 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     supabase.from("company_settings").select("abn, company_phone, invoice_bank_details, invoice_footer").eq("id", true).maybeSingle(),
     supabase.from("invoice_lines").select("description, qty, unit_price, line_ex").eq("invoice_id", id).order("sort_order"),
   ]);
+  // A credit note shows the invoice it credits (migration 0105).
+  const { data: original } = inv.credit_of ? await supabase.from("invoices").select("invoice_number").eq("id", inv.credit_of).single() : { data: null };
   const bytes = await buildInvoicePdf({
     invoice: inv as Invoice,
     customerName: (inv as any).bill_to_name || customer?.name || "",
@@ -36,6 +38,7 @@ export async function loadInvoicePdf(supabase: any, id: string) {
     paid: paidTotal((payments ?? []) as Payment[]),
     lines: (lines ?? []) as any,
     company: { abn: settings?.abn, phone: settings?.company_phone, bankDetails: settings?.invoice_bank_details, footer: settings?.invoice_footer },
+    originalInvoiceNumber: (original as any)?.invoice_number ?? null,
   });
-  return { bytes, inv: inv as Invoice, customerEmail: customer?.contact_email || project?.contact_email || null, customerName: (inv as any).bill_to_name || customer?.name || "" };
+  return { bytes, inv: inv as Invoice, originalInvoiceNumber: ((original as any)?.invoice_number ?? null) as number | null, customerEmail: customer?.contact_email || project?.contact_email || null, customerName: (inv as any).bill_to_name || customer?.name || "" };
 }

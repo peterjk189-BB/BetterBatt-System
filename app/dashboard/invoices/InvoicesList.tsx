@@ -3,7 +3,7 @@ import { quoteLabel } from "@/lib/quoteLabel";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { derivedStatus, fmtDate, invNo, money, paidTotal, STATUS_STYLE, type DerivedStatus, type Invoice, type Payment } from "@/lib/invoices";
+import { docNo, isCreditNote, creditRemaining, derivedStatus, fmtDate, money, paidTotal, STATUS_STYLE, type DerivedStatus, type Invoice, type Payment } from "@/lib/invoices";
 import { siteAddress } from "@/lib/siteAddress";
 import { todayAU } from "@/lib/dates";
 import { createClient } from "@/lib/supabase/client";
@@ -64,7 +64,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
-      invNo(r.inv.invoice_number).toLowerCase().includes(q) ||
+      docNo(r.inv).toLowerCase().includes(q) ||
       (r.inv.customers?.name || "").toLowerCase().includes(q) ||
       (((r.inv as any).bill_to_name as string) || "").toLowerCase().includes(q) ||
       (r.inv.projects ? `q${r.inv.projects.quote_number} ${siteAddress(r.inv.projects)}`.toLowerCase().includes(q) : false) ||
@@ -202,7 +202,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                 </td>
                 <td className="px-3 py-2 font-mono font-medium">
                   <Link href={`/dashboard/invoices/${inv.id}`} className="text-accent hover:underline">
-                    {invNo(inv.invoice_number)}
+                    {docNo(inv)}
                   </Link>
                 </td>
                 <td className="px-3 py-2">
@@ -217,7 +217,7 @@ export default function InvoicesList({ invoices, payments, setupError }: { invoi
                 <td className="px-3 py-2">{fmtDate(inv.invoice_date)}</td>
                 <td className="px-3 py-2">{fmtDate(inv.due_date)}</td>
                 <td className="px-3 py-2 text-right">{money(inv.total)}</td>
-                <td className="px-3 py-2 text-right">{status === "Void" ? "—" : money(Math.max(0, inv.total - paid))}</td>
+                <td className="px-3 py-2 text-right">{status === "Void" ? "—" : isCreditNote(inv) ? <span className="text-[#b91c1c]">{creditRemaining(inv.total, paid) > 0.005 ? `-${money(creditRemaining(inv.total, paid))}` : money(0)}</span> : money(Math.max(0, inv.total - paid))}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLE[status]}`}>{status}</span>
                 </td>

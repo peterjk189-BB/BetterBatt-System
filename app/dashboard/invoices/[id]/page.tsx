@@ -34,8 +34,20 @@ export default async function InvoicePage({ params }: { params: { id: string } }
   const poIds = Array.from(new Set(((lines ?? []) as any[]).map((l) => l.po_id).filter(Boolean)));
   const { data: poRows } = poIds.length ? await supabase.from("purchase_orders").select("id, po_number").in("id", poIds) : { data: [] as any[] };
   const poNumbers = Object.fromEntries(((poRows ?? []) as any[]).map((r) => [r.id, r.po_number || "PO"]));
+  // Credit notes (migration 0105): the invoice a credit note is for, or the credit notes raised on this invoice.
+  let original: { id: string; invoice_number: number } | null = null;
+  let credits: any[] = [];
+  if ((invoice as any).credit_of) {
+    const { data: o } = await supabase.from("invoices").select("id, invoice_number").eq("id", (invoice as any).credit_of).single();
+    original = (o as any) ?? null;
+  } else if ((invoice as any).credit_of !== undefined) {
+    const { data: c } = await supabase.from("invoices").select("id, invoice_number, total, status").eq("credit_of", params.id).order("invoice_number");
+    credits = (c ?? []) as any[];
+  }
   return (
     <InvoiceEditor
+      original={original}
+      credits={credits}
       invoice={invoice as any}
       payments={(payments ?? []) as any}
       initialLines={(lines ?? []) as any}

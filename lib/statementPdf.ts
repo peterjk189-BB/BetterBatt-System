@@ -1,5 +1,5 @@
 // Server-side customer statement PDF (jsPDF, text only so it stays crisp).
-import { fmtDate, invNo, money } from "@/lib/invoices";
+import { fmtDate, docNo, invNo, money } from "@/lib/invoices";
 import { BUCKET_LABELS, type Ageing, type StatementRow } from "@/lib/statements";
 import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 
@@ -113,7 +113,7 @@ export async function buildStatementPdf(input: StatementPdfInput): Promise<Uint8
     }
     const ref = r.invoice.customer_po || r.invoice.description || "";
     const refLines = doc.splitTextToSize(ref, cols.total - cols.ref - 18) as string[];
-    doc.text(invNo(r.invoice.invoice_number), cols.inv, y);
+    doc.text(docNo(r.invoice), cols.inv, y);
     doc.text(fmtDate(r.invoice.invoice_date), cols.date, y);
     if (r.daysOverdue > 0) doc.setTextColor(180, 30, 30);
     doc.text(fmtDate(r.due), cols.due, y);

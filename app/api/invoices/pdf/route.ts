@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireStaff, loadInvoicePdf } from "@/lib/invoiceServer";
-import { invNo } from "@/lib/invoices";
+import { docNo } from "@/lib/invoices";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   return new NextResponse(Buffer.from(out.bytes), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${invNo(out.inv.invoice_number)}.pdf"`,
+      "Content-Disposition": `inline; filename="${docNo(out.inv)}.pdf"`,
     },
   });
 }

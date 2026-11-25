@@ -63,7 +63,8 @@ export function statementRows(invoices: StatementInvoice[], payments: StatementP
     if (inv.status === "Void" || inv.status === "Draft" || inv.invoice_date > asOf) continue;
     const paid = round2(paidBy.get(inv.id) ?? 0);
     const balance = round2(Number(inv.total || 0) - paid);
-    if (balance <= 0.005) continue;
+    // Open credit notes (negative balance) stay on the statement and reduce what's owed.
+    if (Math.abs(balance) <= 0.005) continue;
     const due = inv.due_date || inv.invoice_date;
     const daysOverdue = dayNum(asOf) - dayNum(due);
     rows.push({ invoice: inv, paid, balance, due, daysOverdue, bucket: bucketFor(daysOverdue) });
