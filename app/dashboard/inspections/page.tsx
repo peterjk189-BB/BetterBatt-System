@@ -42,7 +42,7 @@ export default async function InspectionsPage() {
   const due: DueJob[] = [];
   for (const w of (workOrders ?? []) as any[]) {
     const woSwms = (swms ?? []).filter((s) => s.work_order_id === w.id);
-    const woIns = (records ?? []).filter((r) => r.work_order_id === w.id) as any[];
+    const woIns = ((records ?? []) as any[]).filter((r: any) => r.work_order_id === w.id);
     const p = jobProgress(woSwms, woIns);
     if (p.stage !== "inspection-due" && p.stage !== "reinspection-due" && p.stage !== "inspection-scheduled") continue;
     const completed = woSwms.filter((s) => s.status === "Completed").sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
