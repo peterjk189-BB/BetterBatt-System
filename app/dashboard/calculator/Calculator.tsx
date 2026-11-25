@@ -121,6 +121,10 @@ export default function Calculator({ parts, canInvoice = false }: { parts: Part[
                     <input
                       className={inp}
                       placeholder="Start typing a product name…"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
                       value={r.search}
                       onFocus={() => setOpenIdx(i)}
                       onBlur={() => setOpenIdx((cur) => (cur === i ? null : cur))}
