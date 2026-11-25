@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { certificateNumber, type CertRow, type SavedCertificate } from "@/lib/certificate";
+import { elementToPdfBase64, pdfFileName } from "@/lib/elementToPdf";
 
 // Certificate of Insulation Installation — design A from the certificate
 // examples: framed A4 page, logo, certifying statement, customer / address /
@@ -32,6 +33,8 @@ export default function CertificateView({
   derivedRows,
   saved,
   company,
+  customer,
+  recipients,
 }: {
   inspection: {
     id: string;
@@ -51,6 +54,8 @@ export default function CertificateView({
   derivedRows: CertRow[];
   saved: SavedCertificate | null;
   company: { abn: string | null; phone: string | null };
+  customer: { id: string; name: string; contact_email: string | null } | null;
+  recipients: { label: string; email: string }[];
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [rows, setRows] = useState<CertRow[]>(saved?.rows ?? derivedRows);
@@ -59,6 +64,64 @@ export default function CertificateView({
   const [status, setStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [sentAt, setSentAt] = useState<string | null>(inspection.certificate_sent_at ?? null);
+  const certRef = useRef<HTMLDivElement>(null);
+
+  // Email the certificate: a pop-up opens first so the address can be checked, changed or added.
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [emailNote, setEmailNote] = useState("");
+  const [saveToCustomer, setSaveToCustomer] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailErr, setEmailErr] = useState<string | null>(null);
+  const [emailDone, setEmailDone] = useState<string | null>(null);
+  const known = recipients.map((r) => r.email.trim().toLowerCase());
+  const typed = emailTo.split(/[;,\s]+/).filter(Boolean);
+  const isNewAddress = typed.length === 1 && /^\S+@\S+\.\S+$/.test(typed[0]) && !known.includes(typed[0].toLowerCase());
+
+  function openEmail() {
+    setEmailTo(recipients[0]?.email || "");
+    setEmailNote("");
+    setSaveToCustomer(!!customer && !customer.contact_email);
+    setEmailErr(null);
+    setEmailDone(null);
+    setEmailOpen(true);
+  }
+
+  async function sendEmail() {
+    if (!emailTo.trim()) return setEmailErr("Enter an email address.");
+    if (status === "dirty" && !confirm("You have unsaved changes to the certificate. Email it as it shows now?")) return;
+    setEmailBusy(true);
+    setEmailErr(null);
+    // Capture the certificate without the on-screen editing controls.
+    const wasEditing = editing;
+    if (wasEditing) setEditing(false);
+    await new Promise((r) => setTimeout(r, 150));
+    try {
+      if (!certRef.current) throw new Error("Certificate not ready");
+      const pdf = await elementToPdfBase64(certRef.current, "portrait");
+      const res = await fetch("/api/certificates/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inspection_id: inspection.id,
+          to: emailTo,
+          note: emailNote,
+          pdf,
+          filename: pdfFileName(`Insulation Certificate ${certNo}`, address),
+          save_to_customer: saveToCustomer && isNewAddress && !!customer,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
+      setSentAt(j.sent_at || new Date().toISOString());
+      setEmailDone(`Sent to ${j.to}.${j.saved ? " The address was saved to the customer." : ""}`);
+      setEmailOpen(false);
+    } catch (e: any) {
+      setEmailErr(`Not sent: ${e?.message || e}`);
+    }
+    if (wasEditing) setEditing(true);
+    setEmailBusy(false);
+  }
 
   async function markSent(sent: boolean) {
     setError(null);
@@ -154,6 +217,13 @@ export default function CertificateView({
         >
           Print / Save as PDF
         </button>
+        <button
+          type="button"
+          onClick={openEmail}
+          className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium hover:border-[var(--brand-gold-dark)]"
+        >
+          Email certificate
+        </button>
         {sentAt ? (
           <button type="button" onClick={() => markSent(false)} className="rounded-lg border border-green-600 bg-green-50 px-4 py-2 text-sm font-medium text-green-800" title="Click to undo">
             ✓ Sent {new Date(sentAt).toLocaleDateString("en-AU")}
@@ -180,6 +250,89 @@ export default function CertificateView({
         </div>
       )}
       {error && <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900 print:hidden">{error}</div>}
+      {emailDone && <div className="mb-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900 print:hidden">{emailDone}</div>}
+
+      {emailOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">
+          <div className="w-full max-w-lg rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl">
+            <h2 className="text-lg font-semibold">Email certificate {certNo}</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {customer ? customer.name : inspection.builder_name || "Customer"}
+              {address ? ` · ${address}` : ""}
+            </p>
+
+            {recipients.length > 0 ? (
+              <div className="mt-4">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Emails on file</div>
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  {recipients.map((r) => {
+                    const on = typed.some((t) => t.toLowerCase() === r.email.toLowerCase());
+                    return (
+                      <label key={r.email} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${on ? "border-[var(--brand-gold-dark)] bg-[#fff8e6]" : "border-[var(--border)]"}`}>
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => {
+                            const rest = typed.filter((t) => t.toLowerCase() !== r.email.toLowerCase());
+                            setEmailTo((on ? rest : [...typed, r.email]).join(", "));
+                          }}
+                        />
+                        <span className="font-medium">{r.email}</span>
+                        <span className="text-xs text-[var(--muted)]">{r.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-lg border border-[#f3d48a] bg-[#fff8e6] px-3 py-2 text-sm text-[#5c440b]">
+                {customer ? "There's no email on file for this customer yet. Type one below." : "This inspection isn't linked to a customer, so there's no email on file. Type one below."}
+              </div>
+            )}
+
+            <label className="mt-4 block text-sm font-medium">
+              Send to
+              <input
+                type="text"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="name@example.com"
+                autoFocus
+                className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
+              />
+              <span className="mt-1 block text-xs font-normal text-[var(--muted)]">Change or add an address here. Separate more than one with a comma.</span>
+            </label>
+            {customer && isNewAddress && (
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={saveToCustomer} onChange={(e) => setSaveToCustomer(e.target.checked)} />
+                Save {typed[0]} as {customer.name}&apos;s email{customer.contact_email ? ` (replaces ${customer.contact_email})` : ""}
+              </label>
+            )}
+
+            <label className="mt-4 block text-sm font-medium">
+              Message (optional)
+              <textarea
+                value={emailNote}
+                onChange={(e) => setEmailNote(e.target.value)}
+                rows={3}
+                placeholder="Added to the email above the standard wording"
+                className="mt-1 w-full rounded-lg border border-[var(--border)] px-3 py-2 text-sm"
+              />
+            </label>
+
+            {emailErr && <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">{emailErr}</div>}
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setEmailOpen(false)} disabled={emailBusy} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium">
+                Cancel
+              </button>
+              <button type="button" onClick={sendEmail} disabled={emailBusy || !emailTo.trim()} className="rounded-lg bg-[var(--brand-gold)] px-5 py-2 text-sm font-semibold text-[#201f1c] disabled:opacity-60">
+                {emailBusy ? "Sending…" : "Send certificate"}
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-[var(--muted)]">The certificate is attached as a PDF and marked as sent.</p>
+          </div>
+        </div>
+      )}
       {(!company.abn || !company.phone) && (
         <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm text-[var(--muted)] print:hidden">
           Your ABN and phone number print in the header. Add them once on the{" "}
@@ -192,6 +345,7 @@ export default function CertificateView({
 
       {/* The certificate — one A4 page (a long product list runs onto a second) */}
       <div
+        ref={certRef}
         className="mx-auto bg-white shadow-sm print:shadow-none"
         style={{ width: "210mm", minHeight: "296mm", boxSizing: "border-box", padding: 36, fontFamily: "'Barlow', system-ui, sans-serif", color: "#201f1c" }}
       >

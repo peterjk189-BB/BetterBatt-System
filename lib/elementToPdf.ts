@@ -8,6 +8,18 @@ export async function elementToPdf(
   filename: string,
   orientation: "portrait" | "landscape" = "portrait"
 ) {
+  const pdf = await buildElementPdf(el, orientation);
+  pdf.save(filename);
+}
+
+/** The same PDF as base64 (no data: prefix), for attaching to an email. */
+export async function elementToPdfBase64(el: HTMLElement, orientation: "portrait" | "landscape" = "portrait"): Promise<string> {
+  const pdf = await buildElementPdf(el, orientation);
+  const uri = pdf.output("datauristring") as string;
+  return uri.slice(uri.indexOf("base64,") + 7);
+}
+
+async function buildElementPdf(el: HTMLElement, orientation: "portrait" | "landscape"): Promise<any> {
   const [html2canvasMod, jsPdfMod] = await Promise.all([import("html2canvas"), import("jspdf")]);
   const html2canvas: any = (html2canvasMod as any).default || html2canvasMod;
   const jsPDF: any = (jsPdfMod as any).jsPDF || (jsPdfMod as any).default;
@@ -93,7 +105,7 @@ export async function elementToPdf(
     first = false;
     y += sliceH;
   }
-  pdf.save(filename);
+  return pdf;
 }
 
 /** "Quote Q1006 - Customer - 22 Jenny Court, Boronia.pdf" — drops characters files can't contain. */

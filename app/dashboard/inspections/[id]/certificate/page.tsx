@@ -43,6 +43,39 @@ export default async function CertificatePage({ params }: { params: { id: string
 
   const saved = normaliseSaved(ins.certificate);
 
+  // Who the certificate can be emailed to: the customer's emails on file (the inspection's customer,
+  // else the quote's customer via the work order), plus any other contacts with an email.
+  let customerId: string | null = (ins as any).customer_id ?? null;
+  let projectId: string | null = (ins as any).project_id ?? null;
+  if (!projectId && ins.work_order_id) {
+    const { data: w } = await admin.from("work_orders").select("project_id").eq("id", ins.work_order_id).single();
+    projectId = (w as any)?.project_id ?? null;
+  }
+  if (!customerId && projectId) {
+    const { data: p } = await admin.from("projects").select("customer_id").eq("id", projectId).single();
+    customerId = (p as any)?.customer_id ?? null;
+  }
+  let customer: { id: string; name: string; contact_email: string | null } | null = null;
+  const recipients: { label: string; email: string }[] = [];
+  if (customerId) {
+    const { data: c } = await admin.from("customers").select("*").eq("id", customerId).single();
+    if (c) {
+      customer = { id: (c as any).id, name: (c as any).name, contact_email: (c as any).contact_email ?? null };
+      if ((c as any).contact_email) recipients.push({ label: (c as any).contact_name || (c as any).name || "Customer", email: (c as any).contact_email });
+      if ((c as any).accounts_contact_email) recipients.push({ label: `Accounts${(c as any).accounts_contact_name ? ` – ${(c as any).accounts_contact_name}` : ""}`, email: (c as any).accounts_contact_email });
+      // Other contacts (migration 0101); ignored if that table isn't there.
+      const { data: others } = await admin.from("customer_contacts").select("name, role, email").eq("customer_id", customerId);
+      for (const o of (others ?? []) as any[]) if (o.email) recipients.push({ label: [o.name, o.role].filter(Boolean).join(" – ") || "Contact", email: o.email });
+    }
+  }
+  const seen = new Set<string>();
+  const uniqueRecipients = recipients.filter((r) => {
+    const k = r.email.trim().toLowerCase();
+    if (!k || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
   return (
     <CertificateView
       inspection={{
@@ -63,6 +96,8 @@ export default async function CertificatePage({ params }: { params: { id: string
       derivedRows={rowsFromWorkOrderLines((lines ?? []) as any)}
       saved={saved}
       company={{ abn: (settings as any)?.abn ?? null, phone: (settings as any)?.company_phone ?? null }}
+      customer={customer}
+      recipients={uniqueRecipients}
     />
   );
 }
