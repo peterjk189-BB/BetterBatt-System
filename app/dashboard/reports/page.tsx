@@ -1,3 +1,4 @@
+import { CERT_SENT_COLS } from "@/lib/certificateSent";
 import { createClient } from "@/lib/supabase/server";
 import ReportsView from "./ReportsView";
 import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
@@ -77,7 +78,9 @@ export default async function ReportsPage() {
   // Passed inspections = certificates to issue. certificate_sent_at exists only after migration 0092.
   const certSelect =
     "id, inspection_number, inspection_date, builder_name, site_address, suburb, project_id, work_order_id, projects(quote_number, revision_letter, customers(name)), work_orders(wo_number, project_id, projects(quote_number, revision_letter, customers(name)))";
-  let certRes: any = await supabase.from("inspections").select(`${certSelect}, certificate_sent_at`).eq("result", "PASS").eq("archived", false);
+  // Who it went to and the delivery report need migration 0104.
+  let certRes: any = await supabase.from("inspections").select(`${certSelect}, ${CERT_SENT_COLS}`).eq("result", "PASS").eq("archived", false);
+  if (certRes.error) certRes = await supabase.from("inspections").select(`${certSelect}, certificate_sent_at`).eq("result", "PASS").eq("archived", false);
   const certSentColumn = !certRes.error;
   if (certRes.error) certRes = await supabase.from("inspections").select(certSelect).eq("result", "PASS").eq("archived", false);
 

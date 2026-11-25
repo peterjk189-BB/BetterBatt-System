@@ -90,6 +90,10 @@ export default async function CertificatePage({ params }: { params: { id: string
         inspector_signature: ins.inspector_signature,
         signed_at: ins.signed_at,
         certificate_sent_at: (ins as any).certificate_sent_at ?? null,
+        certificate_sent_to: (ins as any).certificate_sent_to ?? null,
+        certificate_sent_by: (ins as any).certificate_sent_by ?? null,
+        certificate_delivery: (ins as any).certificate_delivery ?? null,
+        certificate_delivery_at: (ins as any).certificate_delivery_at ?? null,
       }}
       woNumber={(wo as any)?.wo_number ?? null}
       installedOn={installedOn}

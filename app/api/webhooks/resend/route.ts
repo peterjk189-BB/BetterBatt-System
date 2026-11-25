@@ -38,6 +38,42 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Bad body" }, { status: 400 });
   }
   const type: string = event?.type || "";
+  const d0 = event?.data || {};
+  const tags0 = d0.tags || {};
+  const certId: string | undefined = Array.isArray(tags0) ? tags0.find((t: any) => t.name === "cert_id")?.value : tags0.cert_id;
+
+  // Insulation certificates: record Delivered / Bounced on the inspection (migration 0104).
+  if (certId) {
+    const delivery: Record<string, string> = {
+      "email.delivered": "delivered",
+      "email.bounced": "bounced",
+      "email.complained": "complained",
+      "email.failed": "failed",
+    };
+    if (delivery[type]) {
+      const admin = createAdminClient();
+      const { data: ins } = await admin.from("inspections").select("id, inspection_number, certificate_delivery").eq("id", certId).single();
+      if (ins) {
+        // A later "delivered" never hides an earlier bounce for the same send.
+        const keepProblem = delivery[type] === "delivered" && ["bounced", "complained", "failed"].includes((ins as any).certificate_delivery);
+        if (!keepProblem) await admin.from("inspections").update({ certificate_delivery: delivery[type], certificate_delivery_at: new Date().toISOString() }).eq("id", certId);
+        if (delivery[type] !== "delivered") {
+          const to0 = (Array.isArray(d0.to) ? d0.to[0] : d0.to) || "an address";
+          const certNo = `BBI-CERT-${String((ins as any).inspection_number).padStart(4, "0")}`;
+          const reason0 = d0.bounce?.message || d0.bounce?.type || d0.failed?.reason || "";
+          await recordAlert(admin, {
+            kind: "email_bounce",
+            title: `Certificate ${certNo} to ${to0} ${delivery[type] === "complained" ? "was marked as spam" : delivery[type]}`,
+            body: `The customer did not receive the insulation certificate. Check the email address and press Email certificate again.${reason0 ? ` (${reason0})` : ""}`,
+            path: `/dashboard/inspections/${certId}/certificate`,
+            dedupeKey: `email-bounce:${d0.email_id || id}`,
+          });
+        }
+      }
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   const label: Record<string, string> = {
     "email.bounced": "bounced",
     "email.complained": "was marked as spam",

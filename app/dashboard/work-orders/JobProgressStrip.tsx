@@ -95,8 +95,22 @@ export default function JobProgressStrip({
       )}
 
       {canInspect && p.stage === "passed" && p.latest && (
-        <Link href={`/dashboard/inspections/${p.latest.id}/certificate`} className={`${chip} border-[#201f1c] bg-[var(--brand-gold)] text-[#201f1c]`}>
-          Insulation certificate
+        <Link
+          href={`/dashboard/inspections/${p.latest.id}/certificate`}
+          className={`${chip} ${
+            !p.latest.certificate_sent_at
+              ? "border-[#201f1c] bg-[var(--brand-gold)] text-[#201f1c]"
+              : ["bounced", "complained", "failed"].includes(p.latest.certificate_delivery || "")
+              ? "border-[#f5b5b5] bg-[#fde8e8] font-bold text-[#9b1c1c]"
+              : STAGE_STYLE.passed
+          }`}
+          title={p.latest.certificate_sent_at ? "Open the certificate to see who it was sent to" : "Not sent yet"}
+        >
+          {!p.latest.certificate_sent_at
+            ? "Insulation certificate · not sent"
+            : ["bounced", "complained", "failed"].includes(p.latest.certificate_delivery || "")
+            ? "Certificate not received – resend"
+            : `Certificate ${p.latest.certificate_delivery === "delivered" ? "delivered" : "sent"} ✓ ${new Date(p.latest.certificate_sent_at).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`}
         </Link>
       )}
 

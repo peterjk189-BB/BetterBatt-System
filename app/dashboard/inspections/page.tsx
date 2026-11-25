@@ -16,13 +16,16 @@ export default async function InspectionsPage() {
   }
   const role = await getEffectiveRole();
   const [{ data: records }, { data: workOrders }, { data: swms }] = await Promise.all([
-    supabase
-      .from("inspections")
-      .select(
-        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, created_by, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number, revision_letter)"
-      )
-      .order("inspection_date", { ascending: false })
-      .order("inspection_number", { ascending: false }),
+    (async (): Promise<any> => {
+      const base =
+        "id, inspection_number, inspection_date, status, result, builder_name, site_address, suburb, include_foil, include_wall, include_ceiling, archived, created_by, work_order_id, parent_inspection_id, work_orders(wo_number), projects(quote_number, revision_letter)";
+      // Certificate sent date (0092) and delivery report (0104), when those migrations have been run.
+      for (const extra of [", certificate_sent_at, certificate_delivery", ", certificate_sent_at", ""]) {
+        const r = await supabase.from("inspections").select(base + extra).order("inspection_date", { ascending: false }).order("inspection_number", { ascending: false });
+        if (!r.error || !extra) return r;
+      }
+      return { data: [] as any[], error: null };
+    })(),
     supabase
       .from("work_orders")
       .select("id, wo_number, projects(address, suburb, customers(name)), subcontractors(name)")

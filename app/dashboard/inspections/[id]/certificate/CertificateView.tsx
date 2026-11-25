@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { certificateNumber, type CertRow, type SavedCertificate } from "@/lib/certificate";
 import { elementToPdfBase64, pdfFileName } from "@/lib/elementToPdf";
+import { certDeliveryBadge, certDeliveryProblem, certSentLine, setCertSentByHand, type CertSent } from "@/lib/certificateSent";
 
 // Certificate of Insulation Installation — design A from the certificate
 // examples: framed A4 page, logo, certifying statement, customer / address /
@@ -48,6 +49,10 @@ export default function CertificateView({
     inspector_signature: string | null;
     signed_at: string | null;
     certificate_sent_at?: string | null;
+    certificate_sent_to?: string | null;
+    certificate_sent_by?: string | null;
+    certificate_delivery?: string | null;
+    certificate_delivery_at?: string | null;
   };
   woNumber: string | null;
   installedOn: string;
@@ -63,7 +68,15 @@ export default function CertificateView({
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [sentAt, setSentAt] = useState<string | null>(inspection.certificate_sent_at ?? null);
+  const [sent, setSent] = useState<CertSent>({
+    certificate_sent_at: inspection.certificate_sent_at ?? null,
+    certificate_sent_to: inspection.certificate_sent_to ?? null,
+    certificate_sent_by: inspection.certificate_sent_by ?? null,
+    certificate_delivery: inspection.certificate_delivery ?? null,
+    certificate_delivery_at: inspection.certificate_delivery_at ?? null,
+  });
+  const sentAt = sent.certificate_sent_at ?? null;
+  const deliveryBadge = certDeliveryBadge(sent);
   const certRef = useRef<HTMLDivElement>(null);
 
   // Email the certificate: a pop-up opens first so the address can be checked, changed or added.
@@ -113,7 +126,11 @@ export default function CertificateView({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || `Error ${res.status}`);
-      setSentAt(j.sent_at || new Date().toISOString());
+      setSent(
+        j.detailsSaved
+          ? { certificate_sent_at: j.sent_at, certificate_sent_to: j.to, certificate_sent_by: j.sent_by || null, certificate_delivery: "sent", certificate_delivery_at: null }
+          : { certificate_sent_at: j.sent_at || new Date().toISOString() }
+      );
       setEmailDone(`Sent to ${j.to}.${j.saved ? " The address was saved to the customer." : ""}`);
       setEmailOpen(false);
     } catch (e: any) {
@@ -125,13 +142,12 @@ export default function CertificateView({
 
   async function markSent(sent: boolean) {
     setError(null);
-    const v = sent ? new Date().toISOString() : null;
-    const { error: upErr } = await supabase.from("inspections").update({ certificate_sent_at: v }).eq("id", inspection.id);
+    const { error: upErr, value: v } = await setCertSentByHand(supabase, inspection.id, sent);
     if (upErr) {
       setError(/certificate_sent_at/.test(upErr.message) ? "Run migration 0092 in Supabase first (certificate sent date), then try again." : upErr.message);
       return;
     }
-    setSentAt(v);
+    setSent({ certificate_sent_at: v, certificate_sent_to: null, certificate_sent_by: null, certificate_delivery: null, certificate_delivery_at: null });
     logAudit(supabase, { eventType: "update", entityType: "Inspection", entityId: inspection.id, entityLabel: certificateNumber(inspection.inspection_number), details: sent ? "Certificate marked as sent" : "Certificate sent mark removed" });
   }
 
@@ -251,6 +267,22 @@ export default function CertificateView({
       )}
       {error && <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900 print:hidden">{error}</div>}
       {emailDone && <div className="mb-4 rounded-lg border border-green-300 bg-green-50 px-4 py-2 text-sm text-green-900 print:hidden">{emailDone}</div>}
+      {sentAt && (
+        <div
+          className={`mb-4 flex flex-wrap items-center gap-2 rounded-lg border px-4 py-2.5 text-sm print:hidden ${
+            certDeliveryProblem(sent.certificate_delivery) ? "border-red-300 bg-red-50 text-red-900" : "border-[var(--border)] bg-[var(--surface)]"
+          }`}
+        >
+          <span>{certSentLine(sent)}</span>
+          {deliveryBadge && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${deliveryBadge.cls}`}>
+              {deliveryBadge.text}
+              {sent.certificate_delivery_at && sent.certificate_delivery !== "sent" ? ` ${new Date(sent.certificate_delivery_at).toLocaleDateString("en-AU")}` : ""}
+            </span>
+          )}
+          {certDeliveryProblem(sent.certificate_delivery) && <span className="font-medium">The customer didn&apos;t get it. Check the address and press Email certificate again.</span>}
+        </div>
+      )}
 
       {emailOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 print:hidden">

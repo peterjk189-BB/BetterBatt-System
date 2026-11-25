@@ -13,6 +13,8 @@ export type ProgressInspection = {
   parent_inspection_id: string | null;
   archived?: boolean;
   inspection_date?: string | null;
+  certificate_sent_at?: string | null;
+  certificate_delivery?: string | null;
 };
 
 export type JobStage =

@@ -50,9 +50,12 @@ export async function POST(req: Request) {
     : { data: null };
   const greet = (customer as any)?.contact_name || (customer as any)?.name || ins.builder_name || "there";
 
+  const sender = await getEmailSender(ctx.supabase, ctx.user);
   const res = await sendEmail({
     kind: "jobs",
-    sender: await getEmailSender(ctx.supabase, ctx.user),
+    sender,
+    // The email webhook uses this to record Delivered / Bounced against the certificate.
+    tags: [{ name: "cert_id", value: ins.id }],
     to,
     subject: `Insulation certificate ${certNo}${address ? ` – ${address}` : ""}`,
     html: brandedEmailHtml({
@@ -64,7 +67,16 @@ export async function POST(req: Request) {
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
 
   const sentAt = new Date().toISOString();
-  await ctx.supabase.from("inspections").update({ certificate_sent_at: sentAt }).eq("id", ins.id);
+  const full = {
+    certificate_sent_at: sentAt,
+    certificate_sent_to: to.join(", "),
+    certificate_sent_by: sender?.name || ctx.user.email || null,
+    certificate_delivery: "sent",
+    certificate_delivery_at: null,
+  };
+  const up = await ctx.supabase.from("inspections").update(full).eq("id", ins.id);
+  // Before migration 0104 only the sent date can be kept.
+  if (up.error) await ctx.supabase.from("inspections").update({ certificate_sent_at: sentAt }).eq("id", ins.id);
 
   // Save a new address to the customer when asked (one address only).
   let saved = false;
@@ -80,5 +92,5 @@ export async function POST(req: Request) {
     entityLabel: certNo,
     details: `Certificate emailed to ${to.join(", ")}${saved ? " (saved to customer)" : ""}`,
   });
-  return NextResponse.json({ ok: true, to: to.join(", "), sent_at: sentAt, saved });
+  return NextResponse.json({ ok: true, to: to.join(", "), sent_at: sentAt, sent_by: full.certificate_sent_by, saved, detailsSaved: !up.error });
 }

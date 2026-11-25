@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { certificateNumber } from "@/lib/certificate";
 import { money } from "@/lib/invoices";
+import { certDeliveryBadge, certDeliveryProblem, certSentLine, setCertSentByHand, type CertSent } from "@/lib/certificateSent";
 import type { PlInvoice, PlPayment } from "./ProfitLossReport";
 
 export type CertInspection = {
@@ -17,12 +18,16 @@ export type CertInspection = {
   project_id: string | null;
   work_order_id: string | null;
   certificate_sent_at?: string | null;
+  certificate_sent_to?: string | null;
+  certificate_sent_by?: string | null;
+  certificate_delivery?: string | null;
+  certificate_delivery_at?: string | null;
   projects?: { quote_number: number | null; customers?: { name: string | null } | null } | null;
   work_orders?: { wo_number: string | null; project_id: string | null; projects?: { quote_number: number | null; customers?: { name: string | null } | null } | null } | null;
 };
 
-type Status = "sent" | "due" | "pending";
-type Filter = "outstanding" | "due" | "pending" | "sent" | "all";
+type Status = "sent" | "due" | "pending" | "bounced";
+type Filter = "outstanding" | "due" | "pending" | "sent" | "bounced" | "all";
 
 const fmtDate = (d: string | null | undefined) => (d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-AU") : "—");
 
@@ -38,6 +43,7 @@ export default function CertificatesReport({
   sentColumn: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
+  // Marked sent / unsent by hand on this page (clears the email details).
   const [sentAt, setSentAt] = useState<Record<string, string | null>>({});
   const [filter, setFilter] = useState<Filter>("outstanding");
   const [busy, setBusy] = useState<string | null>(null);
@@ -62,12 +68,23 @@ export default function CertificatesReport({
       const sent = sentAt[ins.id] !== undefined ? sentAt[ins.id] : ins.certificate_sent_at ?? null;
       const invoiceNote = invs.length === 0 ? "No invoice issued" : owing > 0.005 ? `${money(owing)} owing` : "Paid";
       const paidInFull = invs.length > 0 && owing <= 0.005;
-      const status: Status = sent ? "sent" : paidInFull ? "due" : "pending";
+      const info: CertSent =
+        sentAt[ins.id] !== undefined
+          ? { certificate_sent_at: sentAt[ins.id] }
+          : {
+              certificate_sent_at: ins.certificate_sent_at ?? null,
+              certificate_sent_to: ins.certificate_sent_to ?? null,
+              certificate_sent_by: ins.certificate_sent_by ?? null,
+              certificate_delivery: ins.certificate_delivery ?? null,
+              certificate_delivery_at: ins.certificate_delivery_at ?? null,
+            };
+      const status: Status = sent ? (certDeliveryProblem(info.certificate_delivery) ? "bounced" : "sent") : paidInFull ? "due" : "pending";
       const daysWaiting = ins.inspection_date ? Math.floor((Date.now() - new Date(ins.inspection_date.slice(0, 10) + "T00:00:00").getTime()) / 86400000) : 0;
       return {
         ins,
         status,
         sent,
+        info,
         invoiceNote,
         owing,
         daysWaiting,
@@ -82,22 +99,22 @@ export default function CertificatesReport({
     due: rows.filter((r) => r.status === "due").length,
     pending: rows.filter((r) => r.status === "pending").length,
     sent: rows.filter((r) => r.status === "sent").length,
+    bounced: rows.filter((r) => r.status === "bounced").length,
   };
-  const outstanding = counts.due + counts.pending;
+  const outstanding = counts.due + counts.pending + counts.bounced;
   const pendingOwing = rows.filter((r) => r.status === "pending").reduce((s, r) => s + r.owing, 0);
 
   const shown = rows
     .filter((r) => (filter === "all" ? true : filter === "outstanding" ? r.status !== "sent" : r.status === filter))
     .sort((a, b) => {
-      const order = { due: 0, pending: 1, sent: 2 } as const;
+      const order = { bounced: 0, due: 1, pending: 2, sent: 3 } as const;
       return order[a.status] - order[b.status] || (b.ins.inspection_date || "").localeCompare(a.ins.inspection_date || "");
     });
 
   async function mark(id: string, sent: boolean) {
     setBusy(id);
     setError(null);
-    const value = sent ? new Date().toISOString() : null;
-    const { error: upErr } = await supabase.from("inspections").update({ certificate_sent_at: value }).eq("id", id);
+    const { error: upErr, value } = await setCertSentByHand(supabase, id, sent);
     setBusy(null);
     if (upErr) {
       setError(/certificate_sent_at/.test(upErr.message) ? "Run migration 0092 in Supabase first, then try again." : upErr.message);
@@ -122,8 +139,9 @@ export default function CertificatesReport({
     due: "bg-green-100 text-green-800",
     pending: "bg-amber-100 text-amber-800",
     sent: "bg-blue-100 text-blue-800",
+    bounced: "bg-red-100 text-red-800",
   };
-  const badgeText: Record<Status, string> = { due: "Due to send", pending: "Pending payment", sent: "Sent" };
+  const badgeText: Record<Status, string> = { due: "Due to send", pending: "Pending payment", sent: "Sent", bounced: "Not received" };
 
   return (
     <div className="mt-5">
@@ -147,7 +165,7 @@ export default function CertificatesReport({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {([["outstanding", "Outstanding"], ["due", "Due to send"], ["pending", "Pending payment"], ["sent", "Sent"], ["all", "All"]] as [Filter, string][]).map(([k, l]) => (
+        {([["outstanding", "Outstanding"], ["due", "Due to send"], ["pending", "Pending payment"], ...(counts.bounced ? [["bounced", `Not received (${counts.bounced})`]] : []), ["sent", "Sent"], ["all", "All"]] as [Filter, string][]).map(([k, l]) => (
           <button
             key={k}
             type="button"
@@ -198,7 +216,15 @@ export default function CertificatesReport({
                 <td className={`px-3 py-2 ${r.owing > 0.005 ? "text-amber-700" : r.invoiceNote === "Paid" ? "text-green-700" : "text-[var(--muted)]"}`}>{r.invoiceNote}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${badge[r.status]}`}>{badgeText[r.status]}</span>
-                  {r.sent && <div className="mt-0.5 text-xs text-[var(--muted)]">{fmtDate(r.sent)}</div>}
+                  {r.sent && (() => {
+                    const b = certDeliveryBadge(r.info);
+                    return (
+                      <div className="mt-1 max-w-[260px] text-xs text-[var(--muted)]">
+                        <div>{certSentLine(r.info)}</div>
+                        {b && <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[11px] font-bold ${b.cls}`}>{b.text}{r.info.certificate_delivery_at && r.info.certificate_delivery !== "sent" ? ` ${fmtDate(r.info.certificate_delivery_at)}` : ""}</span>}
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap">
                   <Link href={`/dashboard/inspections/${r.ins.id}/certificate`} className="mr-3 text-accent hover:underline">Open</Link>

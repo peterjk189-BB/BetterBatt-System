@@ -22,10 +22,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       })(),
       supabase.from("work_order_extras").select("id, description, qty, note, work_date, status, decision_note").eq("work_order_id", params.id).order("created_at"),
       supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
-      supabase
-        .from("inspections")
-        .select("id, inspection_number, status, result, parent_inspection_id, archived, inspection_date")
-        .eq("work_order_id", params.id),
+      loadWoInspections(supabase, params.id),
     ]);
     if (!wo) notFound();
     // Contractors cannot read the Inventory (parts) table, so the product name, packs and coverage on their lines come back empty.
@@ -109,10 +106,7 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     supabase.from("labour_items").select("*").eq("archived", false).order("code"),
     supabase.from("parts").select("id, name, coverage_m2, is_stock_item, supply_charge_per_pack, supply_install_rate_per_m2, installer_rate_per_m2"),
     supabase.from("swms").select("id, swms_number, status, archived").eq("work_order_id", params.id),
-    supabase
-      .from("inspections")
-      .select("id, inspection_number, status, result, parent_inspection_id, archived, inspection_date")
-      .eq("work_order_id", params.id),
+    loadWoInspections(supabase, params.id),
     getEffectiveRole(),
   ]);
 
@@ -144,4 +138,14 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
       progress={{ swms: (swms ?? []) as any, inspections: (inspections ?? []) as any, siteVisits }}
     />
   );
+}
+
+// The job's inspections, with the certificate sent date and delivery report (migration 0104) when available.
+async function loadWoInspections(supabase: any, woId: string) {
+  const base = "id, inspection_number, status, result, parent_inspection_id, archived, inspection_date";
+  for (const extra of [", certificate_sent_at, certificate_delivery", ", certificate_sent_at", ""]) {
+    const r = await supabase.from("inspections").select(base + extra).eq("work_order_id", woId);
+    if (!r.error || !extra) return r;
+  }
+  return { data: [], error: null };
 }

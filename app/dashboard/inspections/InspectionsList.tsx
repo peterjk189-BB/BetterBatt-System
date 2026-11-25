@@ -36,6 +36,8 @@ type Row = {
   archived: boolean;
   work_orders: { wo_number: string } | null;
   projects: { quote_number: number } | null;
+  certificate_sent_at?: string | null;
+  certificate_delivery?: string | null;
 };
 
 const FILTERS = ["All", "Scheduled", "Draft", "Completed", "PASS", "IN PROGRESS", "FAIL"] as const;
@@ -195,6 +197,7 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
               <th className="px-4 py-2.5">Linked</th>
               <th className="px-4 py-2.5">Result</th>
               <th className="px-4 py-2.5">Status</th>
+              <th className="px-4 py-2.5">Certificate</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
@@ -224,11 +227,24 @@ export default function InspectionsList({ initial, due }: { initial: Row[]; due:
                 <td className="px-4 py-3">
                   <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[r.status]}`}>{r.status}</span>
                 </td>
+                <td className="whitespace-nowrap px-4 py-3 text-xs">
+                  {r.result !== "PASS" ? (
+                    <span className="text-[var(--muted)]">—</span>
+                  ) : !r.certificate_sent_at ? (
+                    <Link href={`/dashboard/inspections/${r.id}/certificate`} className="font-semibold text-amber-700 hover:underline">Not sent</Link>
+                  ) : ["bounced", "complained", "failed"].includes(r.certificate_delivery || "") ? (
+                    <Link href={`/dashboard/inspections/${r.id}/certificate`} className="font-semibold text-red-700 hover:underline">Not received</Link>
+                  ) : (
+                    <Link href={`/dashboard/inspections/${r.id}/certificate`} className="text-green-700 hover:underline">
+                      {r.certificate_delivery === "delivered" ? "Delivered" : "Sent"} ✓ {new Date(r.certificate_sent_at).toLocaleDateString("en-AU")}
+                    </Link>
+                  )}
+                </td>
               </tr>
             ))}
             {visible.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-10 text-center text-[var(--muted)]">
                   No inspections{search ? " match that search" : showArchived ? " archived" : " yet"}.
                 </td>
               </tr>
