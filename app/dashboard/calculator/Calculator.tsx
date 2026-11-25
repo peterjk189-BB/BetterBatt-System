@@ -130,6 +130,22 @@ export default function Calculator({ parts, canInvoice = false }: { parts: Part[
                       }}
                     />
                   </label>
+                  {/* A plain drop-down as well: easier on an iPad or phone than typing. */}
+                  <select
+                    aria-label={`Choose a product for ${r.name || `area ${i + 1}`}`}
+                    className={`${inp} mt-1.5`}
+                    value={r.partId}
+                    onChange={(e) => {
+                      const x = partById[e.target.value];
+                      setRow(i, { partId: e.target.value, search: x ? x.name : "" });
+                      setOpenIdx(null);
+                    }}
+                  >
+                    <option value="">{parts.length ? `…or choose from the list (${parts.length} products)` : "No products found"}</option>
+                    {parts.map((x) => (
+                      <option key={x.id} value={x.id}>{x.name} · {x.coverage_m2} m²/pack</option>
+                    ))}
+                  </select>
                   {openIdx === i && (
                     <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
                       {matches(r.search)

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import Calculator from "./Calculator";
 
 export default async function CalculatorPage() {
@@ -8,8 +9,11 @@ export default async function CalculatorPage() {
   } = await supabase.auth.getUser();
   const { data: me } = user ? await supabase.from("profiles").select("role").eq("id", user.id).single() : { data: null };
   const canInvoice = me?.role === "admin" || me?.role === "office";
+  if (!user) return null;
   // select("*") so the Retail / Trade / Regency prices are picked up whether or not those columns exist yet.
-  const { data: parts } = await supabase.from("parts").select("*").eq("archived", false).order("name");
+  // Read with the admin client: only admin and office logins can read Inventory, but anyone given this tab
+  // (supervisors, warehouse) needs the product list. Only names, coverage and sell prices are passed on, never costs.
+  const { data: parts } = await createAdminClient().from("parts").select("*").eq("archived", false).order("name");
   const usable = ((parts ?? []) as any[])
     .filter((p) => Number(p.coverage_m2) > 0 && p.is_stock_item !== false && !/delivery/i.test(p.name || ""))
     .map((p) => ({
