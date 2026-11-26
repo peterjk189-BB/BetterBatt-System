@@ -197,16 +197,26 @@ export default async function CalendarPage() {
     // Stock to be delivered for a work order (set on its picking slip).
     supabase
       .from("work_orders")
-      .select("id, wo_number, stock_delivery_date, projects(lot_no, address, suburb, customers(name)), work_order_lines(parts(is_stock_item, suppliers(name)))")
+      .select("id, wo_number, stock_delivery_date, supplier_delivery, projects(lot_no, address, suburb, customers(name)), work_order_lines(parts(is_stock_item, suppliers(name)))")
       .eq("archived", false)
       .not("stock_delivery_date", "is", null),
     // Delivery / pick-up dates set on item invoices (columns come from migration 0053; empty until it has been run).
+    // Each item line says whether it comes from the warehouse or straight from the supplier,
+    // which decides the chip colour. Falls back to the plain list if that can't be read.
     supabase
       .from("invoices")
-      .select("id, invoice_number, status, delivery_method, delivery_date, delivery_address, site_address, customers(name)")
+      .select("id, invoice_number, status, delivery_method, delivery_date, delivery_address, site_address, customers(name), invoice_lines(fulfilment, part_id, parts(is_stock_item, suppliers(name)))")
       .neq("status", "Void")
       .not("delivery_date", "is", null)
-      .then((r) => (r.error ? [] : r.data ?? [])),
+      .then(async (r) => {
+        if (!r.error) return r.data ?? [];
+        const plain = await supabase
+          .from("invoices")
+          .select("id, invoice_number, status, delivery_method, delivery_date, delivery_address, site_address, customers(name)")
+          .neq("status", "Void")
+          .not("delivery_date", "is", null);
+        return plain.error ? [] : plain.data ?? [];
+      }),
   ]);
 
   return (

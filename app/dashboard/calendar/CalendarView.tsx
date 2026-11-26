@@ -154,6 +154,7 @@ type StockDelivery = {
   id: string;
   wo_number: string;
   stock_delivery_date: string | null;
+  supplier_delivery?: boolean | null;
   materials_delivered_at?: string | null;
   projects: {
     lot_no: string | null;
@@ -174,6 +175,8 @@ type DeliveryEvent = {
   address: string;
   suppliers: string;
   delivered: boolean;
+  /** Ticked "supplier delivery" on the picking slip: comes straight from the supplier, not our warehouse. */
+  direct: boolean;
 };
 
 type InvoiceDelivery = {
@@ -184,6 +187,7 @@ type InvoiceDelivery = {
   delivery_address: string | null;
   site_address: string | null;
   customers: { name: string } | null;
+  invoice_lines?: { fulfilment: string | null; part_id: string | null; parts: { is_stock_item: boolean | null; suppliers: { name: string } | null } | null }[] | null;
 };
 
 type InvoiceDeliveryEvent = {
@@ -195,6 +199,10 @@ type InvoiceDeliveryEvent = {
   pickup: boolean;
   customerName: string;
   address: string;
+  /** Every stock item comes straight from the supplier, so our truck isn't involved. */
+  direct: boolean;
+  /** Suppliers delivering direct (all of it when `direct`, or part of it on a mixed invoice). */
+  directSuppliers: string;
 };
 
 type DayEvent = WoEvent | PoEvent | VisitEvent | InspectionEvent | CrmEvent | DeliveryEvent | InvoiceDeliveryEvent;
@@ -499,6 +507,7 @@ export default function CalendarView({
       push(d.stock_delivery_date, {
         kind: "delivery",
         delivered: !!d.materials_delivered_at,
+        direct: !!d.supplier_delivery,
         date: d.stock_delivery_date,
         id: d.id,
         workOrderId: d.id,
@@ -520,7 +529,11 @@ export default function CalendarView({
 
     for (const d of invoiceDeliveries) {
       if (!d.delivery_date) continue;
+      const stockLines = (d.invoice_lines ?? []).filter((l) => l.part_id && l.parts?.is_stock_item !== false);
+      const supplierLines = stockLines.filter((l) => l.fulfilment === "supplier");
       push(d.delivery_date, {
+        direct: stockLines.length > 0 && supplierLines.length === stockLines.length,
+        directSuppliers: Array.from(new Set(supplierLines.map((l) => l.parts?.suppliers?.name).filter(Boolean))).join(", "),
         kind: "invdelivery",
         date: d.delivery_date,
         id: d.id,
@@ -870,7 +883,7 @@ export default function CalendarView({
             [
               ["wo", "Work orders", "bg-[#2563eb]"],
               ["po", "PO deliveries", "bg-blue-500"],
-              ["delivery", "Stock deliveries", "bg-red-500"],
+              ["delivery", "Job deliveries", "bg-red-500"],
               ...(invoiceDeliveries.length > 0 || hiddenKinds.includes("invdelivery") ? [["invdelivery", "Invoice deliveries", "bg-red-500"]] : []),
               ["visit", "Site visits", "bg-lime-400"],
               ["inspection", "Inspections", "bg-[#1e3a8a]"],
@@ -893,6 +906,10 @@ export default function CalendarView({
               </button>
             );
           })}
+          <span className="flex items-center gap-1.5 text-[var(--muted)]">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> from our warehouse
+            <span className="ml-1 inline-block h-2.5 w-2.5 rounded-full bg-teal-600" /> direct from supplier
+          </span>
           <span className="text-[var(--muted)]">Inspections: drag to another day, or tap Move.</span>
         </div>
       )}
@@ -1092,12 +1109,12 @@ export default function CalendarView({
                               <Link
                                 key={`delivery-${ev.id}`}
                                 href={`/dashboard/work-orders/${ev.workOrderId}/picking-slip`}
-                                title={`Stock delivery — ${ev.woNumber} — ${ev.customerName} (${ev.address})${ev.suppliers ? ` — ${ev.suppliers}` : ""}`}
-                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight text-white ${ev.delivered ? "bg-green-700 hover:bg-green-800" : "bg-red-600 hover:bg-red-700"}`}
+                                title={`${ev.direct ? `Direct from supplier${ev.suppliers ? ` (${ev.suppliers})` : ""}` : "Delivery from our warehouse"} — ${ev.woNumber} — ${ev.customerName} (${ev.address})`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight text-white ${ev.delivered ? "bg-green-700 hover:bg-green-800" : ev.direct ? "bg-teal-600 hover:bg-teal-700" : "bg-red-600 hover:bg-red-700"}`}
                               >
-                                <div className="truncate font-bold">{ev.delivered ? "✓ Delivered · " : "Stock delivery · "}{ev.woNumber}</div>
-                                {ev.suppliers && <div className="truncate font-semibold">{ev.suppliers}</div>}
-                                <div className={`truncate ${ev.delivered ? "text-green-100" : "text-red-100"}`}>
+                                <div className="truncate font-bold">{ev.delivered ? "✓ Delivered · " : ev.direct ? "🏭 Direct · " : "🚚 Warehouse · "}{ev.woNumber}</div>
+                                {ev.direct && ev.suppliers && <div className="truncate font-semibold">From {ev.suppliers}</div>}
+                                <div className={`truncate ${ev.delivered ? "text-green-100" : ev.direct ? "text-teal-50" : "text-red-100"}`}>
                                   {ev.customerName} — {ev.address}
                                 </div>
                               </Link>
@@ -1108,13 +1125,22 @@ export default function CalendarView({
                               <Link
                                 key={`invdelivery-${ev.id}`}
                                 href={`/dashboard/invoices/${ev.invoiceId}`}
-                                title={`${ev.pickup ? "Customer pick-up" : "Delivery"} — INV-${ev.invoiceNumber} — ${ev.customerName} (${ev.address})`}
-                                className="block rounded bg-red-600 px-1.5 py-1 text-[11px] leading-tight text-white hover:bg-red-700"
+                                title={`${ev.pickup ? "Customer pick-up" : ev.direct ? `Direct from supplier${ev.directSuppliers ? ` (${ev.directSuppliers})` : ""}` : "Delivery from our warehouse"} — INV-${ev.invoiceNumber} — ${ev.customerName} (${ev.address})`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight text-white ${
+                                  ev.pickup
+                                    ? "border-[1.5px] border-dashed border-red-300 bg-red-600 hover:bg-red-700"
+                                    : ev.direct
+                                      ? "bg-teal-600 hover:bg-teal-700"
+                                      : "bg-red-600 hover:bg-red-700"
+                                }`}
                               >
                                 <div className="truncate font-bold">
-                                  {ev.pickup ? "Pick-up" : "Delivery"} · INV-{ev.invoiceNumber}
+                                  {ev.pickup ? "Pick-up" : ev.direct ? "🏭 Direct" : "🚚 Warehouse"} · INV-{ev.invoiceNumber}
                                 </div>
-                                <div className="truncate text-red-100">
+                                {!ev.pickup && ev.directSuppliers && (
+                                  <div className="truncate font-semibold">{ev.direct ? "From" : "Part direct from"} {ev.directSuppliers}</div>
+                                )}
+                                <div className={`truncate ${!ev.pickup && ev.direct ? "text-teal-50" : "text-red-100"}`}>
                                   {ev.customerName}
                                   {ev.pickup ? "" : ` — ${ev.address}`}
                                 </div>
