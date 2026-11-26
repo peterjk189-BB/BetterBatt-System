@@ -252,6 +252,28 @@ export default function QuoteEditor({
     router.refresh();
     window.location.reload();
   }
+  // A locked quote's products and prices stay as the customer saw them, but anyone in the office can still
+  // record how it ended (Lost, Cancelled, Complete, back to Open). Only the outcome is changed.
+  const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [lockedOutcome, setLockedOutcome] = useState<string>(project?.outcome || "Open");
+  const [outcomeBusy, setOutcomeBusy] = useState(false);
+  async function saveLockedOutcome() {
+    if (!project || lockedOutcome === project.outcome) return setOutcomeOpen(false);
+    if (lockedOutcome === "Accepted" && !project.accepted_at) return alert('Use "Mark as accepted" so we record who accepted it.');
+    setOutcomeBusy(true);
+    const { error } = await supabase.from("projects").update({ outcome: lockedOutcome }).eq("id", project.id);
+    setOutcomeBusy(false);
+    if (error) return alert(error.message);
+    logAudit(supabase, {
+      eventType: "update",
+      entityType: "quote",
+      entityId: project.id,
+      entityLabel: quoteLabel(project as any),
+      details: `Outcome changed on locked quote: ${project.outcome} → ${lockedOutcome}`,
+    });
+    router.refresh();
+    window.location.reload();
+  }
   const [revising, setRevising] = useState(false);
   const [versions, setVersions] = useState<{ id: string; revision_letter: string | null; outcome: string }[]>([]);
 
@@ -1239,6 +1261,31 @@ export default function QuoteEditor({
             <button onClick={() => setUnlocked(true)} className="ml-3 underline">
               Unlock for a small fix (admin)
             </button>
+          )}
+          {project!.outcome !== "Superseded" && (
+            <div className="mt-2">
+              {!outcomeOpen ? (
+                <span>
+                  Outcome: <strong>{project!.outcome}</strong>
+                  <button onClick={() => { setLockedOutcome(project!.outcome); setOutcomeOpen(true); }} className="ml-2 font-semibold underline">
+                    Change outcome (lost, cancelled, complete…)
+                  </button>
+                </span>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Outcome:</span>
+                  <select value={lockedOutcome} onChange={(e) => setLockedOutcome(e.target.value)} className="rounded border px-2 py-1" style={{ color: "var(--text)" }}>
+                    {OUTCOMES.filter((o) => o !== "Accepted" || !!project!.accepted_at || project!.outcome === "Accepted").map((o) => (
+                      <option key={o}>{o}</option>
+                    ))}
+                  </select>
+                  <button onClick={saveLockedOutcome} disabled={outcomeBusy} className="rounded px-3 py-1 font-semibold text-white" style={{ background: "#2563eb" }}>
+                    {outcomeBusy ? "Saving..." : "Save outcome"}
+                  </button>
+                  <button onClick={() => setOutcomeOpen(false)} className="underline">Cancel</button>
+                </div>
+              )}
+            </div>
           )}
           {project!.outcome !== "Superseded" && !project!.accepted_at && (
             <div className="mt-2">
