@@ -465,9 +465,9 @@ html[data-theme="dark"] .text-\[\#1a2e05\]{color:#e4f5c8}
 html[data-theme="dark"] .text-\[\#365314\]{color:#c3e29c}
 }
 
-/* Calendar work order chips: bright orange with white text in the dark theme */
-html[data-theme="dark"] .wo-chip{background-color:#c9701a}
-html[data-theme="dark"] .wo-chip:hover{background-color:#dc7f26}
+/* Calendar work order chips: blue (same as the week header strip) with white text */
+html[data-theme="dark"] .wo-chip{background-color:#2563eb}
+html[data-theme="dark"] .wo-chip:hover{background-color:#1d4ed8}
 html[data-theme="dark"] .wo-chip,html[data-theme="dark"] .wo-chip div{color:#fff}
 
 /* Inventory supplier tiles (extra colours) in dark mode */

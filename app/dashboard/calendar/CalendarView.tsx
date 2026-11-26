@@ -868,7 +868,7 @@ export default function CalendarView({
           <span className="text-[var(--muted)]">Show:</span>
           {(
             [
-              ["wo", "Work orders", "bg-orange-500"],
+              ["wo", "Work orders", "bg-[#2563eb]"],
               ["po", "PO deliveries", "bg-blue-500"],
               ["delivery", "Stock deliveries", "bg-red-500"],
               ...(invoiceDeliveries.length > 0 || hiddenKinds.includes("invdelivery") ? [["invdelivery", "Invoice deliveries", "bg-red-500"]] : []),
@@ -1059,18 +1059,18 @@ export default function CalendarView({
                                   setWoDrag(null);
                                   setDropDate(null);
                                 }}
-                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "wo-chip bg-orange-200 text-orange-900 hover:bg-orange-300"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
+                                className={`block rounded px-1.5 py-1 text-[11px] leading-tight ${ev.complete ? "border border-green-400 bg-green-100 text-green-900 hover:bg-green-200" : "wo-chip bg-[#2563eb] text-white hover:bg-[#1d4ed8]"} ${installerNote || ev.complete ? "" : "cursor-grab active:cursor-grabbing"}`}
                               >
                                 <div className="truncate font-medium">
                                   {ev.complete ? "✓ " : ""}{ev.time ? `${fmtTime(ev.time)} · ` : ""}{ev.woNumber} · {ev.contractorNames}
                                 </div>
-                                <div className={`truncate ${ev.complete ? "text-green-800" : "text-orange-900"}`}>
+                                <div className={`truncate ${ev.complete ? "text-green-800" : "text-white"}`}>
                                   {ev.builderName} — {ev.address}
                                 </div>
                                 {ev.complete ? (
                                   <div className="font-bold uppercase text-green-800">Complete{ev.qty > 0 ? ` · ${ev.qty} m²` : ""}</div>
                                 ) : (
-                                  ev.qty > 0 && <div className="text-orange-900">{ev.qty} m² to install</div>
+                                  ev.qty > 0 && <div className="text-white">{ev.qty} m² to install</div>
                                 )}
                               </Link>
                             );
