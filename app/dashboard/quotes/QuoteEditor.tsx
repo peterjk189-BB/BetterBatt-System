@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { LOST_REASONS } from "@/lib/crm";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import RatingWarning from "@/app/dashboard/customers/RatingWarning";
 import { ensureLead } from "@/lib/crmActions";
@@ -71,6 +72,8 @@ type Project = {
   last_viewed_at?: string | null;
   view_count?: number | null;
   accepted_at?: string | null;
+  lost_reason?: string | null; // migration 0107
+  lost_note?: string | null; // migration 0107
   accepted_name?: string | null;
   option_titles?: Record<string, string> | null;
   option_accepted?: string[] | null;
@@ -252,28 +255,6 @@ export default function QuoteEditor({
     router.refresh();
     window.location.reload();
   }
-  // A locked quote's products and prices stay as the customer saw them, but anyone in the office can still
-  // record how it ended (Lost, Cancelled, Complete, back to Open). Only the outcome is changed.
-  const [outcomeOpen, setOutcomeOpen] = useState(false);
-  const [lockedOutcome, setLockedOutcome] = useState<string>(project?.outcome || "Open");
-  const [outcomeBusy, setOutcomeBusy] = useState(false);
-  async function saveLockedOutcome() {
-    if (!project || lockedOutcome === project.outcome) return setOutcomeOpen(false);
-    if (lockedOutcome === "Accepted" && !project.accepted_at) return alert('Use "Mark as accepted" so we record who accepted it.');
-    setOutcomeBusy(true);
-    const { error } = await supabase.from("projects").update({ outcome: lockedOutcome }).eq("id", project.id);
-    setOutcomeBusy(false);
-    if (error) return alert(error.message);
-    logAudit(supabase, {
-      eventType: "update",
-      entityType: "quote",
-      entityId: project.id,
-      entityLabel: quoteLabel(project as any),
-      details: `Outcome changed on locked quote: ${project.outcome} → ${lockedOutcome}`,
-    });
-    router.refresh();
-    window.location.reload();
-  }
   const [revising, setRevising] = useState(false);
   const [versions, setVersions] = useState<{ id: string; revision_letter: string | null; outcome: string }[]>([]);
 
@@ -344,6 +325,8 @@ export default function QuoteEditor({
     job_type: project?.job_type || prefill?.job_type || "SUPPLY & INSTALL",
     category: project?.category || prefill?.category || "",
     outcome: project?.outcome || "Open",
+    lost_reason: project?.lost_reason || "",
+    lost_note: project?.lost_note || "",
     lot_no: project?.lot_no || "",
     address: project?.address || prefill?.address || "",
     suburb: project?.suburb || prefill?.suburb || "",
@@ -681,6 +664,10 @@ export default function QuoteEditor({
       job_type: form.job_type,
       category: form.category || null,
       outcome: form.outcome,
+      // Lost reason needs migration 0107; only sent when used (or already present) so saving still works before it is run.
+      ...(form.lost_reason || form.lost_note.trim() || project?.lost_reason !== undefined
+        ? { lost_reason: form.lost_reason || null, lost_note: form.lost_note.trim() || null }
+        : {}),
       lot_no: form.lot_no || null,
       address: form.address || null,
       suburb: form.suburb || null,
@@ -817,11 +804,93 @@ export default function QuoteEditor({
   saveRef.current = save;
 
   const dirty = snapshot !== savedSnap;
+  // Emailed / accepted quotes are locked to keep what the customer saw; only the outcome can change (saveOutcome).
+  const locked = !isNew && !unlocked && (!!emailedInfo || !!project?.accepted_at || project?.outcome === "Superseded");
+
+  // Outcome and lost reason on a locked quote: saved straight away, nothing else on the quote is touched.
+  const [outcomeMsg, setOutcomeMsg] = useState("");
+  async function saveOutcome(next: { outcome: string; lost_reason: string; lost_note: string }) {
+    if (!project) return;
+    const prevOutcome = form.outcome;
+    setForm((f) => ({ ...f, ...next, outcome: next.outcome as Project["outcome"] }));
+    setOutcomeMsg("Saving...");
+    const patch: Record<string, unknown> = { outcome: next.outcome };
+    if (next.lost_reason || next.lost_note.trim() || project.lost_reason !== undefined) {
+      patch.lost_reason = next.lost_reason || null;
+      patch.lost_note = next.lost_note.trim() || null;
+    }
+    const { error } = await supabase.from("projects").update(patch).eq("id", project.id);
+    if (error) {
+      setOutcomeMsg(/lost_/.test(error.message) ? "Not saved: the lost reason needs database update 0107 run first." : error.message);
+      return;
+    }
+    setOutcomeMsg("Saved");
+    if (next.outcome !== prevOutcome) {
+      logAudit(supabase, {
+        eventType: "update",
+        entityType: "quote",
+        entityId: project.id,
+        entityLabel: quoteLabel(project as any),
+        details: `Outcome ${prevOutcome} → ${next.outcome}${next.outcome === "Lost" && next.lost_reason ? ` (${next.lost_reason})` : ""}`,
+      });
+      if (next.outcome === "Accepted") {
+        fetch("/api/quotes/accepted", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: project.id }) }).catch(() => {});
+      }
+    }
+  }
+  // After a locked-quote outcome save, treat the form as saved so no full save or "unsaved changes" warning follows.
   useEffect(() => {
-    if (isNew || !dirty || saving) return;
+    if (locked && outcomeMsg === "Saved") setSavedSnap(snapshot);
+  }, [locked, outcomeMsg, snapshot]);
+
+  const outcomeFields = (direct: boolean) => {
+    const set = (patch: Partial<{ outcome: string; lost_reason: string; lost_note: string }>) => {
+      const next = { outcome: form.outcome as string, lost_reason: form.lost_reason, lost_note: form.lost_note, ...patch };
+      if (direct) saveOutcome(next);
+      else setForm({ ...form, ...next, outcome: next.outcome as Project["outcome"] });
+    };
+    return (
+      <>
+        <label className="flex flex-col gap-1 text-sm">
+          Outcome
+          <select className="rounded-lg border border-[var(--border)] px-3 py-2" value={form.outcome} onChange={(e) => set({ outcome: e.target.value })}>
+            {OUTCOMES.map((o) => (
+              <option key={o}>{o}</option>
+            ))}
+          </select>
+        </label>
+        {form.outcome === "Lost" && (
+          <>
+            <label className="flex flex-col gap-1 text-sm">
+              Reason lost (if known)
+              <select className="rounded-lg border border-[var(--border)] px-3 py-2" value={form.lost_reason} onChange={(e) => set({ lost_reason: e.target.value })}>
+                <option value="">Not known</option>
+                {LOST_REASONS.map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Lost note
+              <input
+                className="rounded-lg border border-[var(--border)] px-3 py-2"
+                placeholder="e.g. beaten by $1,100"
+                value={form.lost_note}
+                onChange={(e) => setForm({ ...form, lost_note: e.target.value })}
+                onBlur={(e) => direct && e.target.value !== (project?.lost_note || "") && set({ lost_note: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+      </>
+    );
+  };
+
+  useEffect(() => {
+    if (isNew || !dirty || saving || locked) return;
     const t = setTimeout(() => saveRef.current(true), 2500);
     return () => clearTimeout(t);
-  }, [snapshot, dirty, saving, isNew]);
+  }, [snapshot, dirty, saving, isNew, locked]);
   useEffect(() => {
     if (isNew || !dirty) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -832,7 +901,6 @@ export default function QuoteEditor({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty, isNew]);
 
-  const locked = !isNew && !unlocked && (!!emailedInfo || !!project?.accepted_at || project?.outcome === "Superseded");
 
   useEffect(() => {
     if (isNew || !project) return;
@@ -1262,31 +1330,6 @@ export default function QuoteEditor({
               Unlock for a small fix (admin)
             </button>
           )}
-          {project!.outcome !== "Superseded" && (
-            <div className="mt-2">
-              {!outcomeOpen ? (
-                <span>
-                  Outcome: <strong>{project!.outcome}</strong>
-                  <button onClick={() => { setLockedOutcome(project!.outcome); setOutcomeOpen(true); }} className="ml-2 font-semibold underline">
-                    Change outcome (lost, cancelled, complete…)
-                  </button>
-                </span>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span>Outcome:</span>
-                  <select value={lockedOutcome} onChange={(e) => setLockedOutcome(e.target.value)} className="rounded border px-2 py-1" style={{ color: "var(--text)" }}>
-                    {OUTCOMES.filter((o) => o !== "Accepted" || !!project!.accepted_at || project!.outcome === "Accepted").map((o) => (
-                      <option key={o}>{o}</option>
-                    ))}
-                  </select>
-                  <button onClick={saveLockedOutcome} disabled={outcomeBusy} className="rounded px-3 py-1 font-semibold text-white" style={{ background: "#2563eb" }}>
-                    {outcomeBusy ? "Saving..." : "Save outcome"}
-                  </button>
-                  <button onClick={() => setOutcomeOpen(false)} className="underline">Cancel</button>
-                </div>
-              )}
-            </div>
-          )}
           {project!.outcome !== "Superseded" && !project!.accepted_at && (
             <div className="mt-2">
               {!manualOpen ? (
@@ -1310,6 +1353,12 @@ export default function QuoteEditor({
         </div>
       )}
       <div className={tab !== "details" ? "hidden" : ""}>
+      {locked && project!.outcome !== "Superseded" && (
+        <div className="mt-4 flex flex-wrap items-end gap-4 rounded-xl border border-[var(--border)] p-4">
+          {outcomeFields(true)}
+          {outcomeMsg && <span className={`pb-2 text-sm ${outcomeMsg === "Saved" ? "text-[var(--bb-good)]" : outcomeMsg === "Saving..." ? "text-[var(--muted)]" : "text-[var(--bb-bad)]"}`}>{outcomeMsg}</span>}
+        </div>
+      )}
       <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
       {error && (
         <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm text-red-900">
@@ -1402,18 +1451,7 @@ export default function QuoteEditor({
             </select>
           </label>
         )}
-        <label className="flex flex-col gap-1 text-sm">
-          Outcome
-          <select
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
-            value={form.outcome}
-            onChange={(e) => setForm({ ...form, outcome: e.target.value as Project["outcome"] })}
-          >
-            {OUTCOMES.map((o) => (
-              <option key={o}>{o}</option>
-            ))}
-          </select>
-        </label>
+        {!locked && outcomeFields(false)}
         <label className="flex flex-col gap-1 text-sm">
           Entry date
           <input
