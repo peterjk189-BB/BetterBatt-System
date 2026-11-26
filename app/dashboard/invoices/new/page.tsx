@@ -3,6 +3,7 @@ import { quoteTotals } from "@/lib/quoteTotals";
 import NewInvoice from "./NewInvoice";
 import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
 import { supplyPackPrice } from "@/lib/priceTiers";
+import { pricedPart } from "@/lib/frozenPrices";
 
 export default async function NewInvoicePage({ searchParams }: { searchParams: { project_id?: string; packs?: string; tier?: string } }) {
   const supabase = await createClient();
@@ -50,7 +51,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: {
                 part_id: l.part_id as string,
                 description: `${l.parts.code ? l.parts.code + " - " : ""}${l.parts.name}`,
                 qty: packs,
-                unit_price: Math.round(supplyPackPrice(l.parts, p.price_tier) * 10000) / 10000,
+                unit_price: Math.round(supplyPackPrice(pricedPart(l.parts, l), p.price_tier) * 10000) / 10000,
               };
             })
             .filter((x: any) => x.qty > 0)

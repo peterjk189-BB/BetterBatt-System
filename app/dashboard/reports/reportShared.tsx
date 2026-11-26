@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { supplyInstallCharge } from "@/lib/contractPricing";
 import { supplyPackPrice } from "@/lib/priceTiers";
+import { pricedPart } from "@/lib/frozenPrices";
 
 export type Project = {
   id: string;
@@ -151,7 +152,7 @@ export function computeProjectValue(project: Project, lines: ProjectLine[]) {
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
   const discountPct = project.customers?.discount_pct || 0;
   const chargeBeforeMarkup = lines.reduce((s, l) => {
-    const part = l.parts;
+    const part = pricedPart(l.parts, l as any);
     if (!part) return s;
     const q = Number(l.qty_m2) || 0;
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;

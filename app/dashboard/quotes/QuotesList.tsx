@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { siteAddress } from "@/lib/siteAddress";
 import { quoteLabel } from "@/lib/quoteLabel";
+import { pricedPart } from "@/lib/frozenPrices";
 
 type Project = {
   id: string;
@@ -71,7 +72,7 @@ export default function QuotesList({
   const totalByProject = useMemo(() => {
     const map: Record<string, number> = {};
     for (const l of lines) {
-      const part = partById[l.part_id || ""];
+      const part = pricedPart(partById[l.part_id || ""], l as any);
       if (!part) continue;
       const charge = supplyInstallCharge(l.qty_m2, part, l.contract_rate);
       map[l.project_id] = (map[l.project_id] || 0) + charge;

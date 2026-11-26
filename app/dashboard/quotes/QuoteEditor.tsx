@@ -10,6 +10,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
 import { LOST_REASONS } from "@/lib/crm";
+import { lineSnapshot, pricedPart, type PriceSnapshot } from "@/lib/frozenPrices";
 import CrmPanel from "@/app/dashboard/crm/CrmPanel";
 import RatingWarning from "@/app/dashboard/customers/RatingWarning";
 import { ensureLead } from "@/lib/crmActions";
@@ -95,6 +96,8 @@ type Line = {
   contract_description?: string | null;
   /** Editor only: this line uses a normal Inventory product even though the builder has contract rates. */
   _std?: boolean;
+  /** Sell prices copied when the quote was first emailed/accepted (migration 0108), so Inventory price changes don't alter it. */
+  price_snapshot?: PriceSnapshot | null;
 };
 
 /** Values carried over from a site visit when a quote is started from it. */
@@ -581,7 +584,7 @@ export default function QuoteEditor({
   }
 
   const computedLines = lineItems.map((l) => {
-    const part = partById[l.part_id || ""];
+    const part = pricedPart(partById[l.part_id || ""], l);
     const c = computeLine(part, l.qty_m2, form.price_tier || null, isSupplyOnly ? null : l.contract_rate);
     const tierMissing = isSupplyOnly && !!part && tierPriceMissing(part, form.price_tier || null);
     const grossCharge = isSupplyOnly ? c.supplyOnlyCharge : c.supplyInstallCharge;
@@ -765,6 +768,8 @@ export default function QuoteEditor({
         ...(l.contract_rate_id || hasContractRate(l.contract_rate)
           ? { contract_rate_id: l.contract_rate_id || null, contract_rate: Number(l.contract_rate) || 0, contract_description: l.contract_description || null }
           : {}),
+        // Keep the prices the customer was quoted (migration 0108); dropped if the line's product was changed.
+        ...(lineSnapshot(l) ? { price_snapshot: lineSnapshot(l) } : {}),
       }));
 
     if (rowsToInsert.length > 0) {
@@ -1051,8 +1056,8 @@ export default function QuoteEditor({
                       <>
                         {fmtCurrency(
                           isSupplyOnly
-                            ? supplyPackPrice(partById[l.part_id], form.price_tier || null)
-                            : Number(partById[l.part_id].supply_install_rate_per_m2) || 0
+                            ? supplyPackPrice(pricedPart(partById[l.part_id], l), form.price_tier || null)
+                            : Number(pricedPart(partById[l.part_id], l).supply_install_rate_per_m2) || 0
                         )}
                         <span className="text-xs text-[var(--muted)]">{isSupplyOnly ? " /pack" : " /m²"}</span>
                       </>
@@ -1079,7 +1084,7 @@ export default function QuoteEditor({
                     {fmtCurrency(l.grossCharge)}
                     {isSupplyOnly && l.part_id && partById[l.part_id] && (
                       <div className="text-xs font-normal text-[var(--muted)]">
-                        {fmtCurrency(supplyPackPrice(partById[l.part_id], form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
+                        {fmtCurrency(supplyPackPrice(pricedPart(partById[l.part_id], l), form.price_tier || null))}/pack · {tierLabel(form.price_tier || null)}
                       </div>
                     )}
                     {!isSupplyOnly && !hasContractRate(l.contract_rate) && l.part_id && partById[l.part_id] && l.grossCharge === 0 && (

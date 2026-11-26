@@ -7,6 +7,7 @@ import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
 import { optionTitle, usedOptionKeys } from "@/lib/quoteOptions";
+import { pricedPart } from "@/lib/frozenPrices";
 
 type Line = {
   part_id: string | null;
@@ -114,7 +115,7 @@ export default function QuotePrintView({
   const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
 
   const computed = lines.map((l) => {
-    const part = l.parts;
+    const part = pricedPart(l.parts, l as any);
     if (!part) return { ...l, packs: 0, charge: 0, isDelivery: false };
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
     const charge = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(l.qty_m2, part, l.contract_rate);

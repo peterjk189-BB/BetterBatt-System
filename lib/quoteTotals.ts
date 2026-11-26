@@ -1,5 +1,6 @@
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { supplyInstallCharge } from "@/lib/contractPricing";
+import { pricedPart } from "@/lib/frozenPrices";
 
 type PartForTotal = {
   coverage_m2: number;
@@ -13,11 +14,11 @@ type PartForTotal = {
 /** Quote total ex GST / GST / inc GST, the same sums the quote print view uses. */
 export function quoteTotals(
   project: { job_type: string; quote_markup: number | null; price_tier?: string | null; option_accepted?: string[] | null; option_adjust?: Record<string, number> | null; customers?: { discount_pct: number | null } | null },
-  lines: { qty_m2: number; contract_rate?: number | null; parts: PartForTotal }[]
+  lines: { qty_m2: number; contract_rate?: number | null; part_id?: string | null; price_snapshot?: any; parts: PartForTotal }[]
 ) {
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
   const before = lines.reduce((s, l) => {
-    const part = l.parts;
+    const part = pricedPart(l.parts, l);
     if (!part) return s;
     const q = Number(l.qty_m2) || 0;
     const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;

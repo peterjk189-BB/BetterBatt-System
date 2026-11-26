@@ -5,6 +5,7 @@ import { getEffectiveRole } from "@/lib/currentUser";
 import WorkOrderEditor from "../WorkOrderEditor";
 import { supplyPackPrice } from "@/lib/priceTiers";
 import { unacceptedOptionLineIds } from "@/lib/quoteOptions";
+import { pricedPart } from "@/lib/frozenPrices";
 
 const isDeliveryItem = (name: string | undefined) => /delivery/i.test(name || "");
 
@@ -16,7 +17,7 @@ function computeQuoteTotal(
   const isSupplyOnly = project.job_type === "SUPPLY ONLY";
   let chargeBeforeMarkup = 0;
   for (const l of lines) {
-    const part = l.part_id ? partById[l.part_id] : undefined;
+    const part = l.part_id ? pricedPart(partById[l.part_id], l as any) : undefined;
     if (!part) continue;
     const packs = part.coverage_m2 > 0 ? Math.ceil(l.qty_m2 / part.coverage_m2) : 0;
     chargeBeforeMarkup += isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(l.qty_m2, part, l.contract_rate);
