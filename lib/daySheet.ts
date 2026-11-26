@@ -3,6 +3,7 @@ import { quoteLabel } from "@/lib/quoteLabel";
 import { LOGO_PNG_DATA_URL } from "@/lib/logoData";
 import { lineRate } from "@/lib/woRate";
 import { woLinePacks } from "@/lib/picking";
+import { installedM2 } from "@/lib/installedM2";
 
 export type DayLine = { time: string; product: string; note: string; qty: number; packs: number | null; cost: number };
 export type DayJob = {
@@ -97,7 +98,7 @@ export async function loadDaySheet(supabase: any, subId: string, date: string): 
       packs: woLinePacks(qty, r.parts),
       cost,
     });
-    job.m2 += qty;
+    job.m2 += installedM2(r);
     job.total += cost;
   }
   // Time order: earliest start first; jobs with no time set go last (then by work order number).

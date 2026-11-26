@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { elementToPdf, pdfFileName } from "@/lib/elementToPdf";
+import { installedM2 } from "@/lib/installedM2";
 
 type Row = {
   id: string;
@@ -81,13 +82,12 @@ export default function DaySheet({
       const k = r.contractor?.id || "none";
       const e = m.get(k) ?? { name: r.contractor?.name || "No contractor", jobs: new Set<string>(), m2: 0 };
       e.jobs.add(r.work_orders.id);
-      if (r.parts?.is_stock_item !== false) e.m2 += Number(r.qty) || 0;
+      e.m2 += installedM2(r);
       m.set(k, e);
     }
     return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
   })();
-  const stockRows = rows.filter((r) => r.parts?.is_stock_item !== false);
-  const totalM2 = stockRows.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+  const totalM2 = rows.reduce((s, r) => s + installedM2(r), 0);
   const jobs = new Set(rows.map((r) => r.work_orders.id)).size;
 
   // One block per work order and contractor: the customer, site, contact and contractor print once, with each product line beneath.

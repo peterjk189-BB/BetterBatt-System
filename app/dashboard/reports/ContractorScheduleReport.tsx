@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { siteAddress } from "@/lib/siteAddress";
 import { quoteLabel } from "@/lib/quoteLabel";
+import { installedM2 } from "@/lib/installedM2";
 
 type Row = {
   date: string;
@@ -51,7 +52,7 @@ export default function ContractorScheduleReport() {
       const { data, error: err } = await supabase
         .from("work_order_lines")
         .select(
-          "id, task_date, note, qty, completed, work_order_id, subcontractor_id, work_orders(wo_number, archived, authorised_at, projects(quote_number, revision_letter, lot_no, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description), parts(name)"
+          "id, task_date, note, qty, completed, work_order_id, subcontractor_id, work_orders(wo_number, archived, authorised_at, projects(quote_number, revision_letter, lot_no, address, suburb, customers(name)), subcontractors(name)), subcontractors(name), labour_items(code, description), parts(name, is_stock_item)"
         )
         .gte("task_date", from)
         .lte("task_date", to)
@@ -86,7 +87,7 @@ export default function ContractorScheduleReport() {
           customer: p?.customers?.name || "",
           address: siteAddress(p),
           task: l.labour_items?.description || l.parts?.name || l.labour_items?.code || "",
-          m2: Number(l.qty) || 0,
+          m2: installedM2(l),
           authorised: !!wo.authorised_at,
           status,
           note: l.note || "",
@@ -286,7 +287,7 @@ export default function ContractorScheduleReport() {
                   <td className="px-3 py-2">{r.woNumber}</td>
                   <td className="px-3 py-2">{r.address || "—"}</td>
                   <td className="px-3 py-2">{r.task || "—"}</td>
-                  <td className="px-3 py-2 text-right">{num(r.m2)}</td>
+                  <td className="px-3 py-2 text-right">{r.m2 ? num(r.m2) : "—"}</td>
                   <td className="px-3 py-2" style={r.authorised ? undefined : { color: "#b91c1c", fontWeight: 600 }}>
                     {r.authorised ? "Yes" : "Not yet"}
                   </td>

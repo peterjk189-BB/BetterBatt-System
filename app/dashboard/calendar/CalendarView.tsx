@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { logAudit } from "@/lib/audit";
+import { installedM2 } from "@/lib/installedM2";
 
 type WoLine = {
   id: string;
@@ -440,7 +441,7 @@ export default function CalendarView({
       const task = l.parts?.name || (l.labour_items ? `${l.labour_items.code} — ${l.labour_items.description}` : l.note || "Task");
 
       // Non-stock items (delivery, tape, etc.) are not installed m², so leave them out of the total.
-      const lineQty = l.parts?.is_stock_item === false ? 0 : Number(l.qty) || 0;
+      const lineQty = installedM2(l);
       const shownDate = movedWo[`${l.task_date}|${l.work_order_id}`] || l.task_date;
       const sid = l.subcontractor_id || l.work_orders.contractor_id;
       const key = `${shownDate}|${l.work_order_id}`;
