@@ -586,6 +586,32 @@ export default function CalendarView({
     // Booked inspections sit at the top of each day so they stand out.
     for (const arr of map.values()) arr.sort((a, b) => (a.kind === "inspection" ? 0 : 1) - (b.kind === "inspection" ? 0 : 1));
 
+    // Items at the same site address sit together (e.g. two work orders, or a job and its stock delivery, at
+    // 158 Quinn Cres), in the spot where the first of them appears. "Lot 12," prefixes and punctuation are ignored.
+    const siteKey = (e: DayEvent) => {
+      const a = (e as { address?: string | null }).address;
+      if (!a || a === "—") return "";
+      return a
+        .toLowerCase()
+        .replace(/^lot\s+\S+\s*,?\s*/, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    };
+    map.forEach((arr, day) => {
+      const firstAt = new Map<string, number>();
+      arr.forEach((e, i) => {
+        const k = siteKey(e);
+        if (k && e.kind !== "inspection" && !firstAt.has(k)) firstAt.set(k, i);
+      });
+      const rankOf = (e: DayEvent, i: number) => {
+        const k = siteKey(e);
+        return e.kind !== "inspection" && k ? firstAt.get(k)! : i;
+      };
+      const ranked = arr.map((e, i) => ({ e, i, p: rankOf(e, i) }));
+      ranked.sort((a, b) => a.p - b.p || a.i - b.i);
+      map.set(day, ranked.map((r) => r.e));
+    });
+
     // Within each day: all-day items first, then timed items (site visits, inspections) in time order.
     map.forEach((arr) => {
       const t = (e: DayEvent) => ((e as { time?: string | null }).time || "");
