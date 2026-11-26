@@ -124,9 +124,17 @@ export default async function WorkOrderPage({ params }: { params: { id: string }
     siteVisits = sv ?? [];
   }
 
+  // Office-only internal notes (migration 0106). Before the migration is run this is just empty.
+  const { data: internal } = await supabase
+    .from("work_order_internal_notes")
+    .select("notes")
+    .eq("work_order_id", params.id)
+    .maybeSingle();
+
   return (
     <WorkOrderEditor
       workOrder={workOrder}
+      internalNotes={(internal as any)?.notes ?? ""}
       lines={lines ?? []}
       prefillHeader={null}
       projects={(projects ?? []) as any}

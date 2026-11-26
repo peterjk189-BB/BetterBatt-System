@@ -74,6 +74,7 @@ function fmtCurrency(n: number) {
 
 export default function WorkOrderEditor({
   workOrder,
+  internalNotes = "",
   lines,
   prefillHeader,
   projects,
@@ -85,6 +86,8 @@ export default function WorkOrderEditor({
   progress,
 }: {
   workOrder: WorkOrder | null;
+  /** Office-only notes (work_order_internal_notes, migration 0106). Never shown to the contractor. */
+  internalNotes?: string;
   lines: Line[];
   prefillHeader: { project_id: string; wo_number: string; po_value: number; notes?: string } | null;
   projects: Project[];
@@ -115,6 +118,7 @@ export default function WorkOrderEditor({
     completed_date: workOrder?.completed_date || "",
     jsa_received: workOrder?.jsa_received || false,
     notes: workOrder?.notes || prefillHeader?.notes || "",
+    internal_notes: internalNotes || "",
   });
 
   // Duplicate guard: a new work order for a quote that already has one (archived ones count) shows a red confirm popup.
@@ -301,6 +305,22 @@ export default function WorkOrderEditor({
     return res.error ? res.error.message : null;
   }
 
+  /** Office-only internal notes live in their own staff-only table; only written when they change. */
+  const savedInternal = useRef(internalNotes || "");
+  async function saveInternalNotes(woId: string, text: string): Promise<string | null> {
+    if (text === savedInternal.current) return null;
+    const { error: nErr } = await supabase
+      .from("work_order_internal_notes")
+      .upsert({ work_order_id: woId, notes: text || null, updated_at: new Date().toISOString() });
+    if (nErr) {
+      return /work_order_internal_notes/i.test(nErr.message)
+        ? "Couldn't save the internal notes: run migration 0106 in Supabase first."
+        : nErr.message;
+    }
+    savedInternal.current = text;
+    return null;
+  }
+
   /** Writes the header and lines as they are on screen now. Returns an error message, or null. */
   async function persistExisting(): Promise<string | null> {
     if (!workOrder) return null;
@@ -321,6 +341,8 @@ export default function WorkOrderEditor({
       })
       .eq("id", workOrder.id);
     if (hErr) return hErr.message;
+    const nErr = await saveInternalNotes(workOrder.id, f.internal_notes);
+    if (nErr) return nErr;
 
     const keep = new Set(items.filter((l) => l.id).map((l) => l.id as string));
     const gone = Array.from(savedIds.current).filter((id) => !keep.has(id));
@@ -610,6 +632,12 @@ export default function WorkOrderEditor({
         setSaving(false);
         return;
       }
+    }
+
+    // The work order now exists, so a failed internal-notes write is reported but doesn't stop the save.
+    if (workOrderId && form.internal_notes.trim()) {
+      const nErr = await saveInternalNotes(workOrderId, form.internal_notes);
+      if (nErr) window.alert(`Work order saved, but: ${nErr}`);
     }
 
     setSaving(false);
@@ -942,6 +970,7 @@ export default function WorkOrderEditor({
           )}
         </label>
 
+        <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-1 text-sm">
           Work order # <span className="text-xs font-normal text-[var(--muted)]">(from the quote)</span>
           <input
@@ -949,16 +978,6 @@ export default function WorkOrderEditor({
             value={form.wo_number}
             onChange={(e) => setForm({ ...form, wo_number: e.target.value })}
             placeholder="e.g. QW1001"
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          P/O value ($) <span className="text-xs font-normal text-[var(--muted)]">(from the quote)</span>
-          <input
-            type="number"
-            step="0.01"
-            className="rounded-lg border border-[var(--border)] px-3 py-2"
-            value={form.po_value}
-            onChange={(e) => setForm({ ...form, po_value: Number(e.target.value) })}
           />
         </label>
         <div className="grid grid-cols-2 gap-4">
@@ -978,6 +997,32 @@ export default function WorkOrderEditor({
               className="rounded-lg border border-[var(--border)] px-3 py-2"
               value={form.completed_date}
               onChange={(e) => setForm({ ...form, completed_date: e.target.value })}
+            />
+          </label>
+        </div>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          <label className="flex flex-col gap-1 text-sm">
+            P/O value ($) <span className="text-xs font-normal text-[var(--muted)]">(from the quote)</span>
+            <input
+              type="number"
+              step="0.01"
+              className="rounded-lg border border-[var(--border)] px-3 py-2"
+              value={form.po_value}
+              onChange={(e) => setForm({ ...form, po_value: Number(e.target.value) })}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span>
+              Internal notes <span className="text-xs font-normal text-[var(--muted)]">(office only — never shown to the contractor)</span>
+            </span>
+            <textarea
+              className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2"
+              rows={3}
+              value={form.internal_notes}
+              onChange={(e) => setForm({ ...form, internal_notes: e.target.value })}
+              placeholder="e.g. builder wants a call before the crew arrives, price agreed by phone..."
             />
           </label>
         </div>
@@ -1011,7 +1056,9 @@ export default function WorkOrderEditor({
         )}
 
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-          Work order notes
+          <span>
+            Work order notes <span className="text-xs font-normal text-[var(--muted)]">(the contractor sees these)</span>
+          </span>
           <textarea
             className="rounded-lg border border-[var(--border)] px-3 py-2"
             rows={2}
