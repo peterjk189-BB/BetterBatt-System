@@ -153,6 +153,7 @@ type CrmEvent = {
 type StockDelivery = {
   id: string;
   wo_number: string;
+  project_id?: string | null;
   stock_delivery_date: string | null;
   supplier_delivery?: boolean | null;
   materials_delivered_at?: string | null;
@@ -182,6 +183,7 @@ type DeliveryEvent = {
 type InvoiceDelivery = {
   id: string;
   invoice_number: number;
+  project_id?: string | null;
   delivery_method: string | null;
   delivery_date: string | null;
   delivery_address: string | null;
@@ -527,8 +529,12 @@ export default function CalendarView({
       });
     }
 
+    // A job's stock goes out on its work order's picking slip (the Warehouse/Direct · QW chip),
+    // so an invoice on that same job doesn't get a second delivery chip.
+    const jobsWithStockDelivery = new Set(stockDeliveries.filter((d) => d.stock_delivery_date && d.project_id).map((d) => d.project_id as string));
     for (const d of invoiceDeliveries) {
       if (!d.delivery_date) continue;
+      if (d.project_id && jobsWithStockDelivery.has(d.project_id)) continue;
       const stockLines = (d.invoice_lines ?? []).filter((l) => l.part_id && l.parts?.is_stock_item !== false);
       const supplierLines = stockLines.filter((l) => l.fulfilment === "supplier");
       push(d.delivery_date, {
