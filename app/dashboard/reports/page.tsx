@@ -20,6 +20,7 @@ export default async function ReportsPage() {
     { data: labourItems },
     { data: plInvoices, error: invErr },
     { data: plPayments },
+    { data: reportCustomers },
   ] = await Promise.all([
     supabase
       .from("parts")
@@ -37,7 +38,7 @@ export default async function ReportsPage() {
     supabase
       .from("projects")
       .select(
-        "id, quote_number, revision_letter, customer_id, job_type, outcome, entry_date, quote_markup, price_tier, archived, address, suburb, customers(name, discount_pct)"
+        "id, quote_number, revision_letter, customer_id, job_type, outcome, entry_date, accepted_at, emailed_at, quote_markup, price_tier, archived, address, suburb, customers(name, discount_pct)"
       )
       .order("entry_date", { ascending: false }),
     supabase
@@ -65,6 +66,10 @@ export default async function ReportsPage() {
     supabase.from("labour_items").select("id, contractor_rate"),
     pagedAll(supabase, "invoices", "id, project_id, customer_id, kind, amount_ex_gst, total, status, invoice_date, customers(name)"),
     supabase.from("invoice_payments").select("invoice_id, amount"),
+    // For the Customer activity drill-down. price_tier needs migration 0091 (run).
+    supabase
+      .from("customers")
+      .select("id, name, category, price_tier, payment_terms, contact_name, contact_phone, contact_email, last_contact_at, created_at, archived"),
   ]);
 
   // Lines of item / counter invoices, with the part's pack cost, so counter sales get a profit figure.
@@ -105,6 +110,7 @@ export default async function ReportsPage() {
       jobLines={(jobLines ?? []) as any}
       certInspections={(certRes.data ?? []) as any}
       certSentColumn={certSentColumn}
+      customers={(reportCustomers ?? []) as any}
       pl={{
         projects: (projects ?? []) as any,
         projectLines: countedProjectLines as any,

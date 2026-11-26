@@ -1,6 +1,5 @@
 "use client";
 
-import { supplyInstallCharge } from "@/lib/contractPricing";
 import ProfitLossReport, { type PlProject, type PlProjectLine, type PlWorkOrder, type PlWoLine, type PlLabour, type PlInvoice, type PlInvoiceLine, type PlPayment, type PlWoReturn } from "./ProfitLossReport";
 import ProductSalesReport from "./ProductSalesReport";
 import WeeklyReport from "./WeeklyReport";
@@ -9,9 +8,10 @@ import ContractMarginReport from "./ContractMarginReport";
 import ContractorScheduleReport from "./ContractorScheduleReport";
 import CertificatesReport, { type CertInspection } from "./CertificatesReport";
 import JobsSwmsReport, { type JobRow, type JobSwms, type JobInspection, type JobLine } from "./JobsSwmsReport";
-import { supplyPackPrice } from "@/lib/priceTiers";
 import { fuelLevyAmount } from "@/lib/poFuel";
 import { useMemo, useState } from "react";
+import { type Project, type ProjectLine, type Preset, toDateOnly, presetRange, inRange, fmtCurrency, fmtNumber, DateFilter, useDateRange, computeProjectValue } from "./reportShared";
+import CustomerActivityReport, { type ReportCustomer } from "./CustomerActivityReport";
 
 // ---------------------------------------------------------------------------
 // Types (mirroring the shapes the server page selects)
@@ -55,140 +55,6 @@ type WoLine = {
   qty: number;
   work_orders: { archived: boolean } | null;
 };
-
-type Project = {
-  id: string;
-  quote_number: number;
-  customer_id: string | null;
-  job_type: string;
-  outcome: "Open" | "Accepted" | "Complete" | "Lost" | "Cancelled";
-  entry_date: string;
-  quote_markup: number;
-  price_tier?: string | null;
-  archived: boolean;
-  customers: { name: string; discount_pct: number } | null;
-};
-
-type ProjectLine = {
-  id: string;
-  project_id: string;
-  qty_m2: number;
-  contract_rate?: number | null;
-  parts: {
-    coverage_m2: number;
-    pack_cost_ex_gst: number;
-    installer_rate_per_m2: number;
-    supply_charge_per_pack: number;
-    price_retail?: number | null;
-    price_trade?: number | null;
-    price_regency?: number | null;
-    supply_install_rate_per_m2: number;
-  } | null;
-};
-
-// ---------------------------------------------------------------------------
-// Date range helpers
-// ---------------------------------------------------------------------------
-
-type Preset = "month" | "quarter" | "year" | "all" | "custom";
-
-function toDateOnly(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function presetRange(preset: Preset, customStart: string, customEnd: string): { start: string | null; end: string | null } {
-  if (preset === "all") return { start: null, end: null };
-  if (preset === "custom") return { start: customStart || null, end: customEnd || null };
-  const now = new Date();
-  const y = now.getFullYear();
-  if (preset === "month") {
-    return { start: toDateOnly(new Date(y, now.getMonth(), 1)), end: toDateOnly(new Date(y, now.getMonth() + 1, 0)) };
-  }
-  if (preset === "quarter") {
-    const q = Math.floor(now.getMonth() / 3);
-    return { start: toDateOnly(new Date(y, q * 3, 1)), end: toDateOnly(new Date(y, q * 3 + 3, 0)) };
-  }
-  return { start: toDateOnly(new Date(y, 0, 1)), end: toDateOnly(new Date(y, 11, 31)) };
-}
-
-function inRange(dateStr: string | null, start: string | null, end: string | null) {
-  if (!dateStr) return false;
-  if (start && dateStr < start) return false;
-  if (end && dateStr > end) return false;
-  return true;
-}
-
-function fmtCurrency(n: number) {
-  return n.toLocaleString("en-AU", { style: "currency", currency: "AUD" });
-}
-
-function fmtNumber(n: number) {
-  return n.toLocaleString("en-AU", { maximumFractionDigits: 2 });
-}
-
-function DateFilter({
-  preset,
-  setPreset,
-  customStart,
-  setCustomStart,
-  customEnd,
-  setCustomEnd,
-}: {
-  preset: Preset;
-  setPreset: (p: Preset) => void;
-  customStart: string;
-  setCustomStart: (s: string) => void;
-  customEnd: string;
-  setCustomEnd: (s: string) => void;
-}) {
-  const btn = (p: Preset, label: string) => (
-    <button
-      onClick={() => setPreset(p)}
-      className={`rounded-lg px-3 py-1.5 text-sm ${
-        preset === p ? "bg-accent text-white" : "border border-[var(--border)] text-[var(--muted)]"
-      }`}
-    >
-      {label}
-    </button>
-  );
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {btn("month", "This month")}
-      {btn("quarter", "This quarter")}
-      {btn("year", "This year")}
-      {btn("all", "All time")}
-      {btn("custom", "Custom range")}
-      {preset === "custom" && (
-        <span className="flex items-center gap-2">
-          <input
-            type="date"
-            value={customStart}
-            onChange={(e) => setCustomStart(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm"
-          />
-          <span className="text-[var(--muted)]">to</span>
-          <input
-            type="date"
-            value={customEnd}
-            onChange={(e) => setCustomEnd(e.target.value)}
-            className="rounded-lg border border-[var(--border)] px-2 py-1 text-sm"
-          />
-        </span>
-      )}
-    </div>
-  );
-}
-
-function useDateRange() {
-  const [preset, setPreset] = useState<Preset>("month");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
-  const range = presetRange(preset, customStart, customEnd);
-  return { preset, setPreset, customStart, setCustomStart, customEnd, setCustomEnd, range };
-}
 
 // ---------------------------------------------------------------------------
 // Inventory movement
@@ -291,140 +157,6 @@ function InventoryReport({ parts, poLines, woLines }: { parts: Part[]; poLines: 
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-[var(--muted)]">
                   No stock movement in this period.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Customer activity
-// ---------------------------------------------------------------------------
-
-function computeProjectValue(project: Project, lines: ProjectLine[]) {
-  const isSupplyOnly = project.job_type === "SUPPLY ONLY";
-  const discountPct = project.customers?.discount_pct || 0;
-  const chargeBeforeMarkup = lines.reduce((s, l) => {
-    const part = l.parts;
-    if (!part) return s;
-    const q = Number(l.qty_m2) || 0;
-    const packs = part.coverage_m2 > 0 ? Math.ceil(q / part.coverage_m2) : 0;
-    const gross = isSupplyOnly ? packs * supplyPackPrice(part, project.price_tier) : supplyInstallCharge(q, part, l.contract_rate);
-    return s + gross;
-  }, 0);
-  const discountTotal = chargeBeforeMarkup * (discountPct / 100);
-  const subtotal = chargeBeforeMarkup - discountTotal + (Number(project.quote_markup) || 0);
-  return subtotal + subtotal * 0.1;
-}
-
-function CustomerReport({ projects, projectLines }: { projects: Project[]; projectLines: ProjectLine[] }) {
-  const { preset, setPreset, customStart, setCustomStart, customEnd, setCustomEnd, range } = useDateRange();
-
-  const linesByProject = useMemo(() => {
-    const m = new Map<string, ProjectLine[]>();
-    for (const l of projectLines) {
-      if (!m.has(l.project_id)) m.set(l.project_id, []);
-      m.get(l.project_id)!.push(l);
-    }
-    return m;
-  }, [projectLines]);
-
-  const rows = useMemo(() => {
-    const byCustomer = new Map<
-      string,
-      { name: string; quotes: number; accepted: number; lost: number; open: number; totalValue: number; acceptedValue: number }
-    >();
-    for (const p of projects) {
-      if (p.archived) continue;
-      if (!inRange(p.entry_date, range.start, range.end)) continue;
-      const name = p.customers?.name || "No customer";
-      if (!byCustomer.has(name)) {
-        byCustomer.set(name, { name, quotes: 0, accepted: 0, lost: 0, open: 0, totalValue: 0, acceptedValue: 0 });
-      }
-      const row = byCustomer.get(name)!;
-      const value = computeProjectValue(p, linesByProject.get(p.id) || []);
-      row.quotes += 1;
-      row.totalValue += value;
-      if (p.outcome === "Accepted" || p.outcome === "Complete") {
-        row.accepted += 1;
-        row.acceptedValue += value;
-      } else if (p.outcome === "Lost") {
-        row.lost += 1;
-      } else if (p.outcome === "Open") {
-        row.open += 1;
-      }
-    }
-    return Array.from(byCustomer.values()).sort((a, b) => b.totalValue - a.totalValue);
-  }, [projects, linesByProject, range.start, range.end]);
-
-  const totalQuotes = rows.reduce((s, r) => s + r.quotes, 0);
-  const totalValue = rows.reduce((s, r) => s + r.totalValue, 0);
-  const totalAcceptedValue = rows.reduce((s, r) => s + r.acceptedValue, 0);
-
-  return (
-    <div>
-      <p className="mt-1 text-sm text-[var(--muted)]">
-        Quotes raised per customer, by entry date, including accepted/lost/open breakdown and quoted value (inc. GST).
-      </p>
-      <div className="mt-4">
-        <DateFilter
-          preset={preset}
-          setPreset={setPreset}
-          customStart={customStart}
-          setCustomStart={setCustomStart}
-          customEnd={customEnd}
-          setCustomEnd={setCustomEnd}
-        />
-      </div>
-
-      <div className="mt-4 flex flex-wrap gap-4">
-        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
-          <div className="text-xs uppercase text-[var(--muted)]">Quotes</div>
-          <div className="text-xl font-semibold">{totalQuotes}</div>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
-          <div className="text-xs uppercase text-[var(--muted)]">Total quoted value</div>
-          <div className="text-xl font-semibold">{fmtCurrency(totalValue)}</div>
-        </div>
-        <div className="rounded-xl border border-[var(--border)] px-4 py-3">
-          <div className="text-xs uppercase text-[var(--muted)]">Accepted value</div>
-          <div className="text-xl font-semibold">{fmtCurrency(totalAcceptedValue)}</div>
-        </div>
-      </div>
-
-      <div className="mt-4 overflow-x-auto rounded-xl border border-[var(--border)]">
-        <table className="w-full text-sm">
-          <thead className="bg-[#f2f0ec] text-left text-xs uppercase text-[var(--muted)]">
-            <tr>
-              <th className="px-3 py-2">Customer</th>
-              <th className="px-3 py-2 text-right">Quotes</th>
-              <th className="px-3 py-2 text-right">Accepted</th>
-              <th className="px-3 py-2 text-right">Lost</th>
-              <th className="px-3 py-2 text-right">Open</th>
-              <th className="px-3 py-2 text-right">Total value</th>
-              <th className="px-3 py-2 text-right">Accepted value</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.name} className="border-t border-[var(--border)]">
-                <td className="px-3 py-2 font-medium">{r.name}</td>
-                <td className="px-3 py-2 text-right">{r.quotes}</td>
-                <td className="px-3 py-2 text-right">{r.accepted}</td>
-                <td className="px-3 py-2 text-right">{r.lost}</td>
-                <td className="px-3 py-2 text-right">{r.open}</td>
-                <td className="px-3 py-2 text-right">{fmtCurrency(r.totalValue)}</td>
-                <td className="px-3 py-2 text-right">{fmtCurrency(r.acceptedValue)}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
-                  No quotes in this period.
                 </td>
               </tr>
             )}
@@ -782,6 +514,7 @@ export default function ReportsView({
   jobLines,
   certInspections = [],
   certSentColumn = false,
+  customers = [],
   pl,
 }: {
   parts: Part[];
@@ -796,6 +529,7 @@ export default function ReportsView({
   jobLines: JobLine[];
   certInspections?: CertInspection[];
   certSentColumn?: boolean;
+  customers?: ReportCustomer[];
   pl: {
     projects: PlProject[];
     projectLines: PlProjectLine[];
@@ -842,7 +576,9 @@ export default function ReportsView({
 
       {tab === "inventory" && <InventoryReport parts={parts} poLines={poLines} woLines={woLines} />}
       {tab === "quotes" && <QuotesReport projects={projects} projectLines={projectLines} />}
-      {tab === "customers" && <CustomerReport projects={projects} projectLines={projectLines} />}
+      {tab === "customers" && (
+        <CustomerActivityReport projects={projects} projectLines={projectLines} customers={customers} invoices={pl.invoices} payments={pl.payments} />
+      )}
       {tab === "suppliers" && <SupplierReport poLines={poLines} poFuel={poFuel} />}
       {tab === "sales" && <ProductSalesReport />}
       {tab === "weekly" && <WeeklyReport workOrders={jobWorkOrders} inspections={jobInspections} projects={projects as any} projectLines={projectLines as any} />}
