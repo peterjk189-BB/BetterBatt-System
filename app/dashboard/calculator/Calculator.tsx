@@ -134,7 +134,9 @@ export default function Calculator({ parts, canInvoice = false }: { parts: Part[
                       }}
                     />
                   </label>
-                  {/* A plain drop-down as well: easier on an iPad or phone than typing. */}
+                  {/* A plain drop-down as well: easier on an iPad or phone than typing.
+                      Only shown until a product is picked, so the choice isn't displayed twice. */}
+                  {!r.partId && (
                   <select
                     aria-label={`Choose a product for ${r.name || `area ${i + 1}`}`}
                     className={`${inp} mt-1.5`}
@@ -150,6 +152,7 @@ export default function Calculator({ parts, canInvoice = false }: { parts: Part[
                       <option key={x.id} value={x.id}>{x.name} · {x.coverage_m2} m²/pack</option>
                     ))}
                   </select>
+                  )}
                   {openIdx === i && (
                     <div className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg">
                       {matches(r.search)
