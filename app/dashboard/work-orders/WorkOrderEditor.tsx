@@ -185,10 +185,20 @@ export default function WorkOrderEditor({
   const [error, setError] = useState<string | null>(null);
 
   // Task dates follow the booking date until someone sets a different date on that line.
+  // A one-day job (every line on the same date) moves as a whole even if its lines had drifted from the
+  // booking date, e.g. after the job was dragged to another day on the Calendar.
   function changeBookingDate(next: string) {
     const prev = form.entry_date;
     setForm((f) => ({ ...f, entry_date: next }));
-    setLineItems((ls) => ls.map((l) => (!l.task_date || l.task_date === prev ? { ...l, task_date: next } : l)));
+    setLineItems((ls) => {
+      const dates = new Set(ls.map((l) => l.task_date).filter(Boolean));
+      const oneDay = dates.size <= 1;
+      return ls.map((l) => (oneDay || !l.task_date || l.task_date === prev ? { ...l, task_date: next } : l));
+    });
+  }
+  function moveAllTaskDates() {
+    if (!form.entry_date) return;
+    setLineItems((ls) => ls.map((l) => ({ ...l, task_date: form.entry_date })));
   }
 
   function addLine() {
@@ -990,6 +1000,19 @@ export default function WorkOrderEditor({
               onChange={(e) => changeBookingDate(e.target.value)}
             />
           </label>
+          {(() => {
+            const off = Array.from(new Set(lineItems.map((l) => l.task_date).filter((d) => d && d !== form.entry_date))).sort() as string[];
+            if (!form.entry_date || off.length === 0) return null;
+            const dmy = (d: string) => d.split("-").reverse().join("/");
+            return (
+              <div className="col-span-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Task lines are dated {off.map(dmy).join(", ")}. The Calendar shows the job on the task line dates, not the booking date.{" "}
+                <button type="button" onClick={moveAllTaskDates} className="font-semibold underline">
+                  Move all task lines to {dmy(form.entry_date)}
+                </button>
+              </div>
+            );
+          })()}
           <label className="flex flex-col gap-1 text-sm">
             Completed date
             <input

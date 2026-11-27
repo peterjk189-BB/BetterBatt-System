@@ -392,6 +392,8 @@ export default function CalendarView({
       setMoveError(`Couldn't move ${label}: ${error.message}`);
       return;
     }
+    // Keep the booking date in step when the job was on its booking date, so the work order and Calendar agree.
+    await supabase.from("work_orders").update({ entry_date: to }).eq("id", woId).eq("entry_date", from);
     logAudit(supabase, { eventType: "update", entityType: "work_order", entityId: woId, entityLabel: label, details: `Job date moved from ${from} to ${to}` });
     // Never email automatically: ask first (the contractor may have been changed, or the move may be tentative).
     if (subIds.length > 0 && window.confirm(`Moved ${label} to ${to}.\n\nEmail ${names || "the contractor"} about the new date?\n\nOK = send email, Cancel = don't email.`)) {
