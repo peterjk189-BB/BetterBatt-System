@@ -46,6 +46,7 @@ const COLORS: Record<string, [string, string]> = {
   "parts": ["#40c8e0", "#0e93b0"],
   "reports": ["#c084fc", "#8b3fe0"],
   "business": ["#ff6fa8", "#d92d77"],
+  "sales-report": ["#5ab0ff", "#1f6fd6"],
   "users": ["#7d8aa0", "#475268"],
   "audit-log": ["#a0a0a8", "#66666e"],
   "settings": ["#b0b4bc", "#6e727c"],
@@ -53,7 +54,8 @@ const COLORS: Record<string, [string, string]> = {
 
 export default function TabIcon({ tabKey, size = 24, className }: { tabKey: string; color?: string; className?: string; size?: number }) {
   const uid = useId();
-  const glyph = GLYPHS[tabKey];
+  // Tabs that share another tab's glyph (different tile colour).
+  const glyph = GLYPHS[tabKey] ?? GLYPHS[({ "sales-report": "reports" } as Record<string, string>)[tabKey]];
   if (!glyph) return null;
   const [top, bottom] = COLORS[tabKey] ?? ["#9aa3b2", "#5c6678"];
   const id = `ti-${tabKey}-${uid.replace(/[^a-zA-Z0-9]/g, "")}`;

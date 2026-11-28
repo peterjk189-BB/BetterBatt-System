@@ -31,14 +31,21 @@ export async function POST(req: Request) {
   if (typeof body.inspection_notify_emails === "string") {
     update.inspection_notify_emails = body.inspection_notify_emails.trim() || null;
   }
-  if (Object.keys(update).length === 0) {
+  // Sales Report target (migration 0109). A number, ex GST.
+  const extra: Record<string, number> = {};
+  if (body.annual_sales_target !== undefined) {
+    const n = Number(body.annual_sales_target);
+    if (!Number.isFinite(n) || n <= 0) return NextResponse.json({ error: "Enter a target above $0" }, { status: 400 });
+    extra.annual_sales_target = Math.round(n);
+  }
+  if (Object.keys(update).length === 0 && Object.keys(extra).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const { error } = await admin
     .from("company_settings")
-    .update({ ...update, updated_at: new Date().toISOString() })
+    .update({ ...update, ...extra, updated_at: new Date().toISOString() })
     .eq("id", true);
 
   if (error) {

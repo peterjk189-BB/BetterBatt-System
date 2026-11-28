@@ -120,6 +120,14 @@ export const ALL_TABS = [
     adminOnly: true,
     group: "Insights",
   },
+  {
+    key: "sales-report",
+    href: "/dashboard/sales-report",
+    label: "Sales Report",
+    desc: "Weekly sales v target for the directors: revenue, cash sales, quotes and top customers",
+    adminOnly: true,
+    group: "Insights",
+  },
   { key: "users", href: "/dashboard/users", label: "Users", desc: "Invite and manage app users", adminOnly: true, group: "Admin" },
   { key: "audit-log", href: "/dashboard/audit-log", label: "Audit Log", desc: "Sign-ins and record changes", adminOnly: true, group: "Admin" },
   {
